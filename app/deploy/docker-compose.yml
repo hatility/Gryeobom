@@ -1,0 +1,61 @@
+# 그려봄 v__VERSION__ 배포용
+#
+# 1) 설정:  cp .env.example .env   → 값 채우기 (관리자 · 공유 주소 등)
+# 2) 실행:  docker compose up -d --build
+# 3) 중지:  docker compose down     (기록은 geuryeobom-data 볼륨에 그대로 남아요)
+services:
+  web:
+    build: ./web
+    image: geuryeobom-web:__VERSION__
+    restart: unless-stopped
+    ports:
+      - "${PORT:-80}:80"
+    environment:
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES:-}"
+    depends_on:
+      - api
+    # 로그가 디스크를 채우지 않게 (10MB × 3개까지만)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+  api:
+    build: ./api
+    image: geuryeobom-api:__VERSION__
+    restart: unless-stopped
+    environment:
+      COOKIE_SECURE: "${COOKIE_SECURE:-true}"
+      PUBLIC_URL: "${PUBLIC_URL:-}"
+      ADMIN_ID: "${ADMIN_ID:-}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+      AUTH_SECRET: "${AUTH_SECRET:-}"
+      DEV_NAME: "${DEV_NAME:-}"
+      DEV_ORG: "${DEV_ORG:-}"
+      DEV_CONTACT: "${DEV_CONTACT:-}"
+      DEV_URL: "${DEV_URL:-}"
+      SERVICE_OPERATOR: "${SERVICE_OPERATOR:-}"
+      PRIVACY_CONTACT: "${PRIVACY_CONTACT:-}"
+      BACKUP_KEEP: "${BACKUP_KEEP:-7}"
+    # 로그가 디스크를 채우지 않게 (10MB × 3개까지만)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/me').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  data:
+    name: geuryeobom-data

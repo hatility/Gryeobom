@@ -1,0 +1,6 @@
+Public Domain
+
+이 구성 요소(예: tzdata 의 시간대 데이터, xz 의 일부 파일)는 저작자가 저작권을 포기하여 퍼블릭 도메인으로 배포됩니다.
+따로 따라야 할 라이선스 조건이 없습니다. 출처는 각 패키지의 Alpine Linux 패키지 정보(apk)를 따릅니다.
+
+This component is released into the public domain by its authors; no license conditions apply.

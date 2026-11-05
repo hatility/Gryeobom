@@ -1,0 +1,21 @@
+{
+  "_note": "npm 밖의 오픈소스. 원문은 texts/ (Docker 이미지 · 공식 저장소에서 받은 것). check 는 원문에 꼭 있어야 하는 문구 — 빌드 때 확인한다.",
+  "server": [
+    { "name": "Node.js", "version": "24.22.2", "license": "MIT", "by": "OpenJS Foundation · Node.js contributors (V8 · OpenSSL · ICU · libuv 등 함께 들어 있는 것의 고지 포함)", "url": "https://nodejs.org", "file": "nodejs.txt", "check": "Node.js is licensed for use as follows" },
+    { "name": "SQLite (Node.js 내장 node:sqlite)", "version": "Node.js 24 내장", "license": "Public Domain", "by": "D. Richard Hipp 외", "url": "https://sqlite.org", "file": "sqlite.txt", "check": "dedicated to the public domain" },
+    { "name": "nginx", "version": "1.27.5", "license": "BSD-2-Clause", "by": "Igor Sysoev · Nginx, Inc. (F5)", "url": "https://nginx.org", "file": "nginx.txt", "check": "Redistribution and use in source and binary forms" },
+    { "name": "npm (api 이미지에 함께 들어 있음 · 서비스에서는 쓰지 않음)", "version": "11.19.1", "license": "Artistic-2.0", "by": "npm, Inc. and Contributors", "url": "https://github.com/npm/cli", "file": "npm.txt", "check": "Artistic License 2.0" },
+    { "name": "Corepack (api 이미지에 함께 들어 있음 · 서비스에서는 쓰지 않음)", "version": "0.36.0", "license": "MIT", "by": "Corepack contributors", "url": "https://github.com/nodejs/corepack", "file": "corepack.txt", "check": "Permission is hereby granted" },
+    { "name": "Yarn Classic (api 이미지에 함께 들어 있음 · 서비스에서는 쓰지 않음)", "version": "1.22.22", "license": "BSD-2-Clause", "by": "Yarn Contributors", "url": "https://classic.yarnpkg.com", "file": "yarn.txt", "check": "Redistribution and use in source and binary forms" }
+  ],
+  "fonts": [
+    { "name": "Pretendard", "version": "1.3.9", "license": "OFL-1.1", "by": "길형진 (orioncactus)", "url": "https://github.com/orioncactus/pretendard", "file": "pretendard.txt", "check": "SIL OPEN FONT LICENSE" },
+    { "name": "Gowun Batang (고운바탕)", "version": "Google Fonts", "license": "OFL-1.1", "by": "류양희 (Yanghee Ryu) · The Gowun Batang Project Authors", "url": "https://github.com/yangheeryu/Gowun-Batang", "file": "gowun-batang.txt", "check": "SIL OPEN FONT LICENSE" }
+  ],
+  "images": [
+    { "id": "api", "title": "api 이미지 (node:24-alpine) 속 Alpine Linux 패키지", "file": "apk-node.txt" },
+    { "id": "web", "title": "web 이미지 (nginx:1.27-alpine) 속 Alpine Linux 패키지", "file": "apk-nginx.txt" }
+  ],
+  "_apkTexts": "apk 의 라이선스 표기 중 SPDX 가 아닌 것을 원문 파일에 잇는다",
+  "apkTexts": { "Public-Domain": "public-domain.txt", "Public Domain": "public-domain.txt", "custom": "aom.txt", "2-clause BSD-like license": "nginx.txt" }
+}

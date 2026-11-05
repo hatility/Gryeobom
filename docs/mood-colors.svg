@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 150" width="800" height="150" role="img" aria-label="오늘의 색 여덟 가지: 햇살, 설렘, 뜨거움, 잔잔, 맑음, 몽글, 흐림, 깊음">
+  <rect x="1" y="1" width="798" height="148" rx="22" fill="#FFF9F3" stroke="#F0E5DC" stroke-width="2"/>
+  <text x="400" y="38" text-anchor="middle" font-family="'Gowun Batang', 'AppleMyungjo', serif" font-size="18" fill="#958A82">오늘의 마음은 어떤 색인가요?</text>
+  <g font-family="Pretendard, 'Apple SD Gothic Neo', sans-serif" font-size="15" fill="#514943" text-anchor="middle">
+    <circle cx="85" cy="85" r="20" fill="#F2C46D"/><text x="85" y="128">햇살</text>
+    <circle cx="175" cy="85" r="20" fill="#EFA38E"/><text x="175" y="128">설렘</text>
+    <circle cx="265" cy="85" r="20" fill="#D9776A"/><text x="265" y="128">뜨거움</text>
+    <circle cx="355" cy="85" r="20" fill="#9EC5AE"/><text x="355" y="128">잔잔</text>
+    <circle cx="445" cy="85" r="20" fill="#94BEDF"/><text x="445" y="128">맑음</text>
+    <circle cx="535" cy="85" r="20" fill="#C3AEE2"/><text x="535" y="128">몽글</text>
+    <circle cx="625" cy="85" r="20" fill="#B5ACA5"/><text x="625" y="128">흐림</text>
+    <circle cx="715" cy="85" r="20" fill="#6D7EA8"/><text x="715" y="128">깊음</text>
+  </g>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 40" width="800" height="40" role="img" aria-label="부드럽게 오르내리는 한 줄의 선">
+  <path d="M20 26 C90 6 140 6 200 20 S320 36 400 18 S540 4 600 18 S720 34 780 14" fill="none" stroke="#E6A79A" stroke-width="2.2" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="200" cy="20" r="4.5" fill="#FFF9F3" stroke="#E6A79A" stroke-width="2"/>
+  <circle cx="400" cy="18" r="4.5" fill="#FFF9F3" stroke="#A9C7B8" stroke-width="2"/>
+  <circle cx="600" cy="18" r="4.5" fill="#FFF9F3" stroke="#D8C9E9" stroke-width="2"/>
+  <circle cx="780" cy="14" r="6" fill="#E6A79A"/>
+</svg>

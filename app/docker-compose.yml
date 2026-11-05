@@ -1,0 +1,32 @@
+# 테스트용: docker compose up --build → http://localhost:8080
+# 설정을 바꾸려면 deploy/.env.example 을 .env 로 복사해 고치세요. 없으면 아래 기본값(로컬 시험용)을 씁니다.
+services:
+  web:
+    build: { context: ., target: web }
+    image: geuryeobom-web:test
+    ports:
+      - "8080:80"
+    environment:
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES:-}"
+    depends_on:
+      - api
+  api:
+    build: { context: ., target: api }
+    image: geuryeobom-api:test
+    environment:
+      COOKIE_SECURE: "${COOKIE_SECURE:-false}" # 로컬 http 시험이라 기본은 끔
+      PUBLIC_URL: "${PUBLIC_URL:-}"
+      ADMIN_ID: "${ADMIN_ID:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-local-test-admin}" # 로컬 시험용. 배포에는 절대 쓰지 마세요
+      AUTH_SECRET: "${AUTH_SECRET:-}"
+      DEV_NAME: "${DEV_NAME:-}"
+      DEV_ORG: "${DEV_ORG:-}"
+      DEV_CONTACT: "${DEV_CONTACT:-}"
+      DEV_URL: "${DEV_URL:-}"
+      SERVICE_OPERATOR: "${SERVICE_OPERATOR:-}"
+      PRIVACY_CONTACT: "${PRIVACY_CONTACT:-}"
+    volumes:
+      - data:/data
+
+volumes:
+  data:
