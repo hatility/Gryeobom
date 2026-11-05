@@ -1,126 +1,267 @@
-# 그려봄 v1.0.0
+<div align="center">
 
-> 지나온 나를 그리고, 지금의 나를 만나다.
-> 9~24세 청소년을 위한 자기이해 · 감정 회고 인생 그래프 웹앱
+<img src="docs/banner.svg" alt="오르내리다 '지금의 나'에 닿는 한 줄의 선" width="100%">
 
-이 폴더 하나가 배포 묶음입니다. 서버에 이 폴더만 복사해서 실행하면 됩니다.
-이번 버전에서 바뀐 점은 [CHANGES.md](CHANGES.md), 전체 기록은 [../CHANGELOG.md](../CHANGELOG.md) 에 있습니다.
+# 그려봄
 
-## 필요한 것
+### 지나온 나를 그리고, 지금의 나를 만나다.
 
-- Docker 와 Docker Compose
-- 정식 운영이라면 앞단의 HTTPS (리버스 프록시 · 로드밸런서)
+<sub>9~24세 청소년을 위한 자기이해 · 감정 회고 <b>인생 그래프</b></sub>
 
-## 실행
+<br>
+
+![version](https://img.shields.io/badge/version-1.0.0-E6A79A?style=flat-square)
+![license](https://img.shields.io/badge/license-AGPL--3.0-A9C7B8?style=flat-square)
+![React](https://img.shields.io/badge/React-19-D8C9E9?style=flat-square&logo=react&logoColor=514943)
+![Node](https://img.shields.io/badge/Node-24-F3D7A5?style=flat-square&logo=nodedotjs&logoColor=514943)
+![SQLite](https://img.shields.io/badge/SQLite-built--in-B5ACA5?style=flat-square&logo=sqlite&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-ready-94BEDF?style=flat-square&logo=docker&logoColor=white)
+
+</div>
+
+<br>
+
+<p align="center">
+  <img src="docs/screenshots/v1-home.webp" alt="그려봄 첫 화면 — 지나온 나를 그리고, 지금의 나를 만나다" width="100%">
+</p>
+
+<br>
+
+<div align="center">
+
+*기뻤던 순간도, 힘들었던 순간도*<br>
+*모두 지금의 나를 만든 이야기예요.*<br>
+*나만의 선으로, 천천히 그려봐요.*
+
+</div>
+
+<br>
+
+<p align="center"><img src="docs/divider.svg" alt="" width="60%"></p>
+
+## 🌱 이런 마음으로 만들었어요
+
+종이 한 장에 그리던 ‘인생 그래프’ 를, 혼자서도 · 친구들과 함께도 천천히 그려 볼 수 있는 곳으로 옮겼어요.
+지나온 시간의 오르내림을 **한 줄의 선**으로 그려 보고, 그 선 끝에서 **지금의 나**를 만나요.
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <h3>🕊️</h3>
+      <b>평가하지 않아요</b><br>
+      <sub>점수도, 순위도, 누가 더 많이 받았는지도 없어요.<br>높은 곳도 깊은 곳도 모두 나의 시간이에요.</sub>
+    </td>
+    <td align="center" width="33%">
+      <h3>🔒</h3>
+      <b>마음은 내 것이에요</b><br>
+      <sub>그때의 마음 · 지금의 나 · 미래의 편지는<br>어디에도 나가지 않아요. 나누는 건 내가 고른 것만.</sub>
+    </td>
+    <td align="center" width="33%">
+      <h3>🏡</h3>
+      <b>우리 기관이 직접 열어요</b><br>
+      <sub>외부 서비스 없이 서버 한 대와 Docker 로.<br>백업도, 되돌리기도 웹에서 해요.</sub>
+    </td>
+  </tr>
+</table>
+
+<p align="center"><img src="docs/divider.svg" alt="" width="60%"></p>
+
+## 🕰️ 그려봄과 보내는 하루
+
+### ☀️ 아침 — 오늘의 질문
+
+<p align="center"><img src="docs/screenshots/pc-today.webp" alt="오늘의 질문과 마음 색" width="100%"></p>
+
+> *“예전의 나와 달라진 점 하나는?”*
+>
+> 날마다 바뀌는 질문 하나에 한 줄로 답하고, 오늘의 마음을 색 하나로 골라요.
+> 일 년 전 · 한 달 전 · 일주일 전 같은 날의 내가 남긴 한 줄이 살짝 인사해요.
+
+<br>
+
+### ✏️ 낮 — 나의 선 그리기
+
+<p align="center"><img src="docs/screenshots/pc-draw.webp" alt="선 그리기" width="100%"></p>
+
+> 나이로, 연도로, 지난 열두 달로. 기억에 남는 순간을 점으로 찍고, 끌어서 높이를 맞추면 선이 이어져요.
+> 순간마다 *그때 나는 어떤 기분이었나요?* 를 천천히 적어요.
+>
+> 몇 달 뒤 같은 시간을 **다시 그려 보면**, 처음 그린 선이 점선으로 곁에 남아요.
+
+<br>
+
+### 🌇 저녁 — 쌓인 마음 보기
+
+<p align="center"><img src="docs/screenshots/pc-calendar.webp" alt="마음 색 달력" width="100%"></p>
+
+> 남긴 한 줄이 달력 위에서 고른 색으로 물들어요. 마음에 드는 한 줄은 **순간으로 옮겨** 그래프에 담을 수 있어요.
+>
+> 모임에 나눈 선에는 정해진 말로만 응원을 건네요 — `응원해요` `공감해요` `고마워요` `함께할게요`
+
+<br>
+
+### 🌙 밤 — 조용한 시간
+
+<p align="center">
+  <img src="docs/screenshots/quiet-night.png" alt="조용한 시간" width="100%">
+</p>
+<p align="center">
+  <sub>밤 10시가 지나면 화면이 한 톤 더 어두워지고, 움직임이 멈추고, 질문도 잠들기 전에 어울리는 것으로 바뀌어요.<br>
+  <i>“오늘 수고한 나에게 해 주고 싶은 말은?”</i></sub>
+</p>
+
+<p align="center"><img src="docs/divider.svg" alt="" width="60%"></p>
+
+## 🎞️ 그리고, 한 해의 끝에
+
+<table>
+  <tr>
+    <td align="center" width="62%"><img src="docs/screenshots/year-review.png" alt="연말 돌아보기"><br><sub>하루 한 칸, 한 해의 마음 색 지도</sub></td>
+    <td align="center" width="38%"><img src="docs/screenshots/year-card.png" alt="연말 돌아보기 카드"><br><sub>한 장으로 저장해 간직해요</sub></td>
+  </tr>
+</table>
+
+<p align="center"><sub>가장 환했던 순간도, 가장 무거웠던 순간도 — <i>그래도 지나왔어요.</i></sub></p>
+
+<br>
+
+<p align="center"><img src="docs/mood-colors.svg" alt="오늘의 색 여덟 가지: 햇살, 설렘, 뜨거움, 잔잔, 맑음, 몽글, 흐림, 깊음" width="90%"></p>
+
+<p align="center"><img src="docs/divider.svg" alt="" width="60%"></p>
+
+## ✨ 담긴 것들
+
+| | |
+|:---:|---|
+| ✏️ | **인생 그래프** — 나이 · 연도 · 최근 12개월 · 올해 기준, 점을 끌어 옮기며 그리는 나의 선 |
+| 💭 | **그때의 마음 · 지금의 나** — 순간마다 다섯 가지 질문, 그때의 나와 주고받는 말, 미래의 나에게 쓰는 봉인 편지 |
+| 🔁 | **다시 그려 보기** — 같은 기간을 다시 그리면 처음 그린 선이 점선으로 겹쳐 보여요 |
+| ☀️ | **오늘의 질문** — 날마다 바뀌는 질문 100개 · 잠들기 전 질문 16개, 한 줄과 오늘의 색 <sub>(로그인)</sub> |
+| 🗓️ | **마음 색 달력 · 그때 오늘** — 물든 달력, 1년 · 한 달 · 일주일 전 오늘의 나 |
+| 🎞️ | **연말 돌아보기 · 한 권으로** — 한 해를 한 장의 카드로, 그래프와 회고를 한 권의 PDF 로 |
+| 🤝 | **모임** — 초대 링크 하나로 함께, 우리의 선 겹쳐 보기, 함께 그릴 주제, 누구인지 드러나지 않는 모임 리포트 |
+| 🛟 | **신고 · 1388** — 걱정되는 글은 운영자에게만, 힘든 마음엔 언제든 청소년상담 1388 |
+| 🌙 | **보기** — 밝기 · 글자 크기 · 조용한 시간 · 계절마다 바뀌는 빛깔 |
+| 🛠️ | **운영자 화면** — 한눈에 현황, 신고함, 사람 · 모임 관리, 접속 기록, 웹 백업 · 복원, 매일 자동 백업 |
+
+<sub>※ 지금은 **PC 화면**을 기준으로 다듬었어요. 휴대폰에서도 열리지만, 화면 배치는 계속 손보고 있어요.</sub>
+
+<details>
+<summary><b>🖼️ 더 보기 — 완성된 선 · 운영자 화면</b></summary>
+<br>
+<p align="center"><img src="docs/screenshots/v1-result.webp" alt="완성된 인생 그래프" width="100%"></p>
+<p align="center"><sub>완성된 선 · 계절 빛깔 위에서 가장 높이 닿은 곳과 깊이 내려간 곳을 함께 돌아봐요</sub></p>
+<br>
+<p align="center"><img src="docs/screenshots/admin-person.png" alt="운영자 화면 — 사람 자세히" width="100%"></p>
+<p align="center"><sub>운영자 화면 · 한눈에 · 신고함 · 사람 자세히 · 백업과 복원</sub></p>
+</details>
+
+<sub>※ 화면 속 이름과 기록은 시연용으로 만든 예시예요.</sub>
+
+<p align="center"><img src="docs/divider.svg" alt="" width="60%"></p>
+
+## 🔐 마음을 먼저 지켜요
+
+> **비밀번호 없는 로그인** · 이름 + 생년월일 8자리. 서버에는 원문 대신 되돌릴 수 없는 지문(HMAC)만 남아요. 같은 이름으로 생일을 맞혀 보는 건 하루 30번까지로 막아요.
+>
+> **기본은 나만 보기** · 로그인하지 않으면 그래프는 이 기기 브라우저에만. 오늘의 한 줄은 로그인한 계정에만 남아요.
+>
+> **회고는 어디에도 나가지 않아요** · 공유 링크 · 모임에는 내가 고른 순간만. 그때의 마음 · 지금의 나 · 미래 편지 · 한 줄은 나가지 않아요.
+>
+> **비교하지 않아요** · 응원은 정해진 네 마디뿐, 받은 수는 그래프 주인만 봐요. 모임 리포트는 3명 이상 나눠야 마음 분포가 보여요.
+>
+> **운영자도 흔적을 남겨요** · 관리자 로그인은 진짜 접속 IP 와 함께 기록되고, 신고 기록을 지울 때도 까닭을 남겨요.
+
+<p align="center"><img src="docs/divider.svg" alt="" width="60%"></p>
+
+## 🚀 우리 기관에서 열기
+
+[**Releases**](https://github.com/hatility/Gryeobom/releases/latest) 에서 `geuryeobom-v1.0.0.zip` 을 받아 서버에 풀고:
 
 ```bash
-cp .env.example .env      # 설정 파일 만들기
-vi .env                   # 관리자 · 공유 주소 등 채우기
+cd v1.0.0
+cp .env.example .env     # 관리자 계정 · AUTH_SECRET · 운영 기관 · 문의처 이메일
 docker compose up -d --build
 ```
 
-| 할 일 | 명령 |
+<details>
+<summary><b>⚙️ <code>.env</code> 에서 꼭 볼 것</b></summary>
+<br>
+
+| 이름 | 무엇 |
 |---|---|
-| 중지 | `docker compose down` (기록은 볼륨에 남음) |
-| 로그 | `docker compose logs -f api` |
-| 설정 바꾼 뒤 반영 | `docker compose up -d` |
+| `ADMIN_ID` · `ADMIN_PASSWORD` | 운영자 화면 (`/admin`) 계정. 비밀번호는 12자 이상 |
+| `AUTH_SECRET` | 로그인 비밀값. **꼭 채우고 바꾸지 마세요** (`openssl rand -hex 32`) |
+| `PUBLIC_URL` | 공유 링크의 대표 주소 (예: `https://myline.example.kr`) |
+| `SERVICE_OPERATOR` · `PRIVACY_CONTACT` | 이용약관 · 처리방침에 보일 운영 기관과 문의처 이메일 |
+| `TRUSTED_PROXIES` | 리버스 프록시 · Cloudflare 뒤라면 그 대역 (예: `172.16.0.0/12`). 포트가 인터넷에 바로 열려 있으면 비워 두세요 |
+| `BACKUP_KEEP` | 하루 한 번 자동 백업을 몇 개 남길지 (기본 7, 0 이면 끔) |
 
-시작 로그에 `[설정]` 으로 시작하는 줄이 있으면 설정 값을 한 번 확인해 주세요.
+모든 항목의 설명과 ‘채운 예시’ 는 [`.env.example`](.env.example), 설치 · HTTPS · 백업 · 서버 옮기기 · 운영 전 점검 목록은 [사용 설명서](docs/GUIDE.md) 에 있어요.
 
-## 설정 (`.env`)
+</details>
 
-| 이름 | 설명 | 기본값 |
-|---|---|---|
-| `PUBLIC_URL` | 공유 링크에 쓸 대표 주소 (예: `https://geuryeobom.kr`) | 접속한 주소 그대로 |
-| `PORT` | 서버에서 열 포트 | `80` |
-| `ADMIN_ID` · `ADMIN_PASSWORD` | 관리자 계정. 둘 다 있어야 `/admin` 이 열림. 비밀번호 12자 이상 | 꺼짐 |
-| `COOKIE_SECURE` | 로그인 쿠키를 HTTPS 에서만. HTTPS 없이 시험할 때만 `false` | `true` |
-| `AUTH_SECRET` | 로그인 키 비밀값 (`openssl rand -hex 32`). **한 번 정하면 바꾸지 마세요** | 처음 실행 때 자동 생성 |
-| `SERVICE_OPERATOR` · `PRIVACY_CONTACT` | 이용약관 · 개인정보 처리방침에 들어갈 운영 기관 · 개인정보 담당자 연락처. **정식 운영 전 꼭 채우기** | 비우면 ‘정식 운영 전 정해질 예정’ |
-| `DEV_NAME` · `DEV_ORG` · `DEV_CONTACT` · `DEV_URL` | 사이트 아래 ‘만든 사람’ 탭에 보일 정보. 연락처는 이메일 또는 https 주소 | 비우면 ‘그려봄 만든 사람들’ |
-
-## 구성
-
-```
-docker-compose.yml   web + api + 기록 볼륨(geuryeobom-data)
-.env.example         설정 예시
-web/                 nginx: 화면 파일(html/) · /api 전달 · 보안 헤더(CSP 등)
-api/                 Node 24: server.js 한 파일 (외부 패키지 없음, SQLite 내장)
-```
-
-## 기록 백업
-
-기록은 Docker 볼륨 `geuryeobom-data` 안의 `geuryeobom.db` 파일 **하나**예요 (계정 · 그래프 · 회고 · 모임 · 링크 · 관리자 설정 모두).
-백업 방법은 두 가지예요. 둘 다 서비스를 멈추지 않아요.
-
-- **관리자 화면** → `백업 · 복원` → **DB 백업 내려받기** (브라우저로 `.db` 파일을 받아요)
-- **서버에서**: `./backup.sh` → `backups/geuryeobom-날짜-시각.db`
-- **자동 백업** (0.18.0~): 서버가 하루 한 번 볼륨 안 `backups/auto-날짜.db` 를 만들고 최근 `BACKUP_KEEP`개(기본 7)만 남겨요. 같은 디스크 안이라 디스크 고장에는 대비가 안 되니, 아래 cron 이나 관리자 화면 내려받기로 **다른 곳에도** 보관해 주세요.
-  - 꺼내기: `docker compose cp api:/data/backups/auto-2026-11-03.db .`
-
-정기 백업은 cron 에 걸어 두면 돼요 (예: 매일 새벽 4시, 30일 지난 것은 지우기).
+<details>
+<summary><b>🧑‍💻 함께 만들기</b></summary>
+<br>
 
 ```bash
-0 4 * * * cd /srv/geuryeobom/v1.0.0 && ./backup.sh && find backups -name 'geuryeobom-*.db' -mtime +30 -delete
+cd app
+npm install
+npm test                 # 서버 · 화면 테스트 66개
+npm run dev:api          # API  → http://localhost:3001
+npm run dev              # 화면 → http://localhost:5173
+docker compose up -d --build   # 실제와 같은 구성 → http://localhost:8080
+npm run release          # ../release/v<버전>/ 배포 묶음 (오픈소스 고지 · 원문 확인 포함)
 ```
 
-> 백업 파일에는 모든 회고가 들어 있어요. 서버 밖으로 옮길 때는 암호를 건 저장소에만 두세요.
+```
+Gryeobom/
+├── app/            소스 · 테스트
+│   ├── src/            화면 (React 19 · React Router · Vite · TypeScript)
+│   ├── server/         API (Node 24 · 내장 SQLite — 외부 런타임 패키지 없음)
+│   ├── deploy/         배포 템플릿 (nginx · Dockerfile · .env.example · 백업 / 복원)
+│   └── licenses/       오픈소스 라이선스 원문 (빌드 때 원문과 표기를 대조해요)
+├── docs/           사용 설명서 · 화면
+├── .env.example    서버 설정 예시 (app/deploy/.env.example 과 같아요)
+├── CHANGELOG.md    전체 변경 기록
+└── NOTICE.md       저작권 · 라이선스 고지
+```
 
-### 백업으로 되돌리기 (복원)
+</details>
 
-- **관리자 화면** → `백업 · 복원` → **백업으로 되돌리기**: `.db` 파일을 고르고, 관리자 비밀번호를 한 번 더 넣고, 확인에 체크하면 돼요. 서비스를 멈추지 않아요 (200MB 까지).
-  - 바꾸기 전의 DB 는 볼륨 안에 `before-restore-날짜.db` 로 최근 5개까지 남아요. 잘못 되돌렸다면 그 파일을 꺼내(`docker compose cp api:/data/before-restore-….db .`) 다시 올리면 돼요.
-  - 예전 버전에서 만든 백업도 돼요 (새로 생긴 칸은 빈 값으로 채워요).
-  - 백업한 뒤에 탈퇴한 사람이 있으면 그 계정이 되살아나요. 되돌린 뒤 관리자 화면 ‘사람’에서 다시 지워 주세요.
-- **서버에서**: `./restore.sh geuryeobom-….db` (잠깐 멈추고 파일을 통째로 바꿔요. 아래 ‘다른 서버로 옮기기’)
+<p align="center"><img src="docs/divider.svg" alt="" width="60%"></p>
 
-## 다른 서버로 옮기기
+## 🏷️ 지나온 버전
 
-DB 가 파일 하나라서, **파일 하나 + `.env`** 만 옮기면 돼요. 따로 DB 서버를 옮기거나 변환할 필요는 없어요.
+0.1.0 의 정적 화면 하나에서 시작해, 서른다섯 번의 버전을 지나 **1.0.0** 이 되었어요.
+그 선도 오르내렸어요 — 버전마다 받을 파일은 [Releases](https://github.com/hatility/Gryeobom/releases), 바뀐 것은 [CHANGELOG.md](CHANGELOG.md) 에.
 
-1. **새 서버 준비** — Docker 를 설치하고, 이 버전 폴더를 통째로 복사해요. 지금 서버의 `.env` 도 같이 복사해요.
-   - `.env` 의 `AUTH_SECRET` 은 **절대 바꾸지 마세요.** 바꾸면 모든 사람이 로그인할 수 없어요. 비워 두었다면 DB 안에 있어서 함께 옮겨져요.
-2. **지금 서버에서 마지막 백업** — 옮기는 동안 새 기록이 생기지 않게 잠깐 멈추고 백업해요.
-   ```bash
-   ./backup.sh && docker compose stop
-   ```
-3. **백업 파일을 새 서버로** — `scp backups/geuryeobom-….db 새서버:/srv/geuryeobom/v1.0.0/`
-4. **새 서버에서 되살리기** — `./restore.sh geuryeobom-….db` (볼륨이 없으면 만들고, 넣고, 띄워요)
-5. **확인** — 관리자 화면의 숫자(가입한 사람 · 그래프 · 모임)가 예전 서버와 같은지, 내 계정으로 로그인되는지 봐요.
-6. **주소 옮기기** — 도메인(DNS)을 새 서버로 바꾸고, HTTPS 를 다시 붙여요. 주소가 바뀌면 `.env` 의 `PUBLIC_URL` 도 고쳐요 (짧은 링크 `/s/…` 는 주소만 바뀌고 그대로 열려요).
-7. **예전 서버는 며칠 그대로** — 문제가 없으면 그때 지워요. 되돌릴 때는 예전 서버를 `docker compose up -d` 로 다시 켜면 돼요.
+> [!NOTE]
+> 만 14세 미만 이용자의 보호자 동의 절차는 운영 기관에서 정해 주세요. 이용약관 · 개인정보 처리방침은 운영 전에 기관의 검토를 받아 주세요.
 
-새 버전으로 올릴 때(같은 서버)는 새 버전 폴더에서 `docker compose up -d --build` 만 하면 돼요. 볼륨 이름이 같아서 기록을 그대로 쓰고, 새로 생긴 칸은 처음 시작할 때 저절로 더해져요 (예전 기록은 지우지 않아요). 그래도 올리기 전에 `./backup.sh` 를 한 번 해 두세요.
+## 💛 만든 사람
 
-> 관리자 접속 기록의 IP 는 nginx 가 본 주소예요. 앞에 다른 프록시(로드밸런서 · Cloudflare 등)를 두면 그 프록시의 IP 가 찍히니, 그때는 web/nginx.conf 의 `X-Real-IP` 를 프록시가 넘겨주는 헤더로 바꿔 주세요.
+| | |
+|---|---|
+| 운영 | 하남시청소년수련관 Team HATILITY ([@hatility](https://github.com/hatility)) |
+| 기획 · 개발 | 윤예성 · 이명균 ([@aodrha03](https://github.com/aodrha03)) |
 
-## 오래 운영할 때
+## 📜 라이선스
 
-- **디스크**: 관리자 ‘한눈에 → 쌓인 것’에 DB · 자동 백업 크기가 보여요. 회원 1,000명이 그래프 3개씩 회고까지 적어도 DB 는 대략 100MB 안팎이에요. 컨테이너 로그는 10MB × 3개까지만 남겨요.
-- **손질**: 서버가 하루 한 번 끝난 로그인 지우기 · DB 통계 손보기 · WAL 합치기를 해요. 따로 할 일은 없어요.
-- **이미지 업데이트**: 몇 달에 한 번 `docker compose build --pull && docker compose up -d` 로 Node · nginx · Alpine 보안 패치를 받아 주세요. Node 24 는 2028년 4월까지 지원돼요. 이미지가 바뀌면 오픈소스 고지(licenses/)도 다시 모아야 해요.
-- **한 대짜리 구조**: SQLite + 서버 한 대라 수련관 · 학교 규모(수천 명)에는 충분하지만, 서버를 여러 대로 늘릴 수는 없어요. 다시 시작하면 로그인 시도 제한 횟수가 처음부터 다시 세어져요.
+[GNU AGPL-3.0](LICENSE) · 고쳐서 서비스로 운영한다면 그 소스도 이용자에게 공개해 주세요.
+저작권자(하남시청소년수련관 · 하남시청소년수련관 Team HATILITY · 윤예성 · 이명균)에게는 AGPL-3.0 의무가 적용되지 않아요 — [NOTICE.md](NOTICE.md).
+함께 쓴 오픈소스 145개의 목록과 라이선스 전문은 서비스의 **오픈소스** 화면(`/credits`)에 있어요.
 
-## 보안 점검 목록 (운영 전에 꼭)
+<br>
 
-- **`AUTH_SECRET` 을 `.env` 에 정해 두세요.** 비워 두면 로그인 비밀값이 DB 안에 저장돼서, DB 백업 파일 하나만 새어도 흔한 이름 × 생일을 대입해 회원의 이름 · 생년월일을 알아낼 수 있어요.
-  - 처음 설치라면: `openssl rand -hex 32` 값을 넣고 시작해요.
-  - 이미 비워 둔 채 운영 중이라면: 지금 DB 의 값을 꺼내 그대로 `.env` 에 적어야 기존 계정이 그대로 로그인돼요.
-    ```bash
-    docker compose exec -T api node -e "const {DatabaseSync}=require('node:sqlite');console.log(new DatabaseSync('/data/geuryeobom.db').prepare(\"SELECT value FROM meta WHERE key='auth_secret'\").get().value)"
-    ```
-- **HTTPS 뒤에서만** 운영하세요 (`COOKIE_SECURE=true` 기본값 유지). 앞단 프록시에서 HSTS 를 켜 두면 더 좋아요.
-- **api 컨테이너 포트를 밖으로 열지 마세요.** 접속 IP 는 nginx 가 넘겨주는 `X-Real-IP` 를 믿기 때문에, api 를 직접 열면 IP 를 속여 횟수 제한을 피할 수 있어요 (기본 compose 는 열지 않아요).
-- **관리자 비밀번호는 길고 무작위로** (12자 이상, 다른 곳에 쓰지 않는 것). 관리자 화면 → 접속 기록에서 낯선 IP 를 가끔 확인해요.
-- **백업 파일**에는 모든 회고가 들어 있어요. 암호를 건 저장소에만 두고, 필요 없어지면 지워요.
+<p align="center"><img src="docs/divider.svg" alt="" width="40%"></p>
 
-## 개인정보 · 안전
+<div align="center">
 
-- 로그인은 이름 + 생년월일 8자리. 서버에는 원문 없이 지문(HMAC)만 저장합니다.
-- 그때의 마음 · 지금의 나 · 미래 편지는 공유 링크 · 모임에 나가지 않습니다. 관리자는 운영에 필요할 때 모든 기록을 볼 수 있습니다.
-- 이름과 생일을 아는 사람은 로그인할 수 있습니다. 만 14세 미만 가입 시 보호자 동의 절차는 운영 전에 따로 마련해야 합니다.
+*모든 사람의 선은 서로 달라요.*<br>
+*나만의 속도로 그려도 괜찮아요.*
 
-## 라이선스
+<sub>— 그려봄</sub>
 
-[GNU AGPL-3.0](LICENSE). 수정해서 서비스로 운영하면 그 소스도 사용자에게 공개해야 합니다 (`.env` 의 `DEV_URL` 에 저장소 주소를 넣으면 ‘만든 사람’ 탭에 보입니다).
-저작권자(하남시청소년수련관 · 하남시청소년수련관 Team HATILITY · 윤예성 · 이명균)는 예외입니다 — [NOTICE.md](NOTICE.md).
+</div>
