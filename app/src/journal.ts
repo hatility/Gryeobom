@@ -29,7 +29,8 @@ export const useJournal = () => (useAuth().user ? remote : none)
 export function momentPoint(g: LifeGraph, day: string): number {
   const d = new Date(`${day}T12:00:00`)
   const t =
-    g.timeScale === 'month' ? fromParts('month', monthIndex(d), Math.min(4, Math.floor((d.getDate() - 1) / 7) + 1))
+    g.timeScale === 'hour' ? Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12) / 3_600_000
+    : g.timeScale === 'month' ? fromParts('month', monthIndex(d), Math.min(4, Math.floor((d.getDate() - 1) / 7) + 1))
     : g.timeScale === 'year' ? fromParts('year', d.getFullYear(), d.getMonth() + 1)
     : Math.round((g.currentPoint - (Date.now() - d.getTime()) / (365.25 * 86_400_000)) * 12) / 12 // 나이: 지금 나이에서 지난 만큼 빼서
   return Math.min(g.currentPoint, Math.max(g.startPoint, t))

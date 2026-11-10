@@ -7,5 +7,5 @@ const { version } = JSON.parse(readFileSync(new URL('./package.json', import.met
 export default defineConfig({
   plugins: [react()],
   define: { __APP_VERSION__: JSON.stringify(version) },
-  server: { host: true, proxy: { '/api': 'http://localhost:3001' } },
+  server: { host: true, proxy: { '/api': `http://localhost:${process.env.API_PORT ?? 3001}` } },
 })

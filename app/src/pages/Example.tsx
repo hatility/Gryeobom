@@ -32,7 +32,7 @@ export default function Example() {
     <article className="container page result">
       <p className="demo-note">예시예요 · 실제 누군가의 기록이 아니라 그려봄이 만든 이야기예요.</p>
       <header className="result-head">
-        <p className="eyebrow">EXAMPLE</p>
+        <p className="eyebrow en">EXAMPLE</p>
         <h1 className="page-title">{g.title}</h1>
         <p className="muted">0살부터 지금까지 · 다섯 개의 순간</p>
       </header>
@@ -45,7 +45,7 @@ export default function Example() {
       <LineStory graph={g} />
 
       <section className="now-card">
-        <p className="eyebrow">ME, NOW</p>
+        <p className="eyebrow en">ME, NOW</p>
         <blockquote className="serif">{g.currentReflection.oneLine}</blockquote>
       </section>
 

@@ -4,3 +4,7 @@ dist-server
 data
 .env
 .DS_Store
+
+# 화면 자동 테스트 결과
+/test-results/
+/playwright-report/

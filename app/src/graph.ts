@@ -61,6 +61,19 @@ export function invert(f: Frame, x: number, y: number, step = 1) {
   }
 }
 
+/** 시각 눈금: 폭에 맞춰(라벨 하나에 70px쯤) 1 · 2 · 3 · 4 · 6 · 12시간 · 1 · 2 · 3 · 7일 간격. 며칠에 걸치면 자정에만 날짜 */
+export function hourTicks(start: number, end: number, width: number): [number, string][] {
+  const span = end - start, max = Math.max(2, Math.floor(width / 70))
+  const step = [1, 2, 3, 4, 6, 12, 24, 48, 72, 168].find((x) => span / x <= max) ?? 168
+  const days = Math.floor(start / 24) !== Math.floor((end - 1e-6) / 24)
+  const date = (t: number) => { const d = new Date(t * 3_600_000); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}` }
+  const out: [number, string][] = []
+  for (let t = Math.ceil(start / step) * step; t <= end + 1e-6; t += step) {
+    out.push([t, step >= 24 || (days && t % 24 === 0) ? date(t) : `${t % 24}시`])
+  }
+  return out
+}
+
 export function ticks(start: number, end: number, max: number): number[] {
   const step = Math.max(1, Math.ceil((end - start) / max))
   const out: number[] = []
@@ -71,8 +84,44 @@ export function ticks(start: number, end: number, max: number): number[] {
 }
 
 /** 이미지 저장: 제목 · 그래프 · 고른 순간의 제목만 담는다. 회고는 넣지 않는다. */
+/** 이미지 카드 배경 (실험) */
+export type CardTheme = 'paper' | 'dusk' | 'leaf' | 'sky'
+export const CARD_THEMES: [CardTheme, string][] = [['paper', '종이'], ['dusk', '노을'], ['leaf', '풀잎'], ['sky', '하늘']]
+function paintBg(ctx: CanvasRenderingContext2D, W: number, H: number, theme: CardTheme = 'paper') {
+  if (theme === 'paper') {
+    ctx.fillStyle = '#FFF9F3'; ctx.fillRect(0, 0, W, H)
+    return
+  }
+  const [a, b, dot] = theme === 'dusk' ? ['#FCE1D6', '#FFF6EE', '#E8A89A'] : theme === 'leaf' ? ['#E3F0E8', '#FAFCF6', '#8FB3A2'] : ['#DDEAF6', '#F8FBFF', '#8FB0D0']
+  const g = ctx.createLinearGradient(0, 0, W * 0.4, H)
+  g.addColorStop(0, a); g.addColorStop(1, b)
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H)
+  // 가장자리에 옅은 점 몇 개 (꾸밈)
+  ctx.fillStyle = dot; ctx.globalAlpha = 0.18
+  for (const [x, y, r] of [[0.08, 0.06, 18], [0.92, 0.1, 10], [0.88, 0.94, 22], [0.1, 0.9, 12], [0.96, 0.5, 8]]) {
+    ctx.beginPath(); ctx.arc(x * W, y * H, r * (W / 1080), 0, Math.PI * 2); ctx.fill()
+  }
+  ctx.globalAlpha = 1
+}
+
+/** 손글씨 글꼴 (개구 · Gaegu, OFL). 고를 때만 구글 글꼴에서 불러온다 */
+export const HAND = '"Gaegu", "Gowun Batang", sans-serif'
+/** 그릴 글자가 든 조각만 받아 둔다 (한글 글꼴은 여러 조각으로 나뉘어 있다) */
+export async function loadHand(text: string) {
+  if (!document.querySelector('link[data-hand]')) {
+    const l = document.createElement('link')
+    l.rel = 'stylesheet'
+    l.href = 'https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap'
+    l.dataset.hand = '1'
+    const done = new Promise((ok) => { l.onload = ok; l.onerror = ok })
+    document.head.append(l)
+    await done
+  }
+  await Promise.all(['400', '700'].map((w) => document.fonts.load(`${w} 40px Gaegu`, text || '그려봄')))
+}
+
 export async function exportImage(opts: {
-  title: string; timeScale: TimeScale; start: number; end: number; points: GraphPoint[]; color?: string
+  title: string; timeScale: TimeScale; start: number; end: number; points: GraphPoint[]; color?: string; theme?: CardTheme; /** 손글씨(실험) */ hand?: boolean
   /** false 면 나이 · 연도를 빼고 ‘그때 → 지금’으로만 (시점을 숨기고 나눈 모임 그래프) */
   showTime?: boolean
   /** 제목 위 작은 글씨 (기본 ‘MY LINE · 그려봄’) */
@@ -87,10 +136,10 @@ export async function exportImage(opts: {
   c.width = W; c.height = H
   const ctx = c.getContext('2d')
   if (!ctx) return null
-  const sans = '"Pretendard Variable", Pretendard, "Apple SD Gothic Neo", sans-serif'
-  const serif = '"Gowun Batang", "Pretendard Variable", sans-serif'
+  const sans = opts.hand ? HAND : '"Pretendard Variable", Pretendard, "Apple SD Gothic Neo", sans-serif'
+  const serif = opts.hand ? HAND : '"Gowun Batang", "Pretendard Variable", sans-serif'
 
-  ctx.fillStyle = '#FFF9F3'; ctx.fillRect(0, 0, W, H)
+  paintBg(ctx, W, H, opts.theme)
   ctx.fillStyle = 'rgba(149,138,130,0.08)'
   for (let x = 12; x < W; x += 24) for (let y = 12; y < H; y += 24) ctx.fillRect(x, y, 2, 2)
 
@@ -123,7 +172,7 @@ export async function exportImage(opts: {
   // 아래 목록: **1월** · 일본 여행!  (번호 없이, 시점만 굵게)
   pts.forEach((p, i) => {
     const x = 80 + (i % 2) * 540, y = 790 + Math.floor(i / 2) * 44
-    momentLine(ctx, sans, 22, x, y, 500, showTime ? timeLabel(opts.timeScale, p.timePoint) : '', p.title || '이름 없는 순간', 'left')
+    momentLine(ctx, sans, 22, x, y, 500, showTime ? timeLabel(opts.timeScale, p.timePoint, [opts.start, opts.end]) : '', p.title || '이름 없는 순간', 'left')
   })
 
   ctx.fillStyle = '#958A82'; ctx.font = `26px ${serif}`
@@ -199,7 +248,7 @@ export function layoutLabels(
  * 제목 · 기간 · 선 · 고른 순간의 이름, 원하면 ‘지금의 나’ 한 문장. 회고는 넣지 않는다.
  */
 export async function exportStoryCard(opts: {
-  title: string; timeScale: TimeScale; start: number; end: number; points: GraphPoint[]; line?: string; color?: string
+  title: string; timeScale: TimeScale; start: number; end: number; points: GraphPoint[]; line?: string; color?: string; theme?: CardTheme; /** 손글씨(실험) */ hand?: boolean
 }): Promise<Blob | null> {
   await document.fonts?.ready
   const W = 1080, H = 1920
@@ -207,8 +256,8 @@ export async function exportStoryCard(opts: {
   c.width = W; c.height = H
   const ctx = c.getContext('2d')
   if (!ctx) return null
-  const sans = '"Pretendard Variable", Pretendard, "Apple SD Gothic Neo", sans-serif'
-  const serif = '"Gowun Batang", "AppleMyungjo", serif'
+  const sans = opts.hand ? HAND : '"Pretendard Variable", Pretendard, "Apple SD Gothic Neo", sans-serif'
+  const serif = opts.hand ? HAND : '"Gowun Batang", "AppleMyungjo", serif'
   const pts = sortEntries(opts.points)
   const center = (text: string, y: number, font: string, color: string) => {
     ctx.font = font; ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.fillText(text, W / 2, y)
@@ -227,7 +276,7 @@ export async function exportStoryCard(opts: {
     return y + lines.length * lh
   }
 
-  ctx.fillStyle = '#FFF9F3'; ctx.fillRect(0, 0, W, H)
+  paintBg(ctx, W, H, opts.theme)
   center('MY LIFE, MY LINE', 220, `600 30px ${sans}`, '#958A82')
   let y = wrap(opts.title, 330, `700 72px ${sans}`, '#514943', W - 200, 92)
   center(rangeLabel(opts.timeScale, opts.start, opts.end), y + 20, `34px ${serif}`, '#958A82')
@@ -251,7 +300,7 @@ export async function exportStoryCard(opts: {
   // 순간 이름 (최대 6개)
   y = 1290
   pts.slice(0, 6).forEach((p) => {
-    momentLine(ctx, sans, 34, W / 2, y, W - 240, timeLabel(opts.timeScale, p.timePoint), p.title || '이름 없는 순간', 'center')
+    momentLine(ctx, sans, 34, W / 2, y, W - 240, timeLabel(opts.timeScale, p.timePoint, [opts.start, opts.end]), p.title || '이름 없는 순간', 'center')
     y += 58
   })
   if (opts.line) wrap(`“${opts.line}”`, Math.max(y + 60, 1700), `40px ${serif}`, '#514943', W - 220, 60)
@@ -264,7 +313,7 @@ export async function exportStoryCard(opts: {
  * 회고는 넣지 않는다.
  */
 export async function exportYearCard(opts: {
-  heading: string; title: string; timeScale: TimeScale; start: number; end: number; points: GraphPoint[]; line?: string; color?: string
+  heading: string; title: string; timeScale: TimeScale; start: number; end: number; points: GraphPoint[]; line?: string; color?: string; theme?: CardTheme; /** 손글씨(실험) */ hand?: boolean
 }): Promise<Blob | null> {
   await document.fonts?.ready
   const W = 1080, H = 1350
@@ -272,15 +321,15 @@ export async function exportYearCard(opts: {
   c.width = W; c.height = H
   const ctx = c.getContext('2d')
   if (!ctx) return null
-  const sans = '"Pretendard Variable", Pretendard, "Apple SD Gothic Neo", sans-serif'
-  const serif = '"Gowun Batang", "AppleMyungjo", serif'
+  const sans = opts.hand ? HAND : '"Pretendard Variable", Pretendard, "Apple SD Gothic Neo", sans-serif'
+  const serif = opts.hand ? HAND : '"Gowun Batang", "AppleMyungjo", serif'
   const pts = sortEntries(opts.points)
   const color = opts.color ?? '#D99082'
   const center = (text: string, y: number, font: string, fill: string) => {
     ctx.font = font; ctx.fillStyle = fill; ctx.textAlign = 'center'; ctx.fillText(text, W / 2, y)
   }
 
-  ctx.fillStyle = '#FFF9F3'; ctx.fillRect(0, 0, W, H)
+  paintBg(ctx, W, H, opts.theme)
   ctx.fillStyle = 'rgba(149,138,130,0.07)'
   for (let x = 14; x < W; x += 28) for (let y = 14; y < H; y += 28) ctx.fillRect(x, y, 2, 2)
   center('MY YEAR, MY LINE', 150, `600 28px ${sans}`, '#958A82')
@@ -320,7 +369,7 @@ export async function exportYearCard(opts: {
     const rows: [string, GraphPoint][] = hi.emotionScore === lo.emotionScore ? [['잔잔하게 이어진 한 해', hi]] : [['가장 환했던 순간', hi], ['가장 무거웠던 순간', lo]]
     for (const [label, p] of rows) {
       center(label, y, `600 26px ${sans}`, '#958A82')
-      momentLine(ctx, sans, 36, W / 2, y + 52, W - 260, timeLabel(opts.timeScale, p.timePoint), p.title || '이름 없는 순간', 'center')
+      momentLine(ctx, sans, 36, W / 2, y + 52, W - 260, timeLabel(opts.timeScale, p.timePoint, [opts.start, opts.end]), p.title || '이름 없는 순간', 'center')
       y += 130
     }
   }
@@ -340,6 +389,8 @@ export interface ReviewData {
   answered: string[]
   top: { name: string; hex: string } | null
   hi: string | null; lo: string | null; last: string | null
+  /** 자주 쓴 마음 단어 · 받은 응원 */
+  words?: string[]; cheers?: number
 }
 
 /** 연말 돌아보기 한 장 (4:5, 1080×1350): 숫자 셋 · 마음 색 지도(하루 한 칸) · 환했던 / 무거웠던 순간 · 마지막 한 줄 */
@@ -397,6 +448,8 @@ export async function exportReviewCard(d: ReviewData): Promise<Blob | null> {
   }
   if (d.hi) { center('가장 환했던 순간', y, `600 22px ${sans}`, '#958A82'); center(clip(d.hi, 24), y + 42, `32px ${serif}`, '#514943'); y += 100 }
   if (d.lo) { center('가장 무거웠던 순간 — 그래도 지나왔어요', y, `600 22px ${sans}`, '#958A82'); center(clip(d.lo, 24), y + 42, `32px ${serif}`, '#514943'); y += 100 }
+  if (d.words?.length && y < H - 220) { center('자주 쓴 마음 단어', y, `600 22px ${sans}`, '#958A82'); center(d.words.slice(0, 5).join(' · '), y + 42, `30px ${serif}`, '#D99082'); y += 100 }
+  if (d.cheers && y < H - 200) { center(`모임에서 받은 응원 ${d.cheers}번`, y, `600 24px ${sans}`, '#958A82'); y += 60 }
   if (d.last && y < H - 140) center(`“${clip(d.last, 28)}”`, Math.max(y + 10, H - 150), `30px ${serif}`, '#7d726b')
   center('그려봄 · 한 줄씩, 한 해가 되었어요', H - 60, `24px ${serif}`, '#958A82')
   return new Promise((res) => c.toBlob(res, 'image/png'))

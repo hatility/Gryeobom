@@ -3,7 +3,7 @@ import type { AppOptions } from './app.ts'
 export interface Config extends AppOptions {
   dbFile: string
   port: number
-  /** 자동 백업을 남길 개수 (하루 하나, 0 이면 끔) */
+  /** 자동 백업을 남길 개수 (한 시간에 하나, 0 이면 끔. 기본 168 = 7일) */
   backupKeep: number
   warnings: string[]
 }
@@ -76,8 +76,12 @@ export function readConfig(env: Record<string, string | undefined>): Config {
   return {
     dbFile: v('DB_FILE') || './data/geuryeobom.db',
     port: Number(v('PORT')) || 3000,
-    backupKeep: v('BACKUP_KEEP') === '' ? 7 : Math.max(0, Math.min(365, Math.floor(Number(v('BACKUP_KEEP')) || 0))),
+    backupKeep: v('BACKUP_KEEP') === '' ? 168 : Math.max(0, Math.min(2000, Math.floor(Number(v('BACKUP_KEEP')) || 0))),
+    // 자동 백업 폴더: 배포 묶음은 그려봄 폴더의 backups 를 /backups 로 이어 둔다
+    autoBackupDir: v('BACKUP_DIR') || undefined,
     secureCookie: v('COOKIE_SECURE') !== 'false',
+    // 개발 테스트 서버 (개발용 배포 묶음만 true). DB 초기화가 켜지고 화면에 ‘개발 테스트 서버’ 표시가 뜬다
+    devServer: v('DEV_SERVER') === 'true',
     authSecret,
     admin,
     publicUrl,

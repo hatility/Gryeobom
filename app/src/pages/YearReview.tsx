@@ -1,4 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
+import MoodWords, { topWords } from '../components/MoodWords'
+import { useLabs } from '../labs'
+import { api } from '../api'
 import { Link, useParams } from 'react-router'
 import type { Answer } from '../api'
 import { useAuth, useRepo } from '../auth'
@@ -14,7 +17,7 @@ function momentsIn(graphs: LifeGraph[], year: number) {
     g.timeScale === 'age'
       ? []
       : g.entries
-          .filter((e) => Math.floor((g.timeScale === 'month' ? e.timePoint / 12 : e.timePoint) + 1e-6) === year)
+          .filter((e) => (g.timeScale === 'hour' ? new Date(e.timePoint * 3_600_000).getUTCFullYear() : Math.floor((g.timeScale === 'month' ? e.timePoint / 12 : e.timePoint) + 1e-6)) === year)
           .map((e) => ({ title: e.title || '이름 없는 순간', score: e.emotionScore, graph: graphTitle(g) })),
   )
 }
@@ -30,6 +33,11 @@ export default function YearReview() {
   const [graphs, setGraphs] = useState<LifeGraph[]>([])
   const [busy, setBusy] = useState(false)
   const { user } = useAuth()
+  const labs = useLabs('me')
+  const [cheers, setCheers] = useState(0)
+  useEffect(() => {
+    if (labs && user) api.cheersOfYear(year).then((r) => setCheers(r.received), () => {})
+  }, [labs, user, year])
   useEffect(() => {
     journal.list().then((l) => setAnswers(l.filter((a) => a.day.startsWith(`${year}-`))), () => setAnswers([]))
     repo.list().then(setGraphs, () => setGraphs([]))
@@ -54,6 +62,7 @@ export default function YearReview() {
     hi: hi && hi.score > 0 ? hi.title : null,
     lo: lo && lo.score < 0 ? lo.title : null,
     last: sorted.at(-1)?.text ?? null,
+    ...(labs ? { words: topWords(graphs.filter((g) => g.createdAt.startsWith(`${year}-`) || g.updatedAt.startsWith(`${year}-`))), cheers } : {}),
   }
   const empty = !answers.length && !moments.length && !madeThisYear
   const save = async () => {
@@ -71,7 +80,7 @@ export default function YearReview() {
   return (
     <section className="container page review">
       <header className="review-head">
-        <p className="eyebrow">MY YEAR, MY LINE</p>
+        <p className="eyebrow en">MY YEAR, MY LINE</p>
         <h1 className="page-title serif">{year}년의 나</h1>
         <p className="muted">한 해 동안 남긴 한 줄과 마음의 색, 그리고 선 위의 순간들이에요.</p>
         <nav className="review-years" aria-label="다른 해">
@@ -151,6 +160,9 @@ export default function YearReview() {
               )}
             </section>
           )}
+
+          {labs && user && <p className="review-cheers serif center">올해 모임에서 받은 응원 <strong>{cheers}</strong>번</p>}
+          <MoodWords graphs={graphs.filter((g) => g.createdAt.startsWith(`${year}-`) || g.updatedAt.startsWith(`${year}-`))} title={`${year}년의 마음 단어`} />
 
           <div className="review-actions">
             <button type="button" className="btn btn-primary" onClick={save} disabled={busy}>{busy ? '만드는 중…' : '한 장으로 저장하기'}</button>

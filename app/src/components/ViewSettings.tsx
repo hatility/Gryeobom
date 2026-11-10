@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadView, saveView, type TextSize, type Theme, type View } from '../view'
+import { useLabs } from '../labs'
 
 const THEMES: [Theme, string][] = [['auto', '자동'], ['light', '밝게'], ['dark', '늦은 밤']]
 const SIZES: [TextSize, string][] = [['sm', '작게'], ['md', '보통'], ['lg', '크게']]
@@ -47,6 +48,7 @@ export default function ViewSettings() {
 
 /** 화면 밝기 · 조용한 시간 · 글자 크기. PC 는 ‘보기’ 팝업, 모바일은 ‘나’ 화면에 그대로 놓는다 */
 export function ViewPanel() {
+  const labs = useLabs('graph')
   const [v, setV] = useState<View>(loadView)
   const set = (p: Partial<View>) => {
     const next = { ...v, ...p }
@@ -67,6 +69,12 @@ export function ViewPanel() {
         </div>
         <small className="muted">자동은 밤 9시가 지나면 은은하게 어두워져요.</small>
       </fieldset>
+      {labs && (
+        <label className="check view-quiet">
+          <input type="checkbox" checked={v.easy} onChange={(e) => set({ easy: e.target.checked })} />
+          <span>쉬운 말로 묻기 <small className="muted">그때의 마음 · 지금의 나 질문을 더 짧고 쉬운 말로 바꿔요.</small></span>
+        </label>
+      )}
       <label className="check view-quiet">
         <input type="checkbox" checked={v.quiet} onChange={(e) => set({ quiet: e.target.checked })} />
         <span>

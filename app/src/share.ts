@@ -94,15 +94,16 @@ export function decodeShared(code: string): SharedGraph | null {
 export function sanitizeShared(raw: any): SharedGraph | null {
   try {
     if (raw?.v !== 1 || !Array.isArray(raw.entries)) return null
-    // 월 기준은 연도×12 라서 3만 근처까지 간다
-    const startPoint = num(raw.startPoint, 0, 40000)
-    const currentPoint = num(raw.currentPoint, 0, 40000)
-    // 같을 수도 있다: '올해' 기준을 1월에 그리면 한 달뿐이다
-    if (startPoint === null || currentPoint === null || startPoint > currentPoint) return null
+    // 월 기준은 연도×12 라서 3만 근처까지, 시각(hour)은 1970년부터 센 시간이라 50만 근처까지 간다
+    const hour = raw.timeScale === 'hour'
+    const startPoint = num(raw.startPoint, 0, hour ? 2_000_000 : 40000, 1000)
+    const currentPoint = num(raw.currentPoint, 0, hour ? 2_000_000 : 40000, 1000)
+    // 같을 수도 있다: 달 기준을 한 달만 그리면. 시각은 14일까지
+    if (startPoint === null || currentPoint === null || startPoint > currentPoint || (hour && currentPoint - startPoint > 336)) return null
     return {
       v: 1,
       title: str(raw.title, 40),
-      timeScale: raw.timeScale === 'year' || raw.timeScale === 'month' ? raw.timeScale : 'age',
+      timeScale: ['year', 'month', 'hour'].includes(raw.timeScale) ? raw.timeScale : 'age',
       showTime: raw.showTime === true,
       ...(['rose', 'sage', 'sand', 'lilac'].includes(raw.tone) ? { tone: raw.tone } : {}),
       startPoint,

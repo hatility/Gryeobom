@@ -50,9 +50,38 @@ writeFileSync(out('docker-compose.yml'), tpl('docker-compose.yml'))
 writeFileSync(out('README.md'), tpl('README.release.md'))
 writeFileSync(out('CHANGES.md'), `# 그려봄 v${version} 변경 내용\n\n${section(version).replace(/^## .*\n+/, '')}\n`)
 
+// ── 개발 테스트용 묶음: release/개발용/v<버전>-dev/ ──
+// 정식 묶음과 같은 화면 · 서버에, DB 볼륨 · 컨테이너 · 이미지 · 기본 포트를 따로 쓰고 DEV_SERVER=true (DB 초기화 · ‘개발 테스트 서버’ 표시)
+const devRoot = new URL('개발용/', release)
+const devDir = new URL(`v${version}-dev/`, devRoot)
+rmSync(devDir, { recursive: true, force: true })
+mkdirSync(devRoot, { recursive: true })
+cpSync(dir, devDir, { recursive: true })
+const dev = (p, fn) => {
+  const f = new URL(p, devDir)
+  writeFileSync(f, fn(readFileSync(f, 'utf8').replaceAll('geuryeobom-data', 'geuryeobom-dev-data')))
+}
+const DEV_NOTE = `> ⚠ **개발 테스트용 묶음**이에요. 정식 운영에는 \`배포/v${version}/\` 를 쓰세요.\n> DB 볼륨(\`geuryeobom-dev-data\`) · 컨테이너 · 기본 포트(8090)가 정식과 따로라 같은 서버에 함께 띄워도 섞이지 않아요.\n> 관리자 화면에 **DB 초기화**가 있고, 화면 구석에 ‘개발 테스트 서버’ 표시가 떠요.\n> **실험 기능**(만 14세 미만 보호자 동의 · 내 기록 내려받기 · 여러 모임 한 번에 · 리포트 인쇄 · 기간별 통계 · 홈 화면 설치 · 카드 배경 · 질문 묶음 · 모임 소식 · 활동 일정 · 종이 활동지 · 관리자 활동 기록 · 마음 단어 · 기관 담당자 · 출석 · 모임 복제 · 단어 카드 · 휴면 계정 · 최근 오류 · 그 밖에 관리자 ‘변경 내역’ 의 실험 기능 모두)도 여기서만 켜져요.\n\n`
+dev('docker-compose.yml', (s) =>
+  `# ⚠ 개발 테스트용 — 정식과 DB 볼륨 · 컨테이너 · 포트가 따로예요\nname: geuryeobom-dev\n` +
+  s.replace(/geuryeobom-(web|api):/g, 'geuryeobom-dev-$1:')
+    .replace('"${PORT:-80}:80"', '"${PORT:-8090}:80"')
+    .replace(/(\n\s+COOKIE_SECURE: [^\n]+)/, '$1\n      DEV_SERVER: "true"')
+    // 실험: 헬스체크가 DB · 디스크까지 본다 (/api/health 는 개발 테스트 서버에만 있다)
+    .replace("http://127.0.0.1:3000/api/me", "http://127.0.0.1:3000/api/health"))
+// 실험: 보안 정책(CSP) 위반을 브라우저가 서버로 알린다 (관리자 ‘최근 오류’ 아래)
+dev('web/nginx.conf', (s) => s.replace(`form-action 'self'"`, `form-action 'self'; report-uri /api/csp-report"`))
+if (!readFileSync(new URL('web/nginx.conf', devDir), 'utf8').includes('report-uri /api/csp-report')) fail('개발용 nginx.conf 에 report-uri 를 넣지 못했어요.')
+if (!readFileSync(new URL('docker-compose.yml', devDir), 'utf8').includes('/api/health')) fail('개발용 헬스체크를 바꾸지 못했어요.')
+dev('backup.sh', (s) => s)
+dev('restore.sh', (s) => s)
+dev('README.md', (s) => s.replace(/^(# [^\n]*\n)/, `$1\n${DEV_NOTE}`))
+dev('.env.example', (s) => `# ⚠ 개발 테스트용 묶음의 설정이에요. 정식 서버의 .env 를 그대로 옮기지 말고 따로 정해 주세요.\n#   (AUTH_SECRET · 관리자 비밀번호도 정식과 다르게) · 기본 포트는 8090 이에요.\n\n${s}`)
+if (!readFileSync(new URL('docker-compose.yml', devDir), 'utf8').includes('DEV_SERVER: "true"')) fail('개발용 docker-compose.yml 에 DEV_SERVER 를 넣지 못했어요.')
+
 // ── release/ 최상위: 전체 변경 기록 · 버전 목록 · .gitignore ──
 writeFileSync(new URL('CHANGELOG.md', release), changelog)
-writeFileSync(new URL('.gitignore', release), '.env\n.DS_Store\n')
+writeFileSync(new URL('.gitignore', release), '.env\n.DS_Store\nbackups/\n*.db\n')
 const versions = readdirSync(release)
   .filter((d) => /^v\d+\.\d+\.\d+$/.test(d))
   .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
@@ -73,6 +102,8 @@ writeFileSync(
 
 **최신: [${versions[0]}](${versions[0]}/)** · 전체 변경 기록: [CHANGELOG.md](CHANGELOG.md)
 
+> 🧪 개발 테스트 서버에는 \`개발용/v<버전>-dev/\` 를 쓰세요 — DB 볼륨(\`geuryeobom-dev-data\`) · 컨테이너 · 포트(8090)가 정식과 따로이고, DB 초기화가 켜져 있어요. 정식 서버에는 올리지 마세요.
+
 | 버전 | 날짜 | 구성 | 요약 |
 |---|---|---|---|
 ${rows.join('\n')}
@@ -81,3 +112,4 @@ ${rows.join('\n')}
 `,
 )
 console.log(`✓ release v${version}:`, fileURLToPath(dir))
+console.log(`✓ 개발용 v${version}-dev:`, fileURLToPath(devDir))

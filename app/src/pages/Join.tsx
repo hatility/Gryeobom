@@ -3,7 +3,9 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { api, type Invite } from '../api'
 import { useAuth } from '../auth'
 import { presetLabel } from '../content'
-import { BirthField, readBirth } from './Login'
+import { BirthField, GUARDIAN_EMPTY, GuardianFields, ageFrom, readBirth } from './Login'
+import { useLabs } from '../labs'
+import type { Guardian } from '../api'
 
 /**
  * 초대 링크(/join/:code). 로그인하지 않았으면 이름 · 생년월일 · 별명 · 동의를 한 화면에서 받아,
@@ -15,6 +17,9 @@ export default function Join() {
   const navigate = useNavigate()
   const [invite, setInvite] = useState<Invite | null | undefined>(undefined)
   const [form, setForm] = useState({ name: '', birth: '', nickname: '', agree: false, remember: false })
+  const [guardian, setGuardian] = useState<Guardian>(GUARDIAN_EMPTY)
+  const labs = useLabs('guardian')
+  const young = labs && !user && (ageFrom(form.birth) ?? 99) < 14
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const set = (p: Partial<typeof form>) => setForm((f) => ({ ...f, ...p }))
@@ -30,10 +35,11 @@ export default function Join() {
     e?.preventDefault()
     if (!user && !readBirth(form.birth)) return setErr('생년월일을 8자리로 확인해 주세요. 예) 20120315')
     if (!user && !form.agree) return setErr('이용약관과 개인정보 처리방침에 동의해 주세요.')
+    if (young && (!guardian.agreed || !guardian.contact.trim())) return setErr('만 14세 미만은 보호자의 동의가 필요해요. 보호자와 함께 적어 주세요.')
     setBusy(true)
     setErr('')
     try {
-      const r = await api.joinByInvite(code, user ? {} : { ...form, nickname: form.nickname.trim() })
+      const r = await api.joinByInvite(code, user ? {} : { ...form, nickname: form.nickname.trim(), ...(young ? { guardian } : {}) })
       if ('needSignup' in r) return setErr('모임에서 보일 별명을 적어 주세요.')
       setUser(r.user)
       navigate(`/groups/${r.id}`)
@@ -48,7 +54,7 @@ export default function Join() {
   if (!invite) {
     return (
       <section className="container page empty-state">
-        <p className="eyebrow">TANGLED LINE</p>
+        <p className="eyebrow en">TANGLED LINE</p>
         <h1>초대장을 찾지 못했어요</h1>
         <p className="muted">{err || '링크가 잘렸거나, 모임이 없어졌을 수 있어요.'}</p>
         <Link to="/" className="btn btn-primary">그려봄 둘러보기</Link>
@@ -60,7 +66,7 @@ export default function Join() {
     <section className="container page auth-page">
       <header className="page-head">
         <div>
-          <p className="eyebrow">YOU&apos;RE INVITED</p>
+          <p className="eyebrow en">YOU&apos;RE INVITED</p>
           <h1 className="page-title">‘{invite.name}’에 초대받았어요</h1>
           <p className="muted">
             {invite.preset ? `함께 그릴 시간 · ${presetLabel(invite.preset)}` : '서로의 선을 판단하지 않고 바라보는 모임이에요.'}
@@ -99,6 +105,7 @@ export default function Join() {
             <input name="nickname" value={form.nickname} maxLength={12} onChange={(e) => set({ nickname: e.target.value })} required />
             <small className="muted">모임에서는 별명만 보여요. 이미 계정이 있으면 원래 별명 그대로예요.</small>
           </label>
+          {young && <GuardianFields value={guardian} onChange={setGuardian} />}
           <label className="check agree">
             <input type="checkbox" checked={form.agree} onChange={(e) => set({ agree: e.target.checked })} required />
             <span>

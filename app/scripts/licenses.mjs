@@ -50,6 +50,10 @@ function npmGroups() {
       // 플랫폼별 바이너리 패키지는 LICENSE 를 따로 싣지 않는다 — 같은 저장소(rolldown)의 LICENSE
       text = read('../node_modules/rolldown/LICENSE')
       note = '이 패키지에는 LICENSE 파일이 없어, 같은 저장소(rolldown)의 LICENSE 를 붙였어요.'
+    } else if (name === 'qrcode-generator') {
+      // npm 묶음에 LICENSE 가 빠져 있다 — 저장소(kazuhikoarase/qrcode-generator)의 LICENSE 원문
+      text = read('../licenses/texts/qrcode-generator.txt')
+      note = '이 패키지에는 LICENSE 파일이 없어, 저장소의 LICENSE 원문을 붙였어요.'
     } else fail(`${name}: LICENSE 파일이 없어요`)
     if (!info.license) fail(`${name}: 라이선스 표기가 없어요`)
     if (!matches(info.license, text)) fail(`${name} ${info.version}: 표기(${info.license})와 LICENSE 원문이 맞지 않아요`)

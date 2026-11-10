@@ -1,3 +1,4 @@
+import { useNewAnswers } from './Contact'
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, remoteRepo, type Answer, type ReceivedCheer } from '../api'
@@ -8,6 +9,9 @@ import { formatDate, graphPoints, graphTitle, localRepo } from '../store'
 import type { LifeGraph as Graph } from '../types'
 import { dayKey, useJournal } from '../journal'
 import { BirthField } from './Login'
+import { downloadMyData, useLabs } from '../labs'
+import MoodWords from '../components/MoodWords'
+import GuardianNotice from '../components/GuardianNotice'
 
 export default function MyGraphs() {
   const repo = useRepo()
@@ -50,13 +54,15 @@ export default function MyGraphs() {
     <section className="container page">
       <header className="page-head">
         <div>
-          <p className="eyebrow">MY STORIES, MY COLLECTION</p>
+          <p className="eyebrow en">MY STORIES, MY COLLECTION</p>
           <h1 className="page-title">기록 모아보기</h1>
           <p className="muted">내가 그린 선들이, 나의 이야기가 되는 곳.</p>
         </div>
         {graphs && graphs.length > 0 && <Link to="/graph/new" className="btn btn-primary">새 그래프</Link>}
       </header>
 
+      <GuardianNotice />
+      <NewAnswers />
       {user && localCount > 0 && (
         <div className="demo-note move-note">
           <span>이 기기에만 저장된 기록이 {localCount}개 있어요. 내 계정으로 옮기면 다른 기기에서도 볼 수 있고, 이 기기에서는 지워져요.</span>
@@ -66,7 +72,7 @@ export default function MyGraphs() {
       {user && <ReceivedCheers />}
       {(new Date().getMonth() === 11 || new Date().getMonth() === 0) && (
         <Link to={`/review/${new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear()}`} className="card review-banner">
-          <span className="eyebrow">MY YEAR, MY LINE</span>
+          <span className="eyebrow en">MY YEAR, MY LINE</span>
           <span className="serif review-banner-title">한 해를 돌아볼 시간이에요</span>
           <span className="muted small">남긴 한 줄과 마음 색, 선 위의 순간들을 한 장으로 →</span>
         </Link>
@@ -107,6 +113,7 @@ export default function MyGraphs() {
         </ul>
       )}
 
+      <MoodWords graphs={graphs ?? []} />
       <MyAnswers graphs={graphs ?? []} />
 
       <p className="muted small center storage-note">
@@ -114,6 +121,7 @@ export default function MyGraphs() {
           ? `${user.nickname}님의 기록은 내 계정에 있어요.`
           : '기록은 이 기기의 브라우저에만 있어요.'}
       </p>
+      {user && <ExportMine />}
       {user && <DeleteAccount />}
     </section>
   )
@@ -236,6 +244,19 @@ function MyAnswers({ graphs }: { graphs: Graph[] }) {
   )
 }
 
+/** 내 기록을 파일 하나로 (개발 테스트 서버) */
+function ExportMine() {
+  const labs = useLabs('me')
+  const [msg, setMsg] = useState('')
+  if (!labs) return null
+  return (
+    <p className="center export-mine">
+      <button type="button" className="btn btn-text btn-sm" onClick={() => downloadMyData().then(() => setMsg('내려받았어요.'), (e) => setMsg(e.message))}>내 기록 모두 내려받기 (JSON)</button>
+      {msg && <small className="muted"> {msg}</small>}
+    </p>
+  )
+}
+
 function DeleteAccount() {
   const { setUser } = useAuth()
   const navigate = useNavigate()
@@ -308,7 +329,7 @@ function ReceivedCheers() {
           <span key={i} style={{ left: `${(i * 37 + 8) % 92}%`, animationDelay: `${(i * 0.45) % 3.2}s`, animationDuration: `${5 + (i % 4)}s` }} />
         ))}
       </div>
-      <p className="eyebrow">NEW CHEERS</p>
+      <p className="eyebrow en">NEW CHEERS</p>
       <p className="serif cheer-title">마음이 도착했어요</p>
       <ul className="cheer-list">
         {list.slice(0, 4).map((c, i) => (
@@ -322,4 +343,11 @@ function ReceivedCheers() {
       <button type="button" className="btn btn-ghost btn-sm" onClick={seen}>고마워요, 잘 받았어요</button>
     </section>
   )
+}
+
+/** 문의에 새 답이 왔으면 */
+function NewAnswers() {
+  const n = useNewAnswers()
+  if (!n) return null
+  return <Link to="/contact" className="card new-answers" role="status"><strong>문의에 답이 왔어요</strong> <span className="muted small">{n}개 · 눌러서 보기</span></Link>
 }

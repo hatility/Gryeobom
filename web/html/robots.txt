@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+# 개인 · 운영 화면은 검색에 나오지 않게
+Disallow: /admin
+Disallow: /api/
+Disallow: /s/
+Disallow: /join/
+Disallow: /guardian/
+Disallow: /groups/
+Disallow: /org

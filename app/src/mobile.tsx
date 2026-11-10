@@ -1,5 +1,6 @@
 // 모바일 · 태블릿 전용 화면(/m)의 틀과 화면. 기능 · 저장은 PC판 화면 코드를 그대로 쓴다.
-import { useEffect, useState, type ReactNode } from 'react'
+import { useNewAnswers } from './pages/Contact'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router'
 import { api } from './api'
 import { useAuth, useRepo } from './auth'
@@ -8,7 +9,9 @@ import Logo from './components/Logo'
 import { ViewPanel } from './components/ViewSettings'
 import { greeting, lineColorOf } from './content'
 import { switchLayout } from './device'
-import { GroupTopics, Resume, TodayQuestion } from './pages/Home'
+import { downloadMyData, useLabs } from './labs'
+import GuardianNotice from './components/GuardianNotice'
+import { GroupNews, OrgHomeCard, GroupTopics, Resume, TodayQuestion } from './pages/Home'
 import { formatDate, graphPoints, graphTitle } from './store'
 import type { LifeGraph as Graph } from './types'
 
@@ -17,7 +20,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/groups\//, '모임'], [/^\/graph\/new/, '새 그래프'], [/^\/graph\/[^/]+\/edit/, '그래프 고치기'],
   [/^\/graph\/[^/]+\/book/, '그래프 책'], [/^\/graph\//, '나의 그래프'], [/^\/review/, '한 해 돌아보기'],
   [/^\/s\//, '나눈 그래프'], [/^\/join\//, '모임 들어가기'], [/^\/login/, '로그인'], [/^\/example/, '예시 그래프'],
-  [/^\/credits/, '만든 사람 · 오픈소스'], [/^\/terms/, '이용약관'], [/^\/privacy/, '개인정보 처리방침'],
+  [/^\/credits/, '만든 사람 · 오픈소스'], [/^\/worksheet/, '활동지'], [/^\/guardian\//, '보호자 동의'], [/^\/org/, '기관'], [/^\/contact/, '문의하기'], [/^\/terms/, '이용약관'], [/^\/privacy/, '개인정보 처리방침'],
 ]
 const ROOTS = ['/', '/my', '/share', '/me']
 
@@ -87,7 +90,7 @@ export function MobileHome() {
   return (
     <div className="m-home">
       <section className="container m-hello">
-        <p className="eyebrow">{greeting()}</p>
+        <p className="m-greet"><span className="season-dot" aria-hidden="true" />{greeting()}</p>
         <h1 className="m-hello-title">
           {user ? <>{user.nickname}님,<br />오늘은 어떤 선을 그려 볼까요?</> : <>지나온 나를 그리고,<br />지금의 나를 만나다.</>}
         </h1>
@@ -95,12 +98,17 @@ export function MobileHome() {
 
       <section className="container">
         <Link to="/graph/new" className="m-start">
-          <svg viewBox="0 0 120 40" aria-hidden="true"><path d="M2 30C18 8 30 6 42 18s22 16 34 2 26-12 42-16" /></svg>
+          {/* 그려봄의 선 한 줄: 카드 오른쪽에 은은하게 */}
+          <svg className="m-start-line" viewBox="0 0 120 48" aria-hidden="true">
+            <path d="M2 36C16 14 28 10 40 24s22 18 34 4 24-16 40-22" />
+            <circle cx="40" cy="24" r="3" /><circle cx="74" cy="28" r="3" /><circle cx="114" cy="6" r="4" />
+          </svg>
           <span className="m-start-title">새 그래프 그리기</span>
           <span className="m-start-sub">기억에 남는 순간을 점으로 이어 봐요</span>
         </Link>
       </section>
 
+      <div className="container"><GuardianNotice /></div>
       <Resume />
       <TodayQuestion />
 
@@ -113,7 +121,7 @@ export function MobileHome() {
           <ul className="m-scroller">
             {graphs.slice(0, 8).map((g) => (
               <li key={g.id}>
-                <Link to={g.completed ? `/graph/${g.id}` : `/graph/${g.id}/edit`} className="m-graph-card">
+                <Link to={g.completed ? `/graph/${g.id}` : `/graph/${g.id}/edit`} className="m-graph-card" style={{ '--line': lineColorOf(g.lineColor) } as CSSProperties}>
                   <LifeGraph compact tone={lineColorOf(g.lineColor)} points={graphPoints(g)} timeScale={g.timeScale} start={g.startPoint} end={g.currentPoint} />
                   <strong>{graphTitle(g)}</strong>
                   <small className="muted">{g.completed ? '완성' : '그리는 중'} · {formatDate(g.updatedAt)}</small>
@@ -124,6 +132,8 @@ export function MobileHome() {
         </section>
       )}
 
+      <OrgHomeCard />
+      <GroupNews />
       <GroupTopics />
 
       {graphs?.length === 0 && (
@@ -147,6 +157,10 @@ const Chevron = () => <svg className="m-chev" viewBox="0 0 24 24" aria-hidden="t
 export function Me() {
   const { user, setUser } = useAuth()
   const navigate = useNavigate()
+  const labs = useLabs('group')
+  const labsOrg = useLabs('org')
+  const labsMe = useLabs('me')
+  const newAnswers = useNewAnswers()
   const logout = async () => {
     await api.logout().catch(() => {})
     setUser(null)
@@ -168,6 +182,8 @@ export function Me() {
         <Link to="/my" className="m-row">기록 모아보기<Chevron /></Link>
         <Link to={`/review/${new Date().getFullYear()}`} className="m-row">한 해 돌아보기<Chevron /></Link>
         <Link to="/example" className="m-row">예시 그래프<Chevron /></Link>
+        {labs && <Link to="/worksheet" className="m-row">종이 활동지 인쇄<Chevron /></Link>}
+        {labsOrg && user && <Link to="/org" className="m-row">기관 · 내가 맡은 기관 · 기관 등록<Chevron /></Link>}
       </nav>
 
       <h2 className="m-group-title">보기</h2>
@@ -176,12 +192,18 @@ export function Me() {
       <h2 className="m-group-title">정보</h2>
       <nav className="m-list">
         <Link to="/terms" className="m-row">이용약관<Chevron /></Link>
+        {labsMe && <Link to="/contact" className="m-row">문의하기 · 내 문의{newAnswers > 0 && <span className="m-dot">새 답 {newAnswers}</span>}<Chevron /></Link>}
         <Link to="/privacy" className="m-row"><b>개인정보 처리방침</b><Chevron /></Link>
         <Link to="/credits" className="m-row">오픈소스<Chevron /></Link>
         <Link to="/credits?tab=team" className="m-row">만든 사람<Chevron /></Link>
         <button type="button" className="m-row" onClick={() => switchLayout('pc')}>PC 화면으로 보기<Chevron /></button>
       </nav>
 
+      {user && labsMe && (
+        <div className="m-list">
+          <button type="button" className="m-row" onClick={() => downloadMyData().catch((e) => window.alert(e.message))}>내 기록 모두 내려받기<Chevron /></button>
+        </div>
+      )}
       {user && (
         <div className="m-list">
           <button type="button" className="m-row danger" onClick={logout}>로그아웃</button>

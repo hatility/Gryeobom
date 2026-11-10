@@ -5,6 +5,9 @@ import { useAuth, useRepo } from '../auth'
 import { MOOD_COLORS, greeting, isQuietHour, moodOf, todayQuestion } from '../content'
 import { dayKey, useJournal } from '../journal'
 import { graphTitle } from '../store'
+import { newsSeen, useLabs } from '../labs'
+import GuardianNotice from '../components/GuardianNotice'
+import { dayLabel } from './GroupPage'
 import type { LifeGraph } from '../types'
 
 const STEPS = [
@@ -63,12 +66,15 @@ export default function Home() {
         <HeroArt />
       </section>
 
+      <div className="container"><GuardianNotice /></div>
       <Resume />
       <TodayQuestion />
+      <OrgHomeCard />
+      <GroupNews />
       <GroupTopics />
 
       <section id="intro" className="container section reveal">
-        <p className="eyebrow center">HOW IT FLOWS</p>
+        <p className="eyebrow center en">HOW IT FLOWS</p>
         <h2 className="section-title center">세 걸음이면 충분해요</h2>
         <ol className="flow">
           {STEPS.map((s, i) => (
@@ -86,7 +92,7 @@ export default function Home() {
 
       <section className="container section prompts-section reveal">
         <div className="prompts-copy">
-          <p className="eyebrow">QUESTIONS TO BEGIN</p>
+          <p className="eyebrow en">QUESTIONS TO BEGIN</p>
           <h2 className="section-title">어디서부터 떠올려야 할지<br />모르겠다면</h2>
           <p className="muted">
             <span className="line">거창한 일이 아니어도 괜찮아요.</span>{' '}
@@ -192,7 +198,7 @@ export function Resume() {
     <section className="container">
       <div className="card resume">
         <div className="resume-copy">
-          <p className="eyebrow">CONTINUE</p>
+          <p className="eyebrow en">CONTINUE</p>
           <p className="serif resume-title">그리던 이야기가 있어요</p>
           <p className="muted small resume-sub">‘{graphTitle(g)}’ · {step}단계에서 멈췄어요</p>
         </div>
@@ -310,6 +316,70 @@ function lookBack(list: Answer[], d: Date): { label: string; a: Answer } | null 
   if (month) return { label: '한 달 전 오늘', a: month }
   const week = at(y, m, dd - 7)
   return week ? { label: '일주일 전 오늘', a: week } : null
+}
+
+/** 내가 맡은 기관 (없거나 실험이 꺼져 있으면 빈 목록) — 첫 화면 한 줄 · 맨 위 ‘기관’ 메뉴 */
+/** refresh: 바뀌면 다시 불러온다 (기관 화면에서 등록 · 지우기를 한 뒤 맨 위 탭이 바로 맞게) */
+export function useMyOrgs(refresh = '') {
+  const { user } = useAuth()
+  const labs = useLabs('org')
+  // null: 아직 모름 (불러오는 중 · 로그인 안 함 · 실험 꺼짐)
+  const [orgs, setOrgs] = useState<{ id: string; name: string; groupIds: string[] }[] | null>(null)
+  useEffect(() => {
+    if (user && labs) api.myOrgsLite().then(setOrgs, () => setOrgs(null))
+    else setOrgs(null)
+  }, [user, labs, refresh])
+  return orgs
+}
+
+/** 기관 담당자라면 첫 화면에 ‘내가 맡은 기관’ */
+export function OrgHomeCard() {
+  const orgs = useMyOrgs()
+  if (!orgs) return null
+  if (!orgs.length) {
+    return (
+      <section className="container news-wrap">
+        <p className="org-home-invite muted small">학교 · 수련관 · 복지관 담당자이신가요? <Link to="/org">기관 등록하기 ›</Link></p>
+      </section>
+    )
+  }
+  // 기관이 여럿이어도 첫 화면에는 한 줄만 — 자세한 것은 ‘기관’ 화면에서
+  return (
+    <section className="container news-wrap">
+      <Link to="/org" className="card news-item org-home-card">
+        <span className="news-label">내가 맡은 기관 {orgs.length}곳</span>
+        <span className="news-text">{orgs.map((o) => o.name).join(' · ')}</span>
+        <span className="news-event">리포트 · 모임 · 담당자 보기 ›</span>
+      </Link>
+    </section>
+  )
+}
+
+/** 내가 들어간 모임의 소식 (새 소식은 표시) */
+export function GroupNews() {
+  const { user } = useAuth()
+  const labs = useLabs('group')
+  const [groups, setGroups] = useState<GroupSummary[]>([])
+  useEffect(() => {
+    if (user && labs) api.groups().then((gs) => setGroups(gs.filter((g) => g.news || g.nextEvent)), () => setGroups([]))
+    else setGroups([])
+  }, [user, labs])
+  if (!groups.length) return null
+  return (
+    <section className="container news-wrap">
+      <ul className="news-list">
+        {groups.map((g) => (
+          <li key={g.id}>
+            <Link to={`/groups/${g.id}`} className="card news-item">
+              <span className="news-label">{g.name}{g.news ? ' · 모임 소식' : ''}{g.news && !newsSeen(g.id, g.newsAt ?? '') && <b className="news-new">새 소식</b>}</span>
+              {g.news && <span className="news-text">{g.news}</span>}
+              {g.nextEvent && <span className="news-event">다음 활동 · {dayLabel(g.nextEvent.day)} · {g.nextEvent.title}</span>}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
 }
 
 /** 내가 들어간 모임에서 정한 ‘함께 그릴 주제’ */

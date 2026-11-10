@@ -1,0 +1,13 @@
+# 비밀 · 운영 데이터는 올리지 않아요
+.env
+*.db
+*.db-shm
+*.db-wal
+data/
+backups/
+
+# 만들어지는 것
+node_modules/
+dist/
+dist-server/
+*.tsbuildinfo

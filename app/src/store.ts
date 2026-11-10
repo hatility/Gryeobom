@@ -49,6 +49,8 @@ export function normalizeGraph(g: LifeGraph): LifeGraph {
   return {
     ...g,
     lineColor: g.lineColor ?? 'rose',
+    // 예전 기기 저장본에는 없는 칸이 있을 수 있다 (없으면 4단계에서 .trim() 이 깨진다)
+    currentReflection: { changed: '', word: '', influence: '', message: '', oneLine: '', ...(g.currentReflection as Partial<LifeGraph['currentReflection']> | undefined) },
     entries: g.entries.map((e) => ({ ...e, reflection: { ...EMPTY_REFLECTION, ...e.reflection } })),
   }
 }

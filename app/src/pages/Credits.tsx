@@ -42,7 +42,7 @@ export default function Credits() {
     <section className="container page credits">
       <header className="page-head">
         <div>
-          <p className="eyebrow">CREDITS</p>
+          <p className="eyebrow en">CREDITS</p>
           <h1 className="page-title">그려봄을 함께 만든 것들</h1>
           <p className="muted">고마운 도구와 사람들을 남겨 둬요.</p>
         </div>
@@ -83,7 +83,7 @@ export default function Credits() {
       ) : (
         <div role="tabpanel" id="panel-team" aria-labelledby="tab-team" className="tab-panel">
           <div className="card team-card">
-            <p className="eyebrow">MADE BY</p>
+            <p className="eyebrow en">MADE BY</p>
             <p className="serif team-name">{dev?.name || '그려봄 만든 사람들'}</p>
             {dev?.org && <p className="muted">{dev.org}</p>}
             <dl className="team-facts">
@@ -137,7 +137,7 @@ export default function Credits() {
 function LicenseIntro() {
   return (
     <div className="card license-intro">
-      <p className="eyebrow">LICENSE</p>
+      <p className="eyebrow en">LICENSE</p>
       <p className="serif team-name">
         <span className="line">그려봄은</span> <span className="line">GNU AGPL-3.0 이에요</span>
       </p>

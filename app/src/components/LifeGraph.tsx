@@ -1,8 +1,8 @@
-import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
-import type { GraphPoint, TimeScale } from '../types'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react'
+import type { GraphPoint, LifeStage, TimeScale } from '../types'
 import { sortEntries } from '../store'
-import { invert, layoutLabels, smoothPath, spreadSameTime, sx, sy, ticks, type Frame } from '../graph'
-import { SEASON_NAME, scoreWord, seasonOf, signed, timeLabel, type Season } from '../content'
+import { hourTicks, invert, layoutLabels, smoothPath, spreadSameTime, sx, sy, ticks, type Frame } from '../graph'
+import { SEASON_NAME, endsNow, rangeLabel, scoreWord, seasonOf, signed, timeLabel, type Season } from '../content'
 
 /** 달 범위를 계절 띠로 묶는다 (t = 연도×12 + 0~11) */
 function seasonBands(start: number, end: number) {
@@ -16,6 +16,13 @@ function seasonBands(start: number, end: number) {
   return out
 }
 
+/** 전환점 별 (가운데가 점 자리) */
+const starPath = (R: number, r = R * 0.45) =>
+  Array.from({ length: 10 }, (_, i) => {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5, k = i % 2 ? r : R
+    return `${i ? 'L' : 'M'}${(Math.cos(a) * k).toFixed(1)},${(Math.sin(a) * k).toFixed(1)}`
+  }).join('') + 'Z'
+
 interface Props {
   points: GraphPoint[]
   timeScale: TimeScale
@@ -24,26 +31,32 @@ interface Props {
   showTimeLabels?: boolean
   compact?: boolean
   editable?: boolean
+  /** 점 끌기를 끈다 (모바일 · 태블릿: 점을 누르면 고치는 창에서 시점 · 마음 높이를 고른다) */
+  noDrag?: boolean
   selectedId?: string | null
   emptyText?: string
   /** 겹쳐 볼 지난 선 (점선, 누를 수 없음) */
   ghost?: GraphPoint[]
   /** 내 선의 색 (CSS 색) */
   tone?: string
+  /** 인생 구간 띠 (실험): 시간 눈금 아래에 이름 띠로 */
+  stages?: LifeStage[]
   onSelect?: (id: string | null) => void
   onMove?: (id: string, timePoint: number, score: number) => void
   onAdd?: (timePoint: number, score: number) => void
 }
 
 export default function LifeGraph({
-  points, timeScale, start, end, showTimeLabels = true, compact, editable,
-  selectedId, onSelect, onMove, onAdd, emptyText, ghost, tone,
+  points, timeScale, start, end, showTimeLabels = true, compact, editable, noDrag,
+  selectedId, onSelect, onMove, onAdd, emptyText, ghost, tone, stages,
 }: Props) {
   const wrap = useRef<HTMLDivElement>(null)
   const svg = useRef<SVGSVGElement>(null)
   const [w, setW] = useState(640)
   const [innerSel, setInnerSel] = useState<string | null>(null)
-  const drag = useRef<{ id: string; moved: boolean } | null>(null)
+  // 끌기: 손가락이 처음 닿은 자리에서 얼마나 움직였는지만큼 점을 옮긴다 (점이 손가락 밑으로 튀지 않게)
+  const drag = useRef<{ id: string; moved: boolean; x0: number; y0: number; px: number; py: number } | null>(null)
+  const [dragId, setDragId] = useState<string | null>(null)
   const uidBase = useId().replace(/:/g, '')
 
   useLayoutEffect(() => {
@@ -58,15 +71,20 @@ export default function LifeGraph({
   const sel = selectedId !== undefined ? selectedId : innerSel
   const select = onSelect ?? setInnerSel
   const narrow = w < 420
-  const h = compact ? 120 : narrow ? 290 : 360
+  // 폰에서 고칠 때는 위아래를 넉넉히 (마음 한 칸이 손가락으로 집을 만큼)
+  // 구간 띠가 있으면 아래에 한 줄 더 (그래프 칸은 그대로)
+  const bands = !compact && stages?.length ? stages.filter((s) => s.to > start && s.from < end) : []
+  const extra = bands.length ? 30 : 0
+  const h = (compact ? 120 : narrow ? (editable ? 360 : 290) : 360) + extra
   const f: Frame = compact
     ? { w, h, l: 10, r: 10, t: 12, b: 12, start, end }
-    : { w, h, l: narrow ? 30 : 44, r: narrow ? 20 : 30, t: 34, b: 42, start, end }
+    : { w, h, l: narrow ? 30 : 44, r: narrow ? 20 : 30, t: 34, b: 42 + extra, start, end }
 
   const sorted = sortEntries(points)
   const xy = spreadSameTime(sorted.map((p) => ({ x: sx(f, p.timePoint), y: sy(f, p.emotionScore) })), compact ? 6 : 18, f.l, w - f.r)
   // 나이 · 연도는 한 달 단위, 월 기준은 한 주(4분의 1달) 단위까지
-  const step = timeScale === 'month' ? 4 : 12
+  const step = timeScale === 'month' ? 4 : timeScale === 'hour' ? 6 : 12
+  const tl = (t: number) => timeLabel(timeScale, t, [start, end])
   const line = smoothPath(xy)
   // 지난 선은 이 그래프의 기간 안에 있는 점만 (끝에 몰려 모양이 바뀌지 않게)
   const ghostLine = ghost
@@ -95,10 +113,18 @@ export default function LifeGraph({
   const labels = allLabels.slice(0, sorted.length)
   const nowLabel = reachesNow ? null : allLabels[sorted.length]
 
-  const local = (e: PointerEvent) => {
-    const r = svg.current!.getBoundingClientRect()
-    return invert(f, e.clientX - r.left, e.clientY - r.top, step)
-  }
+  // 끌 때 시간 눈금: 한 칸이 8px 보다 좁으면 덜 잘게 (폰에서 한 달이 2px 이면 점이 떨린다)
+  const unitPx = (w - f.l - f.r) / Math.max(1, end - start)
+  const dragStep = Math.max(1, Math.min(step, Math.floor(unitPx / 8)))
+
+  // 끄는 동안 화면이 같이 굴러가지 않게 (iOS 는 SVG 안의 touch-action 을 따르지 않는다)
+  useEffect(() => {
+    const el = svg.current
+    if (!el || !editable || noDrag) return
+    const stop = (e: TouchEvent) => drag.current && e.cancelable && e.preventDefault()
+    el.addEventListener('touchmove', stop, { passive: false })
+    return () => el.removeEventListener('touchmove', stop)
+  }, [editable, noDrag])
 
   const onPointDown = (e: PointerEvent<SVGGElement>, id: string) => {
     e.stopPropagation()
@@ -108,19 +134,30 @@ export default function LifeGraph({
     } catch {
       // 일부 환경에서 포인터가 이미 끝난 경우 — 캡처 없이도 이동은 동작한다
     }
-    drag.current = { id, moved: false }
+    const i = sorted.findIndex((p) => p.id === id)
+    drag.current = { id, moved: false, x0: e.clientX, y0: e.clientY, px: xy[i].x, py: xy[i].y }
   }
   const onPointMove = (e: PointerEvent, p: GraphPoint) => {
-    if (drag.current?.id !== p.id) return
-    const { timePoint, score } = local(e)
+    const d = drag.current
+    if (noDrag || d?.id !== p.id) return
+    const dx = e.clientX - d.x0, dy = e.clientY - d.y0
+    // 살짝 떨린 건 누르기로 (6px 안쪽)
+    if (!d.moved && Math.hypot(dx, dy) < 6) return
+    if (!d.moved) setDragId(p.id)
+    d.moved = true
+    const moved = invert(f, d.px + dx, d.py + dy, dragStep)
+    const score = moved.score
+    // 위아래로만 끌면 시간은 그대로 (거친 눈금에 맞춰 바뀌지 않게)
+    const timePoint = Math.abs(dx) < 8 ? p.timePoint : moved.timePoint
     if (timePoint !== p.timePoint || score !== p.emotionScore) {
-      drag.current.moved = true
+      if (score !== p.emotionScore) navigator.vibrate?.(6)
       onMove?.(p.id, timePoint, score)
     }
   }
   const onPointUp = (id: string) => {
     if (drag.current && !drag.current.moved) select(sel === id ? null : id)
     drag.current = null
+    setDragId(null)
   }
   const onPointKey = (e: KeyboardEvent, p: GraphPoint) => {
     const delta: Record<string, [number, number]> = {
@@ -136,7 +173,12 @@ export default function LifeGraph({
     }
   }
 
-  const desc = `${showTimeLabels ? `${timeLabel(timeScale, start)}부터 ${timeLabel(timeScale, end)}까지` : '과거부터 지금까지'}의 인생 그래프. 순간 ${sorted.length}개.`
+  const di = dragId ? sorted.findIndex((p) => p.id === dragId) : -1
+  const dragging = di >= 0 ? xy[di] : null
+  const dragText = di >= 0 ? `${showTimeLabels ? tl(sorted[di].timePoint) + ' · ' : ''}마음 ${signed(sorted[di].emotionScore)}` : ''
+  const bubbleW = dragText.length * 8.5 + 28
+
+  const desc = `${showTimeLabels ? rangeLabel(timeScale, start, end).replace(/, \d+개월$/, '') : '과거부터 지금까지'}의 인생 그래프. 순간 ${sorted.length}개.`
 
   return (
     <div className={`life-graph${compact ? ' is-compact' : ''}`} ref={wrap} style={tone ? ({ '--line': tone } as CSSProperties) : undefined}>
@@ -148,10 +190,11 @@ export default function LifeGraph({
         role={compact ? undefined : 'group'}
         aria-label={compact ? undefined : desc}
         aria-hidden={compact || undefined}
-        className={editable ? 'is-editable' : undefined}
+        className={editable ? `is-editable${noDrag ? ' no-drag' : ''}` : undefined}
       >
         <defs>
-          <filter id={`${uidBase}-pencil`} x="-5%" y="-5%" width="110%" height="110%">
+          {/* 영역을 그래프 크기로: % 로 두면 완전히 수평인 선(모든 순간 마음 0)은 높이 0 이라 사라진다 */}
+          <filter id={`${uidBase}-pencil`} filterUnits="userSpaceOnUse" x={-10} y={-10} width={w + 20} height={h + 20}>
             <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7" />
             <feDisplacementMap in="SourceGraphic" scale="0.9" />
           </filter>
@@ -187,6 +230,23 @@ export default function LifeGraph({
           </g>
         )}
 
+        {/* 인생 구간 띠: 그래프 칸에는 아주 옅게, 시간 눈금 아래에는 이름 띠 */}
+        {bands.length > 0 && (
+          <g className="g-stages" aria-hidden="true">
+            {bands.map((b, i) => {
+              const x1 = Math.max(f.l, sx(f, Math.max(start, b.from))), x2 = Math.min(w - f.r, sx(f, Math.min(end, b.to)))
+              const bw = Math.max(0, x2 - x1 - 2)
+              return (
+                <g key={`${b.label}-${i}`} className={`g-stage is-${i % 5}`}>
+                  <rect x={x1 + 1} y={f.t} width={bw} height={h - f.t - f.b} className="g-stage-tint" />
+                  <rect x={x1 + 1} y={h - f.b + 30} width={bw} height={20} rx={6} className="g-stage-bar" />
+                  {bw > 24 && <text x={(x1 + x2) / 2} y={h - f.b + 44} textAnchor="middle" className="g-stage-label">{bw < b.label.length * 11 ? b.label.slice(0, Math.max(1, Math.floor(bw / 11) - 1)) + '…' : b.label}</text>}
+                </g>
+              )
+            })}
+          </g>
+        )}
+
         {!compact && (
           <g className="g-axis" aria-hidden="true">
             {[5, -5].map((s) => (
@@ -198,9 +258,13 @@ export default function LifeGraph({
               <text key={s} x={f.l - 8} y={sy(f, s) + 4} textAnchor="end" className="g-tick">{signed(s)}</text>
             ))}
             {showTimeLabels
-              ? ticks(start, end, timeScale === 'month' ? (narrow ? 6 : 12) : narrow ? 4 : 8).map((t) => (
+              ? timeScale === 'hour'
+                ? hourTicks(start, end, w - f.l - f.r).map(([t, label]) => (
+                    <text key={t} x={sx(f, t)} y={h - f.b + 20} textAnchor="middle" className="g-tick">{label}</text>
+                  ))
+                : ticks(start, end, timeScale === 'month' ? (narrow ? 6 : 12) : narrow ? 4 : 8).map((t) => (
                   <text key={t} x={sx(f, t)} y={h - f.b + 20} textAnchor="middle" className="g-tick">
-                    {t === end ? '지금' : timeLabel(timeScale, t)}
+                    {t === end && endsNow(timeScale, end) ? '지금' : tl(t)}
                   </text>
                 ))
               : (
@@ -248,16 +312,16 @@ export default function LifeGraph({
           return (
             <g
               key={p.id}
-              className={`g-point${isSel ? ' is-selected' : ''}`}
+              className={`g-point${isSel ? ' is-selected' : ''}${p.id === dragId ? ' is-dragging' : ''}`}
               transform={`translate(${x},${y})`}
               tabIndex={compact ? -1 : 0}
               role="button"
               aria-pressed={isSel}
-              aria-label={`${showTimeLabels ? timeLabel(timeScale, p.timePoint) + ', ' : ''}${p.title || '이름 없는 순간'}, 마음 ${signed(p.emotionScore)} ${scoreWord(p.emotionScore)}${editable ? '. 화살표 키로 옮길 수 있어요' : ''}`}
+              aria-label={`${showTimeLabels ? tl(p.timePoint) + ', ' : ''}${p.turningPoint ? '전환점, ' : ''}${p.title || '이름 없는 순간'}, 마음 ${signed(p.emotionScore)} ${scoreWord(p.emotionScore)}${editable ? '. 화살표 키로 옮길 수 있어요' : ''}`}
               onPointerDown={(e) => onPointDown(e, p.id)}
               onPointerMove={(e) => onPointMove(e, p)}
               onPointerUp={() => onPointUp(p.id)}
-              onPointerCancel={() => (drag.current = null)}
+              onPointerCancel={() => { drag.current = null; setDragId(null) }}
               onClick={(e) => {
                 e.stopPropagation()
                 if (!editable) select(isSel ? null : p.id)
@@ -265,13 +329,27 @@ export default function LifeGraph({
               onKeyDown={(e) => onPointKey(e, p)}
             >
               {!compact && <circle r={24} className="g-hit" />}
-              <circle r={compact ? 3.5 : isSel ? 11 : 8} className="g-dot" />
+              {p.turningPoint && !compact
+                ? <path d={starPath(isSel ? 15 : 12)} className="g-dot g-star" />
+                : <circle r={compact ? 3.5 : isSel ? 11 : 8} className="g-dot" />}
               {label && (
                 <text x={label.dx} y={label.dy} textAnchor="middle" className="g-label">{label.text}</text>
               )}
             </g>
           )
         })}
+
+        {/* 끄는 동안: 손가락에 가리지 않게 점 위에 지금 자리를 띄우고, 축까지 안내선 */}
+        {dragging && (
+          <g className="g-drag" aria-hidden="true">
+            <line x1={dragging.x} x2={dragging.x} y1={dragging.y} y2={h - f.b} />
+            <line x1={f.l} x2={dragging.x} y1={dragging.y} y2={dragging.y} />
+            <g transform={`translate(${Math.min(w - 4 - bubbleW / 2, Math.max(4 + bubbleW / 2, dragging.x))},${dragging.y > 70 ? dragging.y - 54 : dragging.y + 30})`}>
+              <rect x={-bubbleW / 2} y={-15} width={bubbleW} height={30} rx={15} />
+              <text y={5} textAnchor="middle">{dragText}</text>
+            </g>
+          </g>
+        )}
 
         {!compact && sorted.length === 0 && (
           // 0선 아래, 그래프 칸 가운데: 위쪽 오른끝의 ‘지금의 나’ 이름표와 겹치지 않게
@@ -284,11 +362,11 @@ export default function LifeGraph({
       {!compact && !editable && selected && (
         <div className="graph-note" role="status">
           <span className="note-meta">
-            {showTimeLabels && <>{timeLabel(timeScale, selected.timePoint)} · </>}
+            {showTimeLabels && <>{tl(selected.timePoint)} · </>}
             {selected.emotionLabel && <>{selected.emotionLabel} · </>}
             마음 {signed(selected.emotionScore)} ({scoreWord(selected.emotionScore)})
           </span>
-          <strong>{selected.title || '이름 없는 순간'}</strong>
+          <strong>{selected.turningPoint && <span className="turning-tag">★ 전환점</span>}{selected.title || '이름 없는 순간'}</strong>
           {selected.description && <p>{selected.description}</p>}
         </div>
       )}

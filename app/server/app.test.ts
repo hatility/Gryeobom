@@ -16,6 +16,7 @@ beforeAll(async () => {
       secureCookie: false,
       admin: { id: 'admin', password: 'admin-password-1234' },
       publicUrl: 'https://geuryeobom.example',
+      devServer: true,
     }),
   )
   await new Promise<void>((ok) => server.listen(0, ok))
@@ -159,6 +160,16 @@ describe('api', () => {
     expect((await kid('GET', '/me/cheers?since=nope')).status).toBe(400)
   })
 
+  it('시각(hour) 그래프는 14일 안으로만, 모임장이 정한 질문은 아는 칸만 짧게 남는다', async () => {
+    const u = await signup('시각이', '20080808')
+    const s0 = Date.UTC(2026, 10, 8, 9) / 3_600_000
+    const g = { ...newGraph(), timeScale: 'hour' as const, startPoint: s0 + 0.5, currentPoint: s0 + 9, prompts: { moments: ['캠프 첫날', ''], reflect: { feeling: '그때 웃었나요?', why: '', bogus: 'x' }, now: { word: '한 단어로' } } }
+    const saved = (await u('PUT', `/graphs/${g.id}`, { graph: g })).data
+    expect(saved).toMatchObject({ timeScale: 'hour', startPoint: s0 + 0.5, currentPoint: s0 + 9 })
+    expect(saved.prompts).toEqual({ moments: ['캠프 첫날'], reflect: { feeling: '그때 웃었나요?', why: '' }, now: { word: '한 단어로' } })
+    expect((await u('PUT', `/graphs/${g.id}`, { graph: { ...g, currentPoint: s0 + 400 } })).status).toBe(400)
+  })
+
   it('선 색 · 답장은 저장되고, 이상한 선 색은 버린다', async () => {
     const u = await signup('색칠이', '20090909')
     const g = { ...newGraph(), lineColor: 'lilac' as const, entries: [{ ...newEntry(5), reflection: { feeling: '', why: '', now: '', toPast: '', fromPast: '잘 버텼어' } }] }
@@ -168,8 +179,28 @@ describe('api', () => {
     expect((await u('PUT', `/graphs/${g.id}`, { graph: { ...g, lineColor: 'neon' } })).data.lineColor).toBeUndefined()
   })
 
+  it('정식 버전(DEV_SERVER 없음)에는 DB 초기화가 없다', async () => {
+    expect(readConfig({}).devServer).toBe(false)
+    expect(readConfig({ DEV_SERVER: 'true' }).devServer).toBe(true)
+    const prod = createServer(createApp(openDb(':memory:'), { secureCookie: false, admin: { id: 'admin', password: 'admin-password-1234' } }))
+    await new Promise<void>((ok) => prod.listen(0, ok))
+    const url = `http://127.0.0.1:${(prod.address() as AddressInfo).port}/api`
+    const h = { 'Content-Type': 'application/json', 'X-Requested-With': 'geuryeobom' }
+    const login = await fetch(url + '/admin/login', { method: 'POST', headers: h, body: JSON.stringify({ id: 'admin', password: 'admin-password-1234' }) })
+    const cookie = login.headers.get('set-cookie')!.split(';')[0]
+    const r = await fetch(url + '/admin/reset', { method: 'POST', headers: { ...h, Cookie: cookie }, body: JSON.stringify({ password: 'admin-password-1234', confirm: '모두 지우기' }) })
+    expect(r.status).toBe(404)
+    expect((await (await fetch(url + '/config')).json()).dev).toBe(false)
+    // 1.1.0: 정식이 된 묶음은 열려 있고(로그인이 필요해 401), 보호자 동의만 아직 스위치로 꺼져 있다
+    expect((await fetch(url + '/me/export')).status).toBe(401)
+    expect((await fetch(url + '/orgs')).status).toBe(401)
+    expect((await fetch(url + '/groups/bulk', { method: 'POST', headers: h, body: JSON.stringify({ names: ['x'] }) })).status).toBe(401)
+    expect((await fetch(url + '/guardian/abcdefghijklmnopqrstu')).status).toBe(404)
+    prod.close()
+  })
+
   it('공유 주소 설정을 화면에 알려준다', async () => {
-    expect((await client()('GET', '/config')).data).toEqual({ publicUrl: 'https://geuryeobom.example', developer: null, operator: null })
+    expect((await client()('GET', '/config')).data).toMatchObject({ publicUrl: 'https://geuryeobom.example', developer: null, operator: null, dev: true })
   })
 
   it('관리자: 로그인 · 둘러보기 · 모든 기록 보기 · 지우기', async () => {
@@ -182,7 +213,7 @@ describe('api', () => {
     expect((await kid('GET', '/admin/overview')).status).toBe(401) // 일반 계정 세션으로는 안 된다
     expect((await adm('POST', '/admin/login', { id: 'admin', password: 'wrong-password' })).status).toBe(401)
     expect((await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })).status).toBe(200)
-    expect((await adm('GET', '/admin/me')).data).toEqual({ enabled: true, admin: true })
+    expect((await adm('GET', '/admin/me')).data).toMatchObject({ enabled: true, admin: true })
 
     const ov = await adm('GET', '/admin/overview')
     expect(ov.data.counts.users).toBeGreaterThan(0)
@@ -266,12 +297,12 @@ describe('api', () => {
     const { id, code } = (await owner('POST', '/groups', { name: '한 번에 모임', intro: '반가워요' })).data
     expect((await client()('GET', `/invite/${code}`)).data.intro).toBe('반가워요')
     const guest = client()
-    const r = await guest('POST', `/invite/${code}`, { name: '한번에', birth: '20130303', nickname: '단번', agree: true })
+    const r = await guest('POST', `/invite/${code}`, { name: '한번에', birth: '20100303', nickname: '단번', agree: true })
     expect(r.data).toMatchObject({ id, user: { nickname: '단번' } })
     // 다음에는 같은 이름 · 생일로 로그인해서 쓰던 기록을 이어 쓴다
-    expect((await client()('POST', '/auth/login', { name: '한번에', birth: '20130303' })).status).toBe(200)
+    expect((await client()('POST', '/auth/login', { name: '한번에', birth: '20100303' })).status).toBe(200)
     // 이미 계정이 있으면 별명은 무시하고 그 계정으로 들어간다
-    const again = await client()('POST', `/invite/${code}`, { name: '한번에', birth: '20130303', nickname: '다른별명', agree: true })
+    const again = await client()('POST', `/invite/${code}`, { name: '한번에', birth: '20100303', nickname: '다른별명', agree: true })
     expect(again.data.user.nickname).toBe('단번')
   })
 
@@ -348,13 +379,28 @@ describe('api', () => {
     expect((await adm('PUT', '/admin/settings', { ...site, operator: { name: 'x', contact: '031-000-0000' } })).status).toBe(400)
     expect((await adm('PUT', '/admin/settings', { ...site, publicUrl: 'javascript:alert(1)' })).status).toBe(400)
     expect((await adm('PUT', '/admin/settings', site)).status).toBe(200)
-    expect((await client()('GET', '/config')).data).toEqual({
-      publicUrl: 'https://grb.example', operator: { name: '○○수련관', contact: 'privacy@grb.example' }, developer: { name: '팀', org: '', contact: '', url: '' },
+    expect((await client()('GET', '/config')).data).toMatchObject({
+      publicUrl: 'https://grb.example', operator: { name: '○○수련관', contact: 'privacy@grb.example' }, developer: { name: '팀', org: '', contact: '', url: '' }, dev: true,
     })
     expect((await client()('PUT', '/admin/settings', site)).status).toBe(401)
     expect((await adm('GET', '/admin/settings')).data.saved).toBe(true)
     await adm('DELETE', '/admin/settings')
     expect((await client()('GET', '/config')).data.publicUrl).toBe('https://geuryeobom.example') // .env 값으로
+  })
+
+  it('관리자 공지 팝업: 켜면 누구나 받고, 끄면 사라지며, 고치면 at 이 바뀐다', async () => {
+    const adm = client()
+    await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    expect((await client()('GET', '/notice')).data.notice).toBeNull()
+    expect((await client()('PUT', '/admin/notice', { on: true, title: 'x', body: '' })).status).toBe(401)
+    expect((await adm('PUT', '/admin/notice', { on: true, title: '', body: '' })).status).toBe(400)
+    const first = (await adm('PUT', '/admin/notice', { on: true, title: '점검 안내', body: '토요일 밤 10시' })).data
+    expect((await client()('GET', '/notice')).data.notice).toEqual({ title: '점검 안내', body: '토요일 밤 10시', at: first.at })
+    expect((await adm('PUT', '/admin/notice', { on: true, title: '점검 안내', body: '토요일 밤 10시' })).data.at).toBe(first.at) // 그대로면 다시 안 뜬다
+    await new Promise((r) => setTimeout(r, 5))
+    expect((await adm('PUT', '/admin/notice', { on: true, title: '점검 안내', body: '일요일로 바뀌었어요' })).data.at).not.toBe(first.at)
+    await adm('PUT', '/admin/notice', { on: false, title: '점검 안내', body: '일요일로 바뀌었어요' })
+    expect((await client()('GET', '/notice')).data.notice).toBeNull()
   })
 
   it('공동 모임장은 모임을 꾸리고, 모임장은 다른 사람에게 넘길 수 있다', async () => {
@@ -632,7 +678,7 @@ describe('0.18 모임 리포트', () => {
 })
 
 describe('0.18 오래 운영하기', () => {
-  it('하루 손질: 끝난 로그인을 지우고, 자동 백업은 하루 하나 · 최근 keep 개만', async () => {
+  it('손질: 끝난 로그인을 지우고, 자동 백업은 한 시간에 하나 · 최근 keep 개만 (예전 하루 백업도 함께 센다)', async () => {
     const { maintain } = await import('./db.ts')
     const { mkdtempSync, readdirSync } = await import('node:fs')
     const { tmpdir } = await import('node:os')
@@ -642,15 +688,20 @@ describe('0.18 오래 운영하기', () => {
     db.prepare("INSERT INTO users (id, login_key, nickname, created_at) VALUES ('u', 'k', 'n', '2026-01-01')").run()
     db.prepare("INSERT INTO sessions VALUES ('old', 'u', '2000-01-01T00:00:00.000Z')").run()
     db.prepare("INSERT INTO sessions VALUES ('new', 'u', '2999-01-01T00:00:00.000Z')").run()
-    for (const d of ['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-03']) maintain(db, dir, 2, new Date(`${d}T09:00:00Z`))
+    const { writeFileSync, mkdirSync } = await import('node:fs')
+    const folder = join(dir, 'backups')
+    mkdirSync(folder)
+    writeFileSync(join(folder, 'auto-2026-11-01.db'), '') // 1.0.x 의 하루 백업
+    // 한국 시간 10 · 11 · 12시 (같은 시간에 두 번 돌아도 하나)
+    for (const t of ['01:00', '02:00', '03:00', '03:30']) maintain(db, folder, 2, new Date(`2026-11-03T${t}:00Z`))
     expect((db.prepare('SELECT token_hash FROM sessions').all() as { token_hash: string }[]).map((r) => r.token_hash)).toEqual(['new'])
-    expect(readdirSync(join(dir, 'backups')).sort()).toEqual(['auto-2026-11-02.db', 'auto-2026-11-03.db'])
+    expect(readdirSync(folder).sort()).toEqual(['auto-2026-11-03-11.db', 'auto-2026-11-03-12.db'])
     expect(maintain(db, dir, 0)).toBeNull() // 0 이면 끔
     db.close()
   })
 
-  it('BACKUP_KEEP: 비우면 7, 0 이면 끔, 이상한 값은 0', () => {
-    expect(readConfig({}).backupKeep).toBe(7)
+  it('BACKUP_KEEP: 비우면 168 (7일), 0 이면 끔, 이상한 값은 0', () => {
+    expect(readConfig({}).backupKeep).toBe(168)
     expect(readConfig({ BACKUP_KEEP: '0' }).backupKeep).toBe(0)
     expect(readConfig({ BACKUP_KEEP: '30' }).backupKeep).toBe(30)
     expect(readConfig({ BACKUP_KEEP: 'abc' }).backupKeep).toBe(0)
@@ -716,5 +767,580 @@ describe('1.0 신고 기록 지우기 · 내린 글 다시 나누기', () => {
     expect((await adm('GET', '/admin/reports')).data.some((x: { id: string }) => x.id === r.id)).toBe(false)
     expect((await adm('GET', '/admin/reports?deleted=1')).data.find((x: { id: string }) => x.id === r.id)).toMatchObject({ deleteReason: '시험 신고' })
     expect((await kid('DELETE', `/admin/reports/${r.id}`, { reason: '시험' })).status).toBe(401)
+  })
+
+  it('실험: 만 14세 미만은 보호자 동의가 있어야 가입되고, 관리자에게 보인다', async () => {
+    const kid = client()
+    const base = { name: '어린이', birth: '20150101', nickname: '어린이', agree: true }
+    expect((await kid('POST', '/auth/signup', base)).status).toBe(400)
+    expect((await kid('POST', '/auth/signup', { ...base, guardian: { relation: '부모님', contact: '1234', agreed: true } })).status).toBe(400)
+    const ok = await kid('POST', '/auth/signup', { ...base, guardian: { relation: '부모님', contact: '010-1234-5678', agreed: true } })
+    expect(ok.status).toBe(200)
+    const adm = client()
+    await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    const detail = (await adm('GET', `/admin/users/${ok.data.user.id}`)).data
+    expect(detail.guardian).toMatchObject({ relation: '부모님', contact: '01012345678' })
+    // 14세 이상은 그대로
+    expect((await client()('POST', '/auth/signup', { name: '청소년', birth: '20100101', nickname: '청소년', agree: true })).status).toBe(200)
+  })
+
+  it('실험: 내 기록 내려받기 · 모임 여러 개 만들기 · 질문 묶음 · 기간 통계', async () => {
+    const t = await signup('담당선생님')
+    const g = { ...newGraph(), id: 'labs-g1', title: '진로 그래프', questionSet: 'career' }
+    expect((await t('PUT', '/graphs/labs-g1', { graph: g })).status).toBe(200)
+    expect((await t('GET', '/graphs/labs-g1')).data.questionSet).toBe('career')
+    await t('PUT', '/graphs/labs-g1', { graph: { ...g, questionSet: 'nope' } })
+    expect((await t('GET', '/graphs/labs-g1')).data.questionSet).toBeUndefined()
+
+    const bulk = await t('POST', '/groups/bulk', { names: ['1반', ' 2반 ', '', '3반'], intro: '수요일 프로그램' })
+    expect(bulk.data.groups.map((x: { name: string }) => x.name)).toEqual(['1반', '2반', '3반'])
+    expect((await t('POST', '/groups/bulk', { names: Array.from({ length: 31 }, (_, i) => `${i}반`) })).status).toBe(400)
+    expect((await client()('POST', '/groups/bulk', { names: ['x'] })).status).toBe(401)
+
+    const ex = (await t('GET', '/me/export')).data
+    expect(ex.profile.nickname).toBe('담당선생님')
+    expect(ex.graphs.map((x: { id: string }) => x.id)).toContain('labs-g1')
+    expect(ex.groups).toHaveLength(3)
+    expect((await client()('GET', '/me/export')).status).toBe(401)
+
+    const adm = client()
+    await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+    const st = (await adm('GET', `/admin/stats?from=${today}&to=${today}`)).data
+    expect(st.rows).toHaveLength(1)
+    expect(st.total.groups).toBeGreaterThanOrEqual(3)
+    expect((await adm('GET', '/admin/stats?from=2020-01-01&to=2026-01-01')).status).toBe(400)
+    expect((await t('GET', '/admin/stats')).status).toBe(401)
+  })
+
+  it('실험: 모임 소식은 모임장만 올리고 모임 사람에게 보이며, 관리자 활동은 기록된다', async () => {
+    const lead = await signup('소식모임장')
+    const kid = await signup('소식아이')
+    const { id, code } = (await lead('POST', '/groups', { name: '소식 모임' })).data
+    await kid('POST', '/groups/join', { code })
+    expect((await kid('PUT', `/groups/${id}/news`, { news: '몰래' })).status).toBe(403)
+    expect((await lead('PUT', `/groups/${id}/news`, { news: '이번 주는 쉬어요\n다음 주에 만나요' })).status).toBe(200)
+    const g = (await kid('GET', `/groups/${id}`)).data
+    expect(g.news).toBe('이번 주는 쉬어요\n다음 주에 만나요')
+    expect((await kid('GET', '/groups')).data.find((x: { id: string }) => x.id === id).newsAt).toBeTruthy()
+    await lead('PUT', `/groups/${id}/news`, { news: '' })
+    expect((await kid('GET', `/groups/${id}`)).data.news).toBe('')
+
+  })
+
+  it('실험: 보호자는 링크로 동의를 확인하고, 아이 화면은 확인됐는지 안다', async () => {
+    const kid = client()
+    const r = await kid('POST', '/auth/signup', { name: '링크아이', birth: '20160101', nickname: '링크아이', agree: true, guardian: { relation: '보호자', contact: 'mom@example.kr', agreed: true } })
+    expect(r.status).toBe(200)
+    const st = (await kid('GET', '/me/guardian')).data
+    expect(st).toMatchObject({ needed: true, confirmed: false })
+    expect(st.token.length).toBeGreaterThan(16)
+    const guardian = client()
+    expect((await guardian('GET', '/guardian/not-a-real-token-123')).status).toBe(404)
+    expect((await guardian('GET', `/guardian/${st.token}`)).data).toMatchObject({ nickname: '링크아이', confirmed: false })
+    expect((await guardian('POST', `/guardian/${st.token}`, {})).status).toBe(400)
+    expect((await guardian('POST', `/guardian/${st.token}`, { agree: true })).status).toBe(200)
+    expect((await kid('GET', '/me/guardian')).data).toMatchObject({ confirmed: true, token: null })
+    expect((await (await signup('어른계정'))('GET', '/me/guardian')).data.needed).toBe(false)
+  })
+
+  it('실험: 모임 일정 · 기관 담당자 리포트 · 올해 받은 응원', async () => {
+    const lead = await signup('일정모임장')
+    const kid = await signup('일정아이')
+    const { id, code } = (await lead('POST', '/groups', { name: '일정 모임' })).data
+    await kid('POST', '/groups/join', { code })
+    const soon = new Date(Date.now() + 9 * 3600_000 + 3 * 864e5).toISOString().slice(0, 10)
+    expect((await kid('POST', `/groups/${id}/events`, { day: soon, title: '몰래' })).status).toBe(403)
+    expect((await lead('POST', `/groups/${id}/events`, { day: '2020-01-01', title: '지난 일' })).status).toBe(400)
+    const ev = (await lead('POST', `/groups/${id}/events`, { day: soon, title: '처음 해낸 일 그리기' })).data
+    expect((await kid('GET', `/groups/${id}`)).data.events).toEqual([{ id: ev.id, day: soon, title: '처음 해낸 일 그리기', count: 0, mine: false }])
+    expect((await kid('GET', '/groups')).data.find((g: { id: string }) => g.id === id).nextEvent.title).toBe('처음 해낸 일 그리기')
+    await lead('DELETE', `/groups/${id}/events/${ev.id}`)
+    expect((await kid('GET', `/groups/${id}`)).data.events).toEqual([])
+
+    const adm = client()
+    await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    const staffId = (await kid('GET', '/me')).data.user.id
+    expect((await adm('PUT', '/admin/orgs/new', { name: '○○수련관', codes: ['ZZZZZZ'], managerIds: [] })).status).toBe(400)
+    const org = (await adm('PUT', '/admin/orgs/new', { name: '○○수련관', codes: [code.toLowerCase()], managerIds: [staffId] })).data
+    expect(org.groups.map((g: { name: string }) => g.name)).toEqual(['일정 모임'])
+    const mine = (await kid('GET', '/orgs')).data
+    expect(mine[0]).toMatchObject({ name: '○○수련관', total: { groups: 1, members: 2 } })
+    expect(mine[0].groups[0].report.members).toBe(2)
+    expect((await lead('GET', '/orgs')).data).toEqual([]) // 담당자가 아니면 없다
+    expect((await kid('PUT', `/admin/orgs/${org.id}`, { name: 'x' })).status).toBe(401)
+    await adm('DELETE', `/admin/orgs/${org.id}`)
+    expect((await kid('GET', '/orgs')).data).toEqual([])
+
+    const y = new Date(Date.now() + 9 * 3600_000).getUTCFullYear()
+    expect((await kid('GET', `/me/cheers/${y}`)).data).toMatchObject({ year: y, received: 0 })
+  })
+
+  it('실험: 출석 · 모임 복제 · 기관 기간 리포트 · 휴면 계정', async () => {
+    const lead = await signup('출석모임장')
+    const kid = await signup('출석아이')
+    const { id, code } = (await lead('POST', '/groups', { name: '출석 모임', intro: '소개글' })).data
+    await lead('PUT', `/groups/${id}/topic`, { topic: '처음 해낸 일' })
+    await kid('POST', '/groups/join', { code })
+    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+    const later = new Date(Date.now() + 9 * 3600_000 + 2 * 864e5).toISOString().slice(0, 10)
+    const ev = (await lead('POST', `/groups/${id}/events`, { day: today, title: '오늘 활동' })).data
+    const ev2 = (await lead('POST', `/groups/${id}/events`, { day: later, title: '다음 활동' })).data
+    expect((await kid('POST', `/groups/${id}/events/${ev2.id}/attend`)).status).toBe(400) // 아직 안 온 날
+    expect((await kid('POST', `/groups/${id}/events/${ev.id}/attend`)).data).toEqual({ mine: true, count: 1 })
+    expect((await lead('GET', `/groups/${id}`)).data.events[0]).toMatchObject({ count: 1, mine: false })
+    expect((await kid('POST', `/groups/${id}/events/${ev.id}/attend`)).data).toEqual({ mine: false, count: 0 })
+    await kid('POST', `/groups/${id}/events/${ev.id}/attend`)
+    expect((await client()('POST', `/groups/${id}/events/${ev.id}/attend`)).status).toBe(401)
+
+    expect((await kid('POST', `/groups/${id}/copy`, { name: '복제' })).status).toBe(403)
+    const copy = (await lead('POST', `/groups/${id}/copy`, { name: '출석 모임 2학기' })).data
+    const cg = (await lead('GET', `/groups/${copy.id}`)).data
+    expect(cg).toMatchObject({ name: '출석 모임 2학기', intro: '소개글', topic: '처음 해낸 일', events: [] })
+    expect(cg.members).toHaveLength(1)
+
+    const adm = client()
+    await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    const leadId = (await lead('GET', '/me')).data.user.id
+    await adm('PUT', '/admin/orgs/new', { name: '기간기관', codes: [code], managerIds: [leadId] })
+    const o = (await lead('GET', `/orgs?from=${today}&to=${today}`)).data.find((x: { name: string }) => x.name === '기간기관')
+    expect(o.groups[0].period).toMatchObject({ joined: 2, events: 1, attended: 1 })
+    expect((await lead('GET', '/orgs')).data[0].groups[0].period).toBeNull()
+    expect((await lead('GET', `/orgs?from=${today}&to=2020-01-01`)).status).toBe(400)
+
+    // 휴면: 갓 가입한 사람은 휴면이 아니다
+    const d = (await adm('GET', '/admin/dormant?months=12')).data
+    expect(d.months).toBe(12)
+    expect(d.users.some((u: { id: string }) => u.id === leadId)).toBe(false)
+    expect((await adm('POST', '/admin/dormant/purge', { months: 12, ids: [leadId] })).data.deleted).toBe(0) // 지울 때도 다시 확인
+    expect((await lead('GET', '/me')).data.user.id).toBe(leadId)
+    expect((await kid('GET', '/admin/dormant')).status).toBe(401)
+    expect((await adm('GET', '/admin/errors')).status).toBe(200)
+  })
+
+  it('실험 5: 구간 띠 · 나만의 질문 · 전환점 · 모임 끝내기 · 기관 소식 · 담당자 초대 · 약관 재동의', async () => {
+    const t = await signup('구간띠')
+    const e = { ...newEntry(5, 3, '첫 무대'), turningPoint: true, reflection: { feeling: '', why: '', now: '', toPast: '', fromPast: '', extra: ['곁에 엄마'] } }
+    const g = { ...newGraph(), id: 'labs5-g1', entries: [e], stages: [{ label: '초등학교', from: 7, to: 13 }, { label: '', from: 1, to: 2 }, { label: '거꾸로', from: 9, to: 3 }], myQuestions: ['그때 곁에 누가 있었나요?', ' '] }
+    await t('PUT', '/graphs/labs5-g1', { graph: g })
+    const saved = (await t('GET', '/graphs/labs5-g1')).data
+    expect(saved.stages).toEqual([{ label: '초등학교', from: 7, to: 13 }]) // 이름 없는 것 · 거꾸로 된 것은 빠진다
+    expect(saved.myQuestions).toEqual(['그때 곁에 누가 있었나요?'])
+    expect(saved.entries[0]).toMatchObject({ turningPoint: true, reflection: { extra: ['곁에 엄마'] } })
+
+    // 모임 끝내기: 새로 들어오기 · 나누기 · 일정은 멈추고, 이미 있던 사람은 그대로 본다
+    const lead = await signup('끝모임장')
+    const kid = await signup('끝아이')
+    const late = await signup('늦은아이')
+    const { id, code } = (await lead('POST', '/groups', { name: '끝날 모임' })).data
+    await kid('POST', '/groups/join', { code })
+    expect((await kid('PUT', `/groups/${id}/closed`, { closed: true })).status).toBe(403)
+    expect((await lead('PUT', `/groups/${id}/closed`, { closed: true })).data.closedAt).toBeTruthy()
+    expect((await late('POST', '/groups/join', { code })).status).toBe(400)
+    expect((await late('POST', `/invite/${code}`, {})).status).toBe(400)
+    expect((await client()('GET', `/invite/${code}`)).data.closed).toBe(true)
+    expect((await kid('POST', '/groups/join', { code })).status).toBe(200) // 이미 있던 사람은 괜찮다
+    const day = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+    expect((await lead('POST', `/groups/${id}/events`, { day, title: '못 더함' })).status).toBe(400)
+    expect((await kid('GET', '/groups')).data.find((x: { id: string }) => x.id === id).closedAt).toBeTruthy()
+    await lead('PUT', `/groups/${id}/closed`, { closed: false })
+    expect((await late('POST', '/groups/join', { code })).status).toBe(200)
+
+    // 기관: 담당자 초대 링크 (한 번 쓰면 꺼짐) · 모든 모임에 소식
+    const adm = client()
+    await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    const org = (await adm('PUT', '/admin/orgs/new', { name: '초대기관', codes: [code], managerIds: [] })).data
+    const { invite } = (await adm('POST', `/admin/orgs/${org.id}/invite`)).data
+    expect(invite.length).toBeGreaterThan(16)
+    expect((await client()('GET', `/org-invite/${invite}`)).data).toMatchObject({ name: '초대기관', groups: 1, already: false })
+    expect((await client()('POST', `/org-invite/${invite}`)).status).toBe(401)
+    expect((await kid('POST', `/org-invite/${invite}`)).data.name).toBe('초대기관')
+    expect((await late('POST', `/org-invite/${invite}`)).status).toBe(404) // 한 번 쓰면 꺼진다
+    expect((await late('PUT', `/orgs/${org.id}/news`, { news: '휴관' })).status).toBe(404)
+    expect((await kid('PUT', `/orgs/${org.id}/news`, { news: '다음 주 휴관이에요' })).data.groups).toBe(1)
+    expect((await lead('GET', `/groups/${id}`)).data.news).toBe('다음 주 휴관이에요')
+
+    // 약관 재동의: 올리기 전 동의한 사람은 다시, 동의하면 끝
+    expect((await kid('GET', '/me/terms')).data.need).toBe(false)
+    expect((await kid('PUT', '/admin/terms', { summary: '출석 기록을 남겨요' })).status).toBe(401)
+    await adm('PUT', '/admin/terms', { summary: '출석 기록을 남겨요' })
+    expect((await kid('GET', '/me/terms')).data).toMatchObject({ need: true, summary: '출석 기록을 남겨요' })
+    await kid('POST', '/me/agree', { agree: true })
+    expect((await kid('GET', '/me/terms')).data.need).toBe(false)
+    expect((await adm('GET', '/admin/terms')).data.agreed).toBe(1)
+  })
+
+  it('실험 5: 공지 예약 · 서버 상태 · 자동 백업 · 차단 현황 · 개인정보 요청 대장', async () => {
+    const adm = client()
+    await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    const future = new Date(Date.now() + 3600_000).toISOString()
+    await adm('PUT', '/admin/notice', { on: true, title: '예약 공지', body: '', from: future })
+    expect((await client()('GET', '/notice')).data.notice).toBeNull() // 아직
+    await adm('PUT', '/admin/notice', { on: true, title: '예약 공지', body: '', from: '', to: future })
+    expect((await client()('GET', '/notice')).data.notice.title).toBe('예약 공지')
+    expect((await adm('PUT', '/admin/notice', { on: true, title: 'x', body: '', from: future, to: future })).status).toBe(400)
+    await adm('PUT', '/admin/notice', { on: false, title: '예약 공지', body: '' })
+
+    const h = (await adm('GET', '/admin/health')).data
+    expect(h.requests.served).toBeGreaterThan(0)
+    expect(h.storage.db).toBeGreaterThan(0)
+    expect((await client()('GET', '/admin/health')).status).toBe(401)
+    expect((await adm('GET', '/admin/backups')).data).toMatchObject({ keep: 168, dir: false, files: [] })
+    expect((await adm('PUT', '/admin/backups', { keep: 3 })).data.keep).toBe(3)
+    expect((await adm('GET', '/admin/backups')).data.keep).toBe(3)
+    expect((await adm('GET', '/admin/backups/..%2Fx')).status).toBe(404)
+
+    // 같은 IP 로 없는 링크를 계속 맞혀 보면 막히고, 관리자가 풀 수 있다
+    const bad = client()
+    for (let i = 0; i < 61; i++) await bad('GET', '/links/zzzzzzzz')
+    const blocks = (await adm('GET', '/admin/blocks')).data as { limit: string; key: string }[]
+    const b = blocks.find((x) => x.limit === '없는 링크 · 확인 링크 맞히기')!
+    expect(b).toBeTruthy()
+    expect((await bad('GET', '/links/zzzzzzzz')).status).toBe(429)
+    await adm('POST', '/admin/blocks/release', { limit: b.limit, key: b.key })
+    expect((await bad('GET', '/links/zzzzzzzz')).status).toBe(404)
+
+    const r = (await adm('PUT', '/admin/privacy/new', { kind: '열람', who: '바다 · 메일', detail: '내 기록 파일', receivedAt: '2026-11-01', status: '받음', note: '' })).data
+    expect((await adm('PUT', '/admin/privacy/new', { kind: '없음' })).status).toBe(400)
+    await adm('PUT', `/admin/privacy/${r.id}`, { kind: '열람', who: '바다 · 메일', detail: '내 기록 파일', receivedAt: '2026-11-01', status: '완료', note: '메일로 보냄' })
+    const list = (await adm('GET', '/admin/privacy')).data
+    expect(list[0]).toMatchObject({ status: '완료', note: '메일로 보냄' })
+    expect(list[0].doneAt).toBeTruthy()
+    await adm('DELETE', `/admin/privacy/${r.id}`)
+    expect((await adm('GET', '/admin/privacy')).data).toEqual([])
+  })
+
+  it('실험 6: 지난 모습 · 모임 질문 묶음 · 헬스체크 · 점검 모드 · 가입 흐름 · CSP 보고', async () => {
+    const t = await signup('지난모습')
+    const g = { ...newGraph(), id: 'labs6-g1', title: '처음 제목' }
+    await t('PUT', '/graphs/labs6-g1', { graph: g })
+    expect((await t('GET', '/graphs/labs6-g1/versions')).data).toEqual([]) // 처음 저장은 남길 지난 모습이 없다
+    await t('PUT', '/graphs/labs6-g1', { graph: { ...g, title: '두 번째' } })
+    await t('PUT', '/graphs/labs6-g1', { graph: { ...g, title: '세 번째' } }) // 10분 안이라 하나만
+    let vs = (await t('GET', '/graphs/labs6-g1/versions')).data
+    expect(vs).toHaveLength(1)
+    expect(vs[0].title).toBe('처음 제목')
+    await t('PUT', '/graphs/labs6-g1', { graph: { ...g, title: '처음 제목' }, snapshot: true }) // 되돌리기는 꼭 남긴다
+    vs = (await t('GET', '/graphs/labs6-g1/versions')).data
+    expect(vs[0].title).toBe('세 번째')
+    expect((await t('GET', `/graphs/labs6-g1/versions/${vs[1].id}`)).data.graph.title).toBe('처음 제목')
+    const other = await signup('남의모습')
+    expect((await other('GET', '/graphs/labs6-g1/versions')).status).toBe(404)
+
+    // 모임 질문 묶음
+    const lead = await signup('질문모임장')
+    const { id } = (await lead('POST', '/groups', { name: '진로 모임' })).data
+    await lead('PUT', `/groups/${id}/question-set`, { set: 'career' })
+    expect((await lead('GET', `/groups/${id}`)).data.questionSet).toBe('career')
+    await lead('PUT', `/groups/${id}/question-set`, { set: 'nope' })
+    expect((await lead('GET', `/groups/${id}`)).data.questionSet).toBe('')
+
+    // 헬스체크
+    expect((await client()('GET', '/health')).data.ok).toBe(true)
+
+    // 점검 모드: 관리자 말고는 저장이 멈춘다
+    const adm = client()
+    await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    await adm('PUT', '/admin/maintenance', { on: true, message: '서버를 옮겨요' })
+    expect((await client()('GET', '/config')).data.maintenance.message).toBe('서버를 옮겨요')
+    const r = await t('PUT', '/graphs/labs6-g1', { graph: g })
+    expect(r.status).toBe(503)
+    expect(r.data.error).toContain('서버를 옮겨요')
+    expect((await t('GET', '/graphs/labs6-g1')).status).toBe(200) // 보기는 된다
+    expect((await adm('PUT', '/admin/notice', { on: false, title: '', body: '' })).status).toBe(200) // 관리자는 된다
+    await adm('PUT', '/admin/maintenance', { on: false, message: '' })
+    expect((await t('PUT', '/graphs/labs6-g1', { graph: g })).status).toBe(200)
+    expect((await client()('GET', '/config')).data.maintenance).toBeUndefined()
+
+    // 가입 흐름
+    const f = (await adm('GET', '/admin/funnel')).data
+    expect(f.signup).toBeGreaterThan(0)
+    expect(f.started).toBeGreaterThan(0)
+    expect(f.signup).toBeGreaterThanOrEqual(f.started)
+
+    // CSP 보고: 이 앱의 헤더 없이 와도 받고, 주소 속 코드는 가린다
+    const csp = (body: unknown, type = 'application/csp-report') => fetch(`${base}/csp-report`, { method: 'POST', headers: { 'Content-Type': type }, body: JSON.stringify(body) })
+    expect((await csp({ 'csp-report': { 'document-uri': 'https://geuryeobom.example/join/ABC123', 'violated-directive': 'script-src', 'blocked-uri': 'https://evil.example/x.js' } })).status).toBe(200)
+    await csp({ 'csp-report': { 'document-uri': 'https://geuryeobom.example/join/ZZZ999', 'violated-directive': 'script-src', 'blocked-uri': 'https://evil.example/x.js' } })
+    await csp([{ type: 'csp-violation', body: { documentURL: 'https://geuryeobom.example/', effectiveDirective: 'font-src', blockedURL: 'https://fonts.example/a.woff2' } }], 'application/reports+json')
+    const rows = (await adm('GET', '/admin/csp')).data
+    expect(rows.find((x: { directive: string }) => x.directive === 'script-src')).toMatchObject({ page: '/join/…', blocked: 'https://evil.example/x.js', count: 2 })
+    expect(rows.some((x: { directive: string }) => x.directive === 'font-src')).toBe(true)
+    expect((await fetch(`${base}/csp-report`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: 'x' })).status).toBe(403)
+    await adm('DELETE', '/admin/csp')
+    expect((await adm('GET', '/admin/csp')).data).toEqual([])
+  })
+
+  it('실험 6: 관리자 계정 여러 개 — 보기만 · 바꾸기까지 · 처음 관리자만 계정 관리', async () => {
+    const adm = client()
+    await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    expect((await adm('GET', '/admin/me')).data).toMatchObject({ admin: true, who: 'admin', role: 'owner' })
+    expect((await adm('PUT', '/admin/accounts/viewer1', { role: 'viewer', password: 'short' })).status).toBe(400)
+    expect((await adm('PUT', '/admin/accounts/admin', { role: 'full', password: 'long-enough-password' })).status).toBe(400)
+    await adm('PUT', '/admin/accounts/viewer1', { role: 'viewer', password: 'viewer-password-123' })
+    await adm('PUT', '/admin/accounts/full1', { role: 'full', password: 'full-password-1234' })
+
+    const v = client()
+    expect((await v('POST', '/admin/login', { id: 'viewer1', password: 'wrong-password-000' })).status).toBe(401)
+    expect((await v('POST', '/admin/login', { id: 'viewer1', password: 'viewer-password-123' })).status).toBe(200)
+    expect((await v('GET', '/admin/me')).data).toMatchObject({ who: 'viewer1', role: 'viewer' })
+    expect((await v('GET', '/admin/overview')).status).toBe(200) // 보기는 된다
+    expect((await v('PUT', '/admin/notice', { on: false, title: '', body: '' })).status).toBe(403)
+    expect((await v('GET', '/admin/backup')).status).toBe(403)
+    expect((await v('GET', '/admin/accounts')).status).toBe(403)
+
+    const fu = client()
+    await fu('POST', '/admin/login', { id: 'full1', password: 'full-password-1234' })
+    expect((await fu('PUT', '/admin/notice', { on: false, title: '', body: '' })).status).toBe(200)
+    expect((await fu('PUT', '/admin/accounts/x-new', { role: 'full', password: 'x-new-password-12' })).status).toBe(403)
+
+    // 권한을 바꾸거나 지우면 그 계정의 로그인은 끊긴다
+    await adm('PUT', '/admin/accounts/viewer1', { role: 'full' })
+    expect((await v('GET', '/admin/overview')).status).toBe(401)
+    await adm('DELETE', '/admin/accounts/full1')
+    expect((await fu('GET', '/admin/overview')).status).toBe(401)
+    expect((await adm('GET', '/admin/accounts')).data.map((a: { id: string }) => a.id)).toEqual(['viewer1'])
+  })
+
+  it('실험 7: 도우미 · 문의함 → 요청 대장 · 설정 진단 · DB 점검 · 접속 표 · 파기 기록', async () => {
+    const lead = await signup('도우미모임장')
+    const help = await signup('도우미')
+    const { id, code } = (await lead('POST', '/groups', { name: '도우미 모임' })).data
+    await help('POST', '/groups/join', { code })
+    const day = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+    expect((await help('POST', `/groups/${id}/events`, { day, title: '못 함' })).status).toBe(403)
+    const hid = (await lead('GET', `/groups/${id}`)).data.members.find((m: { nickname: string }) => m.nickname === '도우미').id
+    expect((await lead('PUT', `/groups/${id}/members/${hid}`, { role: 'helper' })).data.role).toBe('helper')
+    const g = (await help('GET', `/groups/${id}`)).data
+    expect(g).toMatchObject({ isHelper: true, isManager: false })
+    expect(g.code).toBeUndefined() // 참여 코드 · 사람 관리는 여전히 못 한다
+    expect((await help('POST', `/groups/${id}/events`, { day, title: '도우미가 더함' })).status).toBe(200)
+    expect((await help('PUT', `/groups/${id}/news`, { news: '도우미 소식' })).status).toBe(200)
+    expect((await help('PUT', `/groups/${id}/topic`, { topic: 'x' })).status).toBe(403)
+    expect((await help('GET', `/groups/${id}/report`)).status).toBe(403)
+    expect((await lead('GET', `/groups/${id}`)).data.members.find((m: { nickname: string }) => m.nickname === '도우미').role).toBe('helper')
+
+    // 문의함
+    const anon = await signup('문의하는사람')
+    expect((await anon('POST', '/contact', { kind: '궁금해요', message: '짧' })).status).toBe(400)
+    expect((await anon('POST', '/contact', { kind: '개인정보', message: '제 기록을 모두 지워 주세요' })).status).toBe(200)
+    expect((await help('POST', '/contact', { kind: '궁금해요', message: '모임 코드는 어디서 보나요?' })).status).toBe(200)
+    const adm = client()
+    await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    const inq = (await adm('GET', '/admin/inquiries')).data
+    const priv = inq.find((q: { kind: string }) => q.kind === '개인정보')
+    expect(priv).toMatchObject({ member: true, nickname: '문의하는사람', status: '새 문의' })
+    expect(inq.find((q: { kind: string }) => q.kind === '궁금해요')).toMatchObject({ member: true, nickname: '도우미' })
+    const moved = (await adm('POST', `/admin/inquiries/${priv.id}/to-privacy`, { kind: '삭제' })).data
+    expect((await adm('GET', '/admin/privacy')).data.find((r: { id: string }) => r.id === moved.id)).toMatchObject({ kind: '삭제', who: '문의하는사람', status: '받음' })
+    const q2 = inq.find((q: { kind: string }) => q.kind === '궁금해요')
+    await adm('PUT', `/admin/inquiries/${q2.id}`, { status: '답함', note: '메일로 답함' })
+    const after = (await adm('GET', '/admin/inquiries')).data.find((q: { id: string }) => q.id === q2.id)
+    expect(after.status).toBe('답함')
+    expect(after.doneAt).toBeTruthy()
+
+    // 진단 · DB 점검 · 손질
+    const d = (await adm('GET', '/admin/diagnose')).data as { name: string; ok: boolean }[]
+    expect(d.find((x) => x.name.startsWith('로그인 비밀값'))!.ok).toBe(false) // 테스트 서버는 AUTH_SECRET 이 없다
+    expect(d.find((x) => x.name.startsWith('쿠키 보안'))!.ok).toBe(false)
+    const chk = (await adm('GET', '/admin/db-check')).data
+    expect(chk.integrity).toBe('ok')
+    expect(chk.tables.some((t: { name: string }) => t.name === 'users')).toBe(true)
+    expect((await adm('POST', '/admin/db-tidy')).status).toBe(200)
+
+    // 접속 표 (가입 때 한 번 세짐)
+    expect((await adm('GET', '/admin/hours')).data.reduce((n: number, r: { n: number }) => n + r.n, 0)).toBeGreaterThan(0)
+
+    // 파기 기록: 탈퇴 · 관리자 지움 — 건수만
+    const bye = await signup('떠나는사람')
+    await bye('POST', '/me/delete', { name: '떠나는사람', birth: '20120315' })
+    const byeId = (await (await signup('지워질사람'))('GET', '/me')).data.user.id
+    await adm('DELETE', `/admin/users/${byeId}`)
+    const purges = (await adm('GET', '/admin/purges')).data
+    expect(purges.slice(0, 2).map((r: { kind: string }) => r.kind)).toEqual(['관리자가 지움', '탈퇴'])
+    expect(JSON.stringify(purges)).not.toContain('떠나는사람')
+
+  })
+
+  it('실험 기능 스위치: 정식 서버는 정식 묶음만 늘 켜져 있고, 보호자 동의는 관리자가 켜야 열린다', async () => {
+    const prod = createServer(createApp(openDb(':memory:'), { secureCookie: false, admin: { id: 'admin', password: 'admin-password-1234' }, devServer: false }))
+    await new Promise<void>((ok) => prod.listen(0, ok))
+    const pbase = `http://127.0.0.1:${(prod.address() as AddressInfo).port}/api`
+    let cookie = ''
+    const call = async (method: string, path: string, body?: unknown) => {
+      const r = await fetch(pbase + path, { method, headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'geuryeobom', ...(cookie ? { Cookie: cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) })
+      const set = r.headers.get('set-cookie')
+      if (set) cookie = set.split(';')[0]
+      return { status: r.status, data: await r.json() }
+    }
+    try {
+      const official = ['graph', 'group', 'org', 'me', 'ops']
+      expect((await call('GET', '/config')).data).toMatchObject({ dev: false, flags: official })
+      expect((await call('POST', '/contact', { kind: '궁금해요', message: '정식에서도 되나요' })).status).toBe(401) // 열려 있고, 로그인이 필요
+      expect((await call('GET', '/guardian/abcdefghijklmnopqrstu')).status).toBe(404) // 보호자 동의는 꺼짐
+      await call('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+      expect((await call('GET', '/admin/hours')).status).toBe(200)
+      await call('PUT', '/admin/flags', { flags: { guardian: true, nope: true } })
+      expect((await call('GET', '/config')).data.flags).toEqual(['graph', 'group', 'org', 'guardian', 'me', 'ops'])
+      await call('PUT', '/admin/flags', { flags: { ops: false } }) // 정식 묶음은 꺼도 그대로
+      expect((await call('GET', '/admin/hours')).status).toBe(200)
+      expect((await call('GET', '/config')).data.flags).toEqual(official)
+      expect((await call('POST', '/admin/reset', { password: 'admin-password-1234', confirm: '모두 지우기' })).status).toBe(404) // 초기화는 스위치와 상관없이 개발 서버만
+    } finally {
+      prod.close()
+    }
+  })
+
+  it('손질 8: 기관 직접 등록 · 연결 코드로 모임 잇기 · 담당자만 · 문의 답', async () => {
+    const boss = await signup('기관등록자')
+    const lead = await signup('잇는모임장')
+    const kid = await signup('기관모르는아이')
+    expect((await boss('POST', '/orgs', { name: '바다수련관' })).status).toBe(400) // 안내 동의 없이는 안 됨
+    const org = (await boss('POST', '/orgs', { name: '바다수련관', agree: true })).data
+    expect(org.code).toMatch(/^[A-Z0-9]{6}$/)
+    // 만 14세 미만(보호자 기록이 있는 계정)은 기관을 등록하지 못한다
+    const young = client()
+    await young('POST', '/auth/signup', { name: '기관아이', birth: '20160101', nickname: '기관아이', agree: true, guardian: { relation: '보호자', contact: 'mom@example.kr', agreed: true } })
+    expect((await young('POST', '/orgs', { name: '장난기관', agree: true })).status).toBe(403)
+    const { id: gid, code } = (await lead('POST', '/groups', { name: '이을 모임' })).data
+    await kid('POST', '/groups/join', { code })
+    expect((await kid('POST', `/groups/${gid}/org`, { code: org.code })).status).toBe(403) // 회원은 못 잇는다
+    expect((await lead('POST', `/groups/${gid}/org`, { code: 'ZZZZZZ' })).status).toBe(404)
+    expect((await lead('POST', `/groups/${gid}/org`, { code: org.code })).data.name).toBe('바다수련관')
+    expect((await lead('GET', `/groups/${gid}`)).data.orgs).toEqual([{ id: org.id, name: '바다수련관' }])
+    expect((await kid('GET', `/groups/${gid}`)).data.orgs).toBeUndefined() // 회원에게는 기관이 안 보인다
+    const mine = (await boss('GET', '/orgs')).data[0]
+    expect(mine).toMatchObject({ name: '바다수련관', code: org.code, total: { groups: 1, members: 2 } })
+    expect((await boss('GET', '/orgs?lite=1')).data).toEqual([{ id: org.id, name: '바다수련관', groupIds: [gid] }])
+    expect((await kid('GET', '/orgs')).data).toEqual([])
+    expect((await kid('PUT', `/orgs/${org.id}`, { name: '뺏기' })).status).toBe(404)
+    expect((await boss('POST', `/orgs/${org.id}/groups`, { groupId: gid })).status).toBe(404) // 담당자라도 남의 모임은 직접 못 더한다 (모임에 없음)
+    // 담당자 초대 링크 (담당자가 직접) → 한 번 쓰면 꺼짐
+    const { invite } = (await boss('POST', `/orgs/${org.id}/invite`)).data
+    expect((await lead('POST', `/org-invite/${invite}`)).data.id).toBe(org.id)
+    expect((await lead('POST', `/orgs/${org.id}/leave`)).status).toBe(200)
+    expect((await boss('POST', `/orgs/${org.id}/leave`)).status).toBe(400) // 마지막 담당자
+    await lead('DELETE', `/groups/${gid}/org`)
+    expect((await boss('GET', '/orgs')).data[0].total.groups).toBe(0)
+    await boss('DELETE', `/orgs/${org.id}`)
+    expect((await boss('GET', '/orgs')).data).toEqual([])
+
+    // 문의: 로그인한 사람만, 운영자의 답은 ‘내 문의’ 에
+    expect((await client()('POST', '/contact', { kind: '궁금해요', message: '로그인 없이 묻기' })).status).toBe(401)
+    const adm = client()
+    await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    const before = (await adm('GET', '/admin/me')).data.alerts.inquiries
+    await kid('POST', '/contact', { kind: '궁금해요', message: '모임 코드는 어디서 보나요?' })
+    expect((await adm('GET', '/admin/me')).data.alerts.inquiries).toBe(before + 1) // 알림
+    expect((await kid('GET', '/admin/me')).data.alerts).toBeUndefined() // 회원에게는 없다
+    const q = (await adm('GET', '/admin/inquiries')).data.find((x: { message: string }) => x.message === '모임 코드는 어디서 보나요?')
+    await adm('PUT', `/admin/inquiries/${q.id}`, { status: '보는 중', note: '내부 메모', answer: '모임장에게 물어봐 주세요.' })
+    expect((await adm('GET', '/admin/me')).data.alerts.inquiries).toBe(before) // 답하면 줄어든다
+    const my = (await kid('GET', '/me/inquiries')).data[0]
+    expect(my).toMatchObject({ answer: '모임장에게 물어봐 주세요.', status: '답함' })
+    expect(my.note).toBeUndefined() // 운영자 메모는 안 보인다
+    expect(my.answeredAt).toBeTruthy()
+    // 탈퇴하면 문의도 함께 지운다
+    const kidId = (await kid('GET', '/me')).data.user.id
+    await adm('DELETE', `/admin/users/${kidId}`)
+    expect((await adm('GET', '/admin/inquiries')).data.some((x: { id: string }) => x.id === q.id)).toBe(false)
+  })
+
+  // 맨 끝에 둔다: 이 테스트가 DB 를 비우므로
+  it('관리자 DB 초기화: 비밀번호 · 확인 문구가 맞아야 하고, 회원 · 기록만 지우고 설정 · 공지는 남긴다', async () => {
+    const kid = await signup('초기화될아이')
+    await kid('PUT', '/graphs/reset-g1', { graph: { id: 'reset-g1', title: '지워질 그래프', timeScale: 'age', startPoint: 0, currentPoint: 10, visibility: 'private', entries: [], currentReflection: {}, completed: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } })
+    const adm = client()
+    await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    await adm('PUT', '/admin/notice', { on: true, title: '남을 공지', body: '' })
+    expect((await kid('POST', '/admin/reset', { password: 'admin-password-1234', confirm: '모두 지우기' })).status).toBe(401)
+    expect((await adm('POST', '/admin/reset', { password: 'wrong-password-0000', confirm: '모두 지우기' })).status).toBe(401)
+    expect((await adm('POST', '/admin/reset', { password: 'admin-password-1234', confirm: '지우기' })).status).toBe(400)
+    const r = await adm('POST', '/admin/reset', { password: 'admin-password-1234', confirm: '모두 지우기' })
+    expect(r.status).toBe(200)
+    expect(r.data.before).toMatch(/^before-reset-.*\.db$/)
+    const o = (await adm('GET', '/admin/overview')).data
+    expect(o.counts).toMatchObject({ users: 0, graphs: 0, groups: 0, posts: 0, links: 0 })
+    expect((await kid('GET', '/graphs')).status).toBe(401) // 로그인도 풀린다
+    expect((await client()('GET', '/notice')).data.notice.title).toBe('남을 공지')
+    expect((await adm('GET', '/admin/settings')).status).toBe(200) // 관리자는 그대로
+  })
+})
+
+describe('11차 모임 질문 정하기 · 달로 · 시간으로', () => {
+  it('모임장만 질문을 정하고, 모르는 칸 · 긴 글은 걸러진다', async () => {
+    const lead = await signup('질문정하기장')
+    const { id, code } = (await lead('POST', '/groups', { name: '질문 모임' })).data
+    const member = await signup('질문정하기원')
+    await member('POST', '/groups/join', { code })
+    expect((await lead('GET', `/groups/${id}`)).data.prompts).toBeNull()
+
+    expect((await member('PUT', `/groups/${id}/prompts`, { prompts: { moments: ['x'] } })).status).toBe(403)
+    const r = await lead('PUT', `/groups/${id}/prompts`, {
+      prompts: {
+        moments: ['  처음 캠프 간 날 ', '', 'ㄱ'.repeat(80), ...Array(10).fill('더')],
+        reflect: { feeling: '그때 어땠어요?', why: '', hacked: 'x', now: 3 },
+        now: { word: '한 단어로?' },
+        present: ['QR 찍기 (3분)'],
+        evil: '<script>',
+      },
+    })
+    expect(r.status).toBe(200)
+    expect(r.data.prompts.moments).toHaveLength(8)
+    expect(r.data.prompts.moments[0]).toBe('처음 캠프 간 날')
+    expect(r.data.prompts.moments[1]).toHaveLength(40)
+    expect(r.data.prompts.reflect).toEqual({ feeling: '그때 어땠어요?', why: '' }) // '' = 묻지 않기
+    expect(r.data.prompts.now).toEqual({ word: '한 단어로?' })
+    expect(r.data.prompts).not.toHaveProperty('evil')
+    expect((await member('GET', `/groups/${id}`)).data.prompts.present).toEqual(['QR 찍기 (3분)'])
+
+    // 복제하면 질문도 따라간다
+    const copy = (await lead('POST', `/groups/${id}/copy`, { name: '질문 모임 2' })).data
+    expect((await lead('GET', `/groups/${copy.id}`)).data.prompts.now).toEqual({ word: '한 단어로?' })
+
+    // 비우면 기본으로
+    expect((await lead('PUT', `/groups/${id}/prompts`, { prompts: {} })).data.prompts).toBeNull()
+    expect((await lead('GET', `/groups/${id}`)).data.prompts).toBeNull()
+  })
+
+  it('나의 시간: 달로(시작~끝 달) · 시간으로(14일까지)', async () => {
+    const lead = await signup('달시간장')
+    const { id } = (await lead('POST', '/groups', { name: '시간 모임' })).data
+    const m = new Date().getFullYear() * 12 + new Date().getMonth()
+    expect((await lead('PUT', `/groups/${id}/preset`, { preset: { choice: 'month', start: m - 5, end: m, title: '' } })).data.preset.choice).toBe('month')
+    expect((await lead('PUT', `/groups/${id}/preset`, { preset: { choice: 'month', start: m, end: m - 1, title: '' } })).status).toBe(400)
+    const h = Date.UTC(2026, 10, 8, 9) / 3_600_000
+    expect((await lead('PUT', `/groups/${id}/preset`, { preset: { choice: 'hour', start: h, end: h + 9, title: '캠프' } })).data.preset).toMatchObject({ choice: 'hour', start: h, end: h + 9 })
+    expect((await lead('PUT', `/groups/${id}/preset`, { preset: { choice: 'hour', start: h, end: h + 15 * 24, title: '' } })).status).toBe(400)
+    // 예전 값도 그대로 받는다
+    expect((await lead('PUT', `/groups/${id}/preset`, { preset: { choice: 'recent12', start: 0, end: m, title: '' } })).status).toBe(200)
+  })
+})
+
+// 새 버전이 표에 칸을 더해도(예: 1.1.0 이 admin_sessions 에 who · role 을 더함) 예전 방식의 INSERT 가 깨지지 않게, 모든 INSERT 는 칸 이름을 적는다
+describe('칸이 더 생긴 DB 에서도', () => {
+  it('가입 · 그래프 저장 · 공유 링크 · 관리자 로그인이 된다', async () => {
+    const db = openDb(':memory:')
+    for (const t of ['meta', 'sessions', 'graphs', 'links', 'takedowns', 'ip_aliases', 'admin_sessions']) db.exec(`ALTER TABLE ${t} ADD COLUMN future_col TEXT NOT NULL DEFAULT ''`)
+    const s = createServer(createApp(db, { secureCookie: false, admin: { id: 'admin', password: 'admin-password-1234' }, publicUrl: 'https://geuryeobom.example', devServer: true }))
+    await new Promise<void>((ok) => s.listen(0, ok))
+    const url = `http://127.0.0.1:${(s.address() as AddressInfo).port}/api`
+    let cookie = ''
+    const call = async (method: string, path: string, body?: unknown) => {
+      const res = await fetch(url + path, { method, headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'geuryeobom', 'X-Real-IP': '10.9.9.9', ...(cookie ? { Cookie: cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) })
+      const set = res.headers.get('set-cookie')
+      if (set) cookie = set.split(';')[0]
+      return res.status
+    }
+    try {
+      expect(await call('POST', '/auth/signup', { name: 'future', birth: BIRTH, nickname: 'future', agree: true })).toBe(200)
+      const g = { ...newGraph(), visibility: 'link' as const, entries: [newEntry(5, 2, '반짝')] }
+      expect(await call('PUT', `/graphs/${g.id}`, { graph: g })).toBe(200)
+      const shared = toShared(g, { title: '선', entryIds: new Set([g.entries[0].id]), descriptions: false, time: true })
+      expect(await call('POST', '/links', { shared, graphId: g.id })).toBe(200)
+      expect(await call('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })).toBe(200)
+    } finally {
+      s.close()
+    }
   })
 })

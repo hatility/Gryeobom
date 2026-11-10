@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { GROUP_POST, decodeShared, encodeShared, postShared, sanitizePostOptions, toShared } from './share'
-import { invert, layoutLabels, smoothPath, spreadSameTime, sx, sy, type Frame } from './graph'
+import { hourTicks, invert, layoutLabels, smoothPath, spreadSameTime, sx, sy, type Frame } from './graph'
 import { newEntry, newGraph, normalizeGraph, sortEntries } from './store'
-import { fromParts, monthIndex, presetRange, rangeLabel, seasonOf, sinceLabel, timeLabel, timeParts } from './content'
+import { fromParts, hourInput, hourOf, monthIndex, monthInput, monthOf, presetRange, rangeLabel, rangeValid, seasonOf, sinceLabel, timeLabel, timeParts, withPrompts } from './content'
 import { resolveTheme } from './view'
 
 const sample = () => {
@@ -165,7 +165,27 @@ describe('같은 시기 · 사이 시점', () => {
   it('모임장이 정한 나의 시간을 그래프 범위로 바꾼다', () => {
     expect(presetRange({ choice: 'age', start: 10, end: 14, title: '' })).toMatchObject({ timeScale: 'age', startPoint: 10, currentPoint: 14 })
     expect(presetRange({ choice: 'recent12', start: 0, end: 24300, title: '' })).toMatchObject({ timeScale: 'month', startPoint: 24289, currentPoint: 24300 })
-    expect(presetRange({ choice: 'thisYear', start: 0, end: 0, title: '' })).toMatchObject({ monthRange: 'thisYear', currentPoint: monthIndex() })
+    expect(presetRange({ choice: 'thisYear', start: 0, end: 0, title: '' })).toMatchObject({ timeScale: 'month', currentPoint: monthIndex() })
+    expect(presetRange({ choice: 'month', start: 24290, end: 24300, title: '' })).toMatchObject({ timeScale: 'month', startPoint: 24290, currentPoint: 24300 })
+    expect(presetRange({ choice: 'hour', start: 490000, end: 490009, title: '' })).toMatchObject({ timeScale: 'hour', startPoint: 490000 })
+  })
+
+  it('시각(hour): 입력 ↔ 수, 이름표, 기간', () => {
+    const t = hourOf('2026-11-08T14:30')!
+    expect(t).toBeCloseTo(Date.UTC(2026, 10, 8, 14) / 3_600_000 + 0.5)
+    expect(hourInput(t)).toBe('2026-11-08T14:30')
+    expect(timeLabel('hour', t, [t - 5, t + 2])).toBe('14시 30분')
+    expect(timeLabel('hour', t)).toBe('11월 8일 14시 30분')
+    expect(rangeLabel('hour', hourOf('2026-11-08T09:00')!, hourOf('2026-11-08T18:00')!)).toBe('2026년 11월 8일 9시부터 18시까지')
+    expect(rangeLabel('hour', hourOf('2026-11-08T09:00')!, hourOf('2026-11-09T12:00')!)).toBe('2026년 11월 8일 9시부터 11월 9일 12시까지')
+    expect(rangeValid({ timeScale: 'hour', startPoint: t, currentPoint: t + 337 })).toBe(false)
+    expect(rangeValid({ timeScale: 'month', startPoint: 5, currentPoint: 5 })).toBe(true)
+    expect(monthInput(monthOf('2026-03')!)).toBe('2026-03')
+  })
+
+  it('모임장이 정한 질문으로 바꾸고 빈 글은 뺀다', () => {
+    const qs = [{ key: 'feeling', q: 'a' }, { key: 'why', q: 'b' }, { key: 'now', q: 'c' }]
+    expect(withPrompts(qs, { feeling: '바뀐 질문', why: '' }).map((q) => q.q)).toEqual(['바뀐 질문', 'c'])
   })
 })
 
@@ -214,4 +234,15 @@ describe('오픈소스 고지', () => {
     expect(matches('GPL-2.0-only OR MIT', mit)).toBe(true)
     expect(matches('MIT AND Apache-2.0', mit)).toBe(false)
   })
+})
+
+it('시각 눈금은 폭에 맞춰 겹치지 않고, 며칠이면 자정에만 날짜', () => {
+  const h = (d: number, hr: number) => Date.UTC(2026, 10, d, hr) / 3_600_000
+  const day = hourTicks(h(10, 9), h(10, 18), 420)
+  expect(day.length).toBeLessThanOrEqual(6)
+  expect(day.every(([, l]) => /^\d+시$/.test(l))).toBe(true)
+  const two = hourTicks(h(9, 1), h(10, 12), 420)
+  expect(two.length).toBeLessThanOrEqual(6)
+  expect(two.find(([t]) => t === h(10, 0))?.[1]).toBe('11/10')
+  expect(hourTicks(h(1, 0), h(14, 0), 420).every(([, l]) => l.includes('/'))).toBe(true)
 })

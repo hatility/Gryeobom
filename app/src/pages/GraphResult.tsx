@@ -1,12 +1,13 @@
 import { useEffect, useId, useRef, useState, type RefObject } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
+import { useLabs } from '../labs'
 import { api, shareBase, type GroupSummary } from '../api'
 import { useAuth, useRepo } from '../auth'
 import LifeGraph from '../components/LifeGraph'
-import { ENTRY_QUESTIONS, NOW_QUESTIONS, lineColorOf, sinceLabel, rangeLabel, scoreWord, signed, timeLabel } from '../content'
-import { exportImage, exportStoryCard, exportYearCard } from '../graph'
+import { NOW_QUESTIONS, questionsFor, lineColorOf, sinceLabel, rangeLabel, scoreWord, signed, timeLabel } from '../content'
+import { exportImage, exportStoryCard, exportYearCard, loadHand, CARD_THEMES, type CardTheme } from '../graph'
 import { GROUP_POST, encodeShared, toShared, type PostOptions, type SharedGraph } from '../share'
-import { formatDate, graphPoints, graphTitle, sortEntries } from '../store'
+import { formatDate, graphPoints, graphTitle, normalizeGraph, sortEntries } from '../store'
 import type { LifeGraph as Graph, Visibility } from '../types'
 
 export default function GraphResult() {
@@ -24,6 +25,8 @@ export default function GraphResult() {
   // 지난 선과 나란히 보기: 내가 그린 다른 그래프 (남과 비교하지 않고, 지난 나와만)
   const [others, setOthers] = useState<Graph[]>([])
   const [ghostId, setGhostId] = useState('')
+  // 지난 모습을 점선으로 겹쳐 보기
+  const [verGhost, setVerGhost] = useState<Graph | null>(null)
 
   // 다시 찾아왔을 때: 완성한 그래프를 7일 넘게 지나 다시 열면 그동안의 안부를 묻는다 (이 기기 기준)
   const [since, setSince] = useState<number | null>(null)
@@ -53,9 +56,13 @@ export default function GraphResult() {
   if (!graph) {
     return (
       <section className="container page empty-state">
-        <p className="eyebrow">LOST LINE</p>
+        <p className="eyebrow en">LOST LINE</p>
         <h1>이 기록을 찾을 수 없어요</h1>
-        <p className="muted">기록은 처음 그린 기기의 브라우저에만 저장돼요. 다른 기기나 브라우저라면 보이지 않을 수 있어요.</p>
+        <p className="muted">
+          {repo.remote
+            ? '지워졌거나 다른 계정의 기록일 수 있어요.'
+            : '로그인하지 않고 그린 기록은 처음 그린 기기의 브라우저에만 있어요. 다른 기기나 브라우저라면 보이지 않을 수 있어요.'}
+        </p>
         <Link to="/my" className="btn btn-primary">기록 모아보기</Link>
       </section>
     )
@@ -63,7 +70,7 @@ export default function GraphResult() {
 
   const sorted = sortEntries(graph.entries)
   const comparable = others.filter((o) => o.id !== graph.id && o.timeScale === graph.timeScale && graphPoints(o).length > 1)
-  const ghost = comparable.find((o) => o.id === ghostId)
+  const ghost = verGhost ?? comparable.find((o) => o.id === ghostId)
   // 그때의 나에게 건넨 말은 엽서로 따로 모은다 (아래 순간 목록에서는 빼서 두 번 보이지 않게)
   const letters = sorted.filter((e) => e.reflection.toPast.trim() || e.reflection.fromPast.trim())
   const r = graph.currentReflection
@@ -78,7 +85,7 @@ export default function GraphResult() {
   return (
     <article className="container page result">
       <header className="result-head">
-        <p className="eyebrow">MY LINE, MY STORY</p>
+        <p className="eyebrow en">MY LINE, MY STORY</p>
         <h1 className="page-title">{graphTitle(graph)}</h1>
         <p className="muted">
           {rangeLabel(graph.timeScale, graph.startPoint, graph.currentPoint)} · 처음 그린 날 {formatDate(graph.createdAt)}
@@ -89,7 +96,7 @@ export default function GraphResult() {
 
       {done && (
         <section className="done-card" role="status">
-          <p className="eyebrow">THE LINE IS DRAWN</p>
+          <p className="eyebrow en">THE LINE IS DRAWN</p>
           <p className="serif done-title">여기까지 와 줘서 고마워요.</p>
           <p className="muted">이 선에는 당신만의 이야기가 담겨 있어요. 언제든 다시 와서 고쳐 그려도 괜찮아요.</p>
           {graph.groupId && (
@@ -115,6 +122,7 @@ export default function GraphResult() {
           start={graph.startPoint}
           end={graph.currentPoint}
           ghost={ghost ? graphPoints(ghost) : undefined}
+          stages={graph.stages}
         />
         <p className="hint center">점을 눌러 그때의 이야기를 다시 볼 수 있어요.</p>
         {comparable.length > 0 && (
@@ -126,28 +134,36 @@ export default function GraphResult() {
                 <option key={o.id} value={o.id}>{graphTitle(o)} · {formatDate(o.updatedAt)}</option>
               ))}
             </select>
-            {ghost && (
+            {ghost && !verGhost && (
               <p className="muted small ghost-legend">
                 <span className="ghost-swatch" aria-hidden="true" />점선은 ‘{graphTitle(ghost)}’ — 지난 나와 나란히.
               </p>
             )}
           </div>
         )}
+        <Versions graph={graph} onPreview={setVerGhost} onRestored={(g) => { setVerGhost(null); setGraph(g) }} />
       </section>
 
       <div className="result-actions no-print">
-        <Link to={`/graph/${graph.id}/edit?step=1`} className="btn btn-ghost">그래프 수정하기</Link>
-        <button type="button" className="btn btn-ghost" onClick={() => exportRef.current?.showModal()}>이미지로 저장하기</button>
-        <Link to={`/graph/${graph.id}/book`} className="btn btn-ghost">한 권으로 저장 (PDF)</Link>
-        {graph.completed && <Link to={`/graph/new?again=${graph.id}`} className="btn btn-ghost">같은 기간 다시 그려 보기</Link>}
         <button type="button" className="btn btn-primary" onClick={() => shareRef.current?.showModal()}>공유하기</button>
+        <div className="result-group" role="group" aria-label="저장 · 인쇄">
+          <p className="result-group-title">저장 · 인쇄</p>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => exportRef.current?.showModal()}>이미지로 저장</button>
+          <Link to={`/graph/${graph.id}/book`} className="btn btn-ghost btn-sm">한 권으로 (PDF)</Link>
+          <SheetLink id={graph.id} />
+        </div>
+        <div className="result-group" role="group" aria-label="고치기">
+          <p className="result-group-title">고치기</p>
+          <Link to={`/graph/${graph.id}/edit?step=1`} className="btn btn-ghost btn-sm">그래프 수정하기</Link>
+          {graph.completed && <Link to={`/graph/new?again=${graph.id}`} className="btn btn-ghost btn-sm">같은 기간 다시 그리기</Link>}
+        </div>
       </div>
 
       <LineStory graph={graph} />
 
       {(r.oneLine.trim() || r.word.trim()) && (
         <section className="now-card">
-          <p className="eyebrow">ME, NOW</p>
+          <p className="eyebrow en">ME, NOW</p>
           <blockquote className="serif">{r.oneLine.trim() || r.word}</blockquote>
           {r.oneLine.trim() && r.word.trim() && <p className="muted">지금의 나를 닮은 단어 · <strong>{r.word}</strong></p>}
         </section>
@@ -163,13 +179,13 @@ export default function GraphResult() {
               <li key={e.id} className="postcard">
                 {e.reflection.toPast.trim() && (
                   <div className="postcard-side">
-                    <p className="eyebrow">지금의 내가 → {timeLabel(graph.timeScale, e.timePoint)}의 나에게</p>
+                    <p className="eyebrow">지금의 내가 → {timeLabel(graph.timeScale, e.timePoint, [graph.startPoint, graph.currentPoint])}의 나에게</p>
                     <p className="serif postcard-text">{e.reflection.toPast}</p>
                   </div>
                 )}
                 {e.reflection.fromPast.trim() && (
                   <div className="postcard-side is-reply">
-                    <p className="eyebrow">{timeLabel(graph.timeScale, e.timePoint)}의 내가 → 지금의 나에게</p>
+                    <p className="eyebrow">{timeLabel(graph.timeScale, e.timePoint, [graph.startPoint, graph.currentPoint])}의 내가 → 지금의 나에게</p>
                     <p className="serif postcard-text">{e.reflection.fromPast}</p>
                   </div>
                 )}
@@ -185,22 +201,29 @@ export default function GraphResult() {
         {sorted.length ? (
           <ol className="moment-list">
             {sorted.map((e) => {
-              const answers = ENTRY_QUESTIONS.filter((q) => q.key !== 'toPast' && q.key !== 'fromPast' && e.reflection[q.key].trim())
+              const answers = questionsFor(graph, e).filter((q) => q.key !== 'toPast' && q.key !== 'fromPast' && e.reflection[q.key].trim())
+              const mine = (graph.myQuestions ?? []).map((q, i) => [q, e.reflection.extra?.[i] ?? ''] as const).filter(([, a]) => a.trim())
               return (
                 <li key={e.id} className="card moment">
                   <div className="moment-head">
-                    <span className="entry-time">{timeLabel(graph.timeScale, e.timePoint)}</span>
+                    <span className="entry-time">{timeLabel(graph.timeScale, e.timePoint, [graph.startPoint, graph.currentPoint])}</span>
                     <span className="muted small">마음 {signed(e.emotionScore)} · {scoreWord(e.emotionScore)}</span>
                   </div>
-                  <h3>{e.title || '이름 없는 순간'}</h3>
+                  <h3>{e.turningPoint && <span className="turning-tag" title="전환점">★</span>}{e.title || '이름 없는 순간'}</h3>
                   {e.emotionLabel && <span className="chip chip-static">{e.emotionLabel}</span>}
                   {e.description && <p>{e.description}</p>}
-                  {answers.length > 0 && (
+                  {answers.length + mine.length > 0 && (
                     <dl className="reflection">
                       {answers.map((q) => (
                         <div key={q.key}>
                           <dt>{q.q}</dt>
                           <dd>{e.reflection[q.key]}</dd>
+                        </div>
+                      ))}
+                      {mine.map(([q, a]) => (
+                        <div key={q}>
+                          <dt>{q}</dt>
+                          <dd>{a}</dd>
                         </div>
                       ))}
                     </dl>
@@ -252,7 +275,7 @@ function EntryPicker({ graph, ids, onToggle }: { graph: Graph; ids: Set<string>;
         <li key={e.id}>
           <label className="check">
             <input type="checkbox" checked={ids.has(e.id)} onChange={() => onToggle(e.id)} />
-            <span>{timeLabel(graph.timeScale, e.timePoint)} · {e.title || '이름 없는 순간'}</span>
+            <span>{timeLabel(graph.timeScale, e.timePoint, [graph.startPoint, graph.currentPoint])} · {e.title || '이름 없는 순간'}</span>
           </label>
         </li>
       ))}
@@ -262,10 +285,17 @@ function EntryPicker({ graph, ids, onToggle }: { graph: Graph; ids: Set<string>;
 
 function ExportDialog({ dialogRef, graph }: { dialogRef: RefObject<HTMLDialogElement | null>; graph: Graph }) {
   const [ids, setIds] = useState(() => defaultIds(graph))
-  // 월 기준(최근 12개월 · 올해) 그래프는 ‘올해 카드’도 만들 수 있다
+  // 달로 그린 그래프는 ‘올해 카드’도 만들 수 있다
   const yearly = graph.timeScale === 'month'
+  // 한 해 안의 1월부터면 ‘N년, 나의 한 해’, 아니면 달 수로 (예전 ‘올해’ 그래프는 monthRange 로)
+  const months = graph.currentPoint - graph.startPoint + 1
+  const oneYear = graph.monthRange === 'thisYear' || (graph.startPoint % 12 === 0 && Math.floor(graph.startPoint / 12) === Math.floor(graph.currentPoint / 12))
+  const heading = oneYear ? `${Math.floor(graph.startPoint / 12)}년, 나의 한 해` : months === 12 ? '나의 열두 달' : `나의 ${months}개월`
   const [format, setFormat] = useState<'wide' | 'story' | 'year'>(yearly && graph.completed ? 'year' : 'story')
   const [withLine, setWithLine] = useState(false)
+  const [theme, setTheme] = useState<CardTheme>('paper')
+  const [hand, setHand] = useState(false)
+  const labs = useLabs('graph')
   const oneLine = graph.currentReflection.oneLine.trim()
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -281,8 +311,11 @@ function ExportDialog({ dialogRef, graph }: { dialogRef: RefObject<HTMLDialogEle
         end: graph.currentPoint,
         points: graphPoints(graph, (e) => ids.has(e.id)),
         color: lineColorOf(graph.lineColor),
+        theme,
+        hand,
       }
-      const heading = graph.monthRange === 'thisYear' ? `${Math.floor(graph.startPoint / 12)}년, 나의 한 해` : '나의 열두 달'
+      // 손글씨: 이미지에 들어갈 글자의 글꼴 조각을 먼저 받는다
+      if (hand) await loadHand([base.title, ...base.points.map((p) => p.title), oneLine, '나의 열두 달 한 해 그려봄 지나온 나를 그리고, 지금의 나를 만나다 MY LINE 0123456789 살 년 월 개월 이름 없는 순간 그때 지금 · → “”'].join(''))
       const blob =
         format === 'story' ? await exportStoryCard({ ...base, line: withLine ? oneLine : undefined })
         : format === 'year' ? await exportYearCard({ ...base, heading, line: withLine ? oneLine : undefined })
@@ -290,7 +323,7 @@ function ExportDialog({ dialogRef, graph }: { dialogRef: RefObject<HTMLDialogEle
       if (!blob) throw new Error('no blob')
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-      a.download = `그려봄-${graphTitle(graph)}${format === 'story' ? '-카드' : format === 'year' ? '-올해카드' : ''}.png`
+      a.download = `그려봄-${graphTitle(graph)}${format === 'story' ? '-카드' : format === 'year' ? (oneYear ? '-올해카드' : '-달카드') : ''}.png`
       a.click()
       setTimeout(() => URL.revokeObjectURL(a.href), 1000)
       dialogRef.current?.close()
@@ -302,17 +335,48 @@ function ExportDialog({ dialogRef, graph }: { dialogRef: RefObject<HTMLDialogEle
   }
 
   return (
-    <dialog ref={dialogRef} className="dialog" aria-labelledby="export-title">
+    <dialog ref={dialogRef} className="dialog export-dialog" aria-labelledby="export-title">
       <h2 id="export-title" className="card-title">이미지로 저장하기</h2>
+      <p className="field-label export-label">모양</p>
       <div className="segmented" aria-label="이미지 모양">
-        {([...(yearly ? [['year', '올해 카드']] as const : []), ['story', '세로 카드 (폰 사진첩용)'], ['wide', '가로 그림']] as const).map(([k, label]) => (
+        {([...(yearly ? [['year', oneYear ? '올해 카드' : '달 카드']] as const : []), ['story', '세로 카드 (폰 사진첩용)'], ['wide', '가로 그림']] as const).map(([k, label]) => (
           <label key={k} className="seg">
             <input type="radio" name="export-format" checked={format === k} onChange={() => setFormat(k)} />
             <span>{label}</span>
           </label>
         ))}
       </div>
-      <p className="muted small">제목 · 선 · 고른 순간의 이름만 담겨요. 회고는 담기지 않아요.</p>
+      {/* 카드 배경 */}
+      {labs && (
+        <fieldset className="field export-themes">
+          <legend className="field-label export-label">배경</legend>
+          <div className="theme-picks">
+            {CARD_THEMES.map(([k, label]) => (
+              <label key={k} className="theme-pick">
+                <input type="radio" className="sr-only" name="card-theme" checked={theme === k} onChange={() => setTheme(k)} />
+                <span className={`theme-swatch is-${k}`} aria-hidden="true" />
+                <span className="theme-name">{label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {/* 손글씨 */}
+      {labs && (
+        <>
+          <p className="field-label export-label">글씨</p>
+          <div className="segmented" aria-label="글씨">
+            {([[false, '기본'], [true, '손글씨']] as const).map(([v, label]) => (
+              <label key={label} className="seg">
+                <input type="radio" name="export-hand" checked={hand === v} onChange={() => { setHand(v); if (v) loadHand("손글씨").catch(() => {}) }} />
+                <span className={v ? 'hand-sample' : undefined}>{label}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+      <p className="field-label export-label">담을 순간</p>
+      <p className="muted small export-note">제목 · 선 · 고른 순간의 이름만 담겨요. 회고는 담기지 않아요.</p>
       {graph.entries.length ? (
         <EntryPicker graph={graph} ids={ids} onToggle={(id) => setIds((s) => toggleIn(s, id))} />
       ) : (
@@ -342,6 +406,9 @@ function ShareDialog({ dialogRef, graph, onVisibility }: {
   const [mode, setMode] = useState<'group' | 'link'>(user ? 'group' : 'link')
   const [title, setTitle] = useState(graphTitle(graph))
   const [ids, setIds] = useState(() => defaultIds(graph))
+  // 그래프의 순간이 바뀌면 (더하거나 되돌리면) 고른 순간도 다시
+  const entryKey = graph.entries.map((e) => e.id).join()
+  useEffect(() => setIds(defaultIds(graph)), [entryKey])
   const [descriptions, setDescriptions] = useState(false)
   const [time, setTime] = useState(true)
   const close = () => dialogRef.current?.close()
@@ -368,7 +435,7 @@ function ShareDialog({ dialogRef, graph, onVisibility }: {
         </div>
       )}
 
-      <details className="share-what">
+      <details className="share-what" open={ids.size === 0 && graph.entries.length > 0 ? true : undefined}>
         <summary>
           <span className="field-label">무엇을 나눌까요?</span>
           <span className="muted small">
@@ -471,6 +538,7 @@ function LinkShare({ graph, ready, makeShared, ensureOpen, deps }: {
           <button type="button" className="btn btn-primary btn-block" disabled={!ready || !agreed} onClick={make}>
             짧은 링크 만들기
           </button>
+          {!ready && <small className="muted">{graph.entries.length ? '위 ‘무엇을 나눌까요?’ 에서 나눌 순간을 하나 이상 골라 주세요.' : '아직 순간이 없어요. 그래프에 순간을 하나 이상 더하면 링크를 만들 수 있어요.'}</small>}
         </>
       )}
       {mine.length > 0 && (
@@ -608,7 +676,7 @@ function GroupShare({ graph, ready, makeOptions, ensureOpen }: {
                 : `모임 ${chosen.length}곳에 나누기`}
         </button>
       )}
-      {!ready && <small className="muted">나눌 순간을 하나 이상 골라 주세요.</small>}
+      {!ready && <small className="muted">{graph.entries.length ? '위 ‘무엇을 나눌까요?’ 에서 나눌 순간을 하나 이상 골라 주세요.' : '아직 순간이 없어요. 그래프에 순간을 하나 이상 더하면 나눌 수 있어요.'}</small>}
       {msg && (
         <p className="share-msg" role="status">
           {msg.text} {msg.groupId && <Link to={`/groups/${msg.groupId}`}>모임에서 보기</Link>}
@@ -684,12 +752,13 @@ export function LineStory({ graph }: { graph: Graph }) {
   if (pts.length < 2) return null
   const hi = pts.reduce((a, b) => (b.emotionScore > a.emotionScore ? b : a))
   const lo = pts.reduce((a, b) => (b.emotionScore < a.emotionScore ? b : a))
-  const span = graph.timeScale === 'month' ? `${graph.currentPoint - graph.startPoint + 1}개월` : `${graph.currentPoint - graph.startPoint}년`
+  const d = graph.currentPoint - graph.startPoint
+  const span = graph.timeScale === 'month' ? `${d + 1}개월` : graph.timeScale === 'hour' ? (d < 24 ? `${Math.round(d * 10) / 10}시간` : `${Math.round(d / 24)}일`) : `${d}년`
   const count = pts.length <= 10 ? `${COUNT[pts.length]} 개의` : `${pts.length}개의`
-  const at = (p: (typeof pts)[number]) => `${timeLabel(graph.timeScale, p.timePoint)} · ‘${p.title || '이름 없는 순간'}’`
+  const at = (p: (typeof pts)[number]) => `${timeLabel(graph.timeScale, p.timePoint, [graph.startPoint, graph.currentPoint])} · ‘${p.title || '이름 없는 순간'}’`
   return (
     <section className="card story">
-      <p className="eyebrow">WHAT THE LINE TELLS</p>
+      <p className="eyebrow en">WHAT THE LINE TELLS</p>
       <p className="serif story-lead">{span}의 시간 속, {count} 순간</p>
       {hi.emotionScore === lo.emotionScore ? (
         <p className="muted">선이 잔잔하게 이어졌어요. 고요했던 시간도 나를 만든 시간이에요.</p>
@@ -710,5 +779,63 @@ export function LineStory({ graph }: { graph: Graph }) {
         <span className="line">모두 지나 지금의 내가 되었어요.</span>
       </p>
     </section>
+  )
+}
+
+/** A4 한 장으로 인쇄 */
+function SheetLink({ id }: { id: string }) {
+  const labs = useLabs('graph')
+  return labs ? <Link to={`/graph/${id}/sheet`} className="btn btn-ghost btn-sm">A4 한 장</Link> : null
+}
+
+/** 지난 모습 — 고칠 때 남은 모습을 점선으로 겹쳐 보고, 그 모습으로 되돌린다 (되돌리기 전 지금 모습도 남는다) */
+function Versions({ graph, onPreview, onRestored }: { graph: Graph; onPreview: (g: Graph | null) => void; onRestored: (g: Graph) => void }) {
+  const labs = useLabs('graph')
+  const { user } = useAuth()
+  const [list, setList] = useState<Awaited<ReturnType<typeof api.graphVersions>> | null>(null)
+  const [pick, setPick] = useState(0)
+  const [v, setV] = useState<{ at: string; graph: Graph } | null>(null)
+  const [msg, setMsg] = useState('')
+  useEffect(() => {
+    if (labs && user) api.graphVersions(graph.id).then(setList, () => setList([]))
+  }, [labs, user, graph.id, graph.updatedAt])
+  if (!labs || !user || !list?.length) return null
+  const when = (iso: string) => new Date(iso).toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  const choose = async (vid: number) => {
+    setPick(vid)
+    setMsg('')
+    if (!vid) { setV(null); onPreview(null); return }
+    const r = await api.graphVersion(graph.id, vid).catch(() => null)
+    setV(r)
+    onPreview(r?.graph ?? null)
+  }
+  const restore = async () => {
+    if (!v || !window.confirm(`${when(v.at)}의 모습으로 되돌릴까요? 지금 모습도 ‘지난 모습’ 에 남아서 다시 돌아올 수 있어요.`)) return
+    const g = normalizeGraph({ ...v.graph, id: graph.id, updatedAt: new Date().toISOString() })
+    try {
+      await api.restoreGraph(g)
+      setPick(0)
+      setV(null)
+      onRestored(g)
+      setMsg('되돌렸어요.')
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : '되돌리지 못했어요.')
+    }
+  }
+  return (
+    <div className="field ghost-pick versions-pick no-print">
+      <label className="field-label" htmlFor="versions">고치기 전 모습 <small className="muted">({list.length}개 남아 있어요)</small></label>
+      <select id="versions" value={pick} onChange={(e) => choose(Number(e.target.value))}>
+        <option value={0}>지금 모습</option>
+        {list.map((x) => <option key={x.id} value={x.id}>{when(x.at)} · 순간 {x.moments}개{x.done ? ' · 완성' : ''}</option>)}
+      </select>
+      {v && (
+        <p className="muted small ghost-legend">
+          <span className="ghost-swatch" aria-hidden="true" />점선은 {when(v.at)}에 고치기 전 모습이에요.{' '}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={restore}>이 모습으로 되돌리기</button>
+        </p>
+      )}
+      {msg && <p className="muted small" role="status">{msg}</p>}
+    </div>
   )
 }
