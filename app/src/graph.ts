@@ -145,8 +145,8 @@ export async function exportImage(opts: {
 
   ctx.fillStyle = '#958A82'; ctx.font = `600 22px ${sans}`
   ctx.fillText(opts.eyebrow ?? 'MY LINE · 그려봄', 80, 110)
-  ctx.fillStyle = '#514943'; ctx.font = `700 54px ${sans}`
-  ctx.fillText(opts.title, 80, 180)
+  ctx.fillStyle = '#514943'
+  ctx.fillText(fitLine(ctx, opts.title, W - 160, (px) => `700 ${px}px ${sans}`, 54), 80, 180)
   ctx.fillStyle = '#958A82'; ctx.font = `28px ${serif}`
   ctx.fillText(`${showTime ? rangeLabel(opts.timeScale, opts.start, opts.end) : '그때부터 지금까지'}, 나만의 선`, 80, 228)
 
@@ -178,6 +178,16 @@ export async function exportImage(opts: {
   ctx.fillStyle = '#958A82'; ctx.font = `26px ${serif}`
   ctx.fillText('지나온 나를 그리고, 지금의 나를 만나다.  — 그려봄', 80, H - 50)
   return new Promise((res) => c.toBlob(res, 'image/png'))
+}
+
+/** 한 줄에 들어가게: 글자를 조금씩 줄여 보고(처음의 60%까지), 그래도 넘치면 … 로 자른다. ctx.font 를 맞는 크기로 바꿔 둔다 */
+function fitLine(ctx: CanvasRenderingContext2D, text: string, max: number, font: (px: number) => string, px: number): string {
+  const min = Math.round(px * 0.6)
+  for (; px > min; px -= 2) { ctx.font = font(px); if (ctx.measureText(text).width <= max) return text }
+  ctx.font = font(px)
+  let t = text
+  while (t.length > 1 && ctx.measureText(`${t}…`).width > max) t = t.slice(0, -1)
+  return `${t}…`
 }
 
 /**
@@ -267,11 +277,20 @@ export async function exportStoryCard(opts: {
     ctx.font = font
     const lines: string[] = []
     let cur = ''
-    for (const word of text.split(' ')) {
+    for (let word of text.split(' ')) {
+      // 띄어쓰기 없는 긴 말은 글자 단위로 나눈다
+      while (word.length > 1 && ctx.measureText(word).width > max) {
+        let k = word.length - 1
+        while (k > 1 && ctx.measureText(word.slice(0, k)).width > max) k--
+        if (cur) { lines.push(cur); cur = '' }
+        lines.push(word.slice(0, k)); word = word.slice(k)
+      }
       const next = cur ? `${cur} ${word}` : word
       if (ctx.measureText(next).width > max && cur) { lines.push(cur); cur = word } else cur = next
     }
     if (cur) lines.push(cur)
+    // 아래 그림과 겹치지 않게 두 줄까지만
+    if (lines.length > 2) lines.splice(1, lines.length - 1, `${lines[1].slice(0, -1)}…`)
     lines.forEach((l, i) => center(l, y + i * lh, font, color))
     return y + lines.length * lh
   }
@@ -334,7 +353,7 @@ export async function exportYearCard(opts: {
   for (let x = 14; x < W; x += 28) for (let y = 14; y < H; y += 28) ctx.fillRect(x, y, 2, 2)
   center('MY YEAR, MY LINE', 150, `600 28px ${sans}`, '#958A82')
   center(opts.heading, 250, `700 76px ${sans}`, '#514943')
-  center(opts.title, 312, `34px ${serif}`, '#958A82')
+  center(fitLine(ctx, opts.title, W - 200, (px) => `${px}px ${serif}`, 34), 312, ctx.font, '#958A82')
 
   // 선 (달마다 계절 띠를 옅게)
   const f: Frame = { w: W, h: 820, l: 130, r: 130, t: 420, b: 40, start: opts.start, end: opts.end }

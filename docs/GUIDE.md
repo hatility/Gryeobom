@@ -1,6 +1,6 @@
 # 그려봄 사용 설명서
 
-<sub>v1.1.0 기준 · 읽는 사람에 따라 세 부분으로 나눴어요.</sub>
+<sub>v1.1.1 기준 · 읽는 사람에 따라 세 부분으로 나눴어요.</sub>
 
 | | 이런 분께 | 담긴 것 |
 |---|---|---|
@@ -188,10 +188,10 @@
 
 ### 2. 설치
 
-깃허브 [Releases](https://github.com/hatility/Gryeobom/releases/latest) 에서 `geuryeobom-v1.1.0.zip` 을 받아 서버에 풀어요.
+깃허브 [Releases](https://github.com/hatility/Gryeobom/releases/latest) 에서 `geuryeobom-v1.1.1.zip` 을 받아 서버에 풀어요.
 
 ```bash
-cd v1.1.0
+cd v1.1.1
 cp .env.example .env
 vi .env                        # 아래 ‘꼭 채울 값’ 참고
 docker compose up -d --build   # 기본 80 포트 (.env 의 PORT)

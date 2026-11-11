@@ -163,7 +163,7 @@ function OrgReportView({ org, range, setRange }: { org: MyOrg; range: [string, s
         <input type="date" value={range?.[1] ?? ''} aria-label="끝 날짜" onChange={(e) => e.target.value && setRange([range?.[0] ?? e.target.value, e.target.value])} />
       </div>
       <article className="card org-card">
-        <h2 className="card-title">{org.name} <small className="muted">· {new Date().toLocaleDateString('ko-KR')} 기준 · 누가 무엇을 그렸는지는 보이지 않아요</small></h2>
+        <h2 className="card-title org-report-title">{org.name} <small className="muted"><span>{new Date().toLocaleDateString('ko-KR')} 기준</span> · <span>누가 무엇을 그렸는지는 보이지 않아요</span></small></h2>
         <ul className="stats-total">
           <li><strong>{org.total.groups}</strong><span className="muted small">모임</span></li>
           <li><strong>{org.total.members}</strong><span className="muted small">함께하는 사람</span></li>

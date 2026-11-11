@@ -1153,9 +1153,9 @@ function PromptsCard({ group, onSaved }: { group: GroupDetail; onSaved: () => vo
     <details className="card prompts-card">
       <summary><span className="news-label">질문 정하기</span> <span className="muted small">{custom ? '모임 질문을 쓰고 있어요' : '기억에 남는 순간 · 그때의 마음 · 지금의 나 · 큰 화면'}</span></summary>
       <form className="prompts-form" onSubmit={(e) => { e.preventDefault(); save({ moments: lines(moments), reflect: valuesOf(reflect), now: valuesOf(now), present: lines(present) }) }}>
-        <p className="muted small">비워 두면 기본 질문이 나와요. 회색 글씨가 지금 기본 질문이에요.</p>
+        <p className="muted small">비워 두면 기본 질문이 나와요. 회색 글씨가 지금 기본 질문이에요. 질문은 100자까지 적을 수 있어요.</p>
         <fieldset className="field prompt-part">
-          <legend>기억에 남는 순간 · 예시 <small className="muted">(한 줄에 하나 · 8개까지)</small></legend>
+          <legend>기억에 남는 순간 · 예시 <small className="muted">(한 줄에 하나 · 8개까지 · 한 줄 40자까지)</small></legend>
           <textarea rows={4} value={moments} placeholder={MOMENT_EXAMPLES.join('\n')} onChange={(e) => setMoments(e.target.value)} />
         </fieldset>
         <fieldset className="field prompt-part">
@@ -1167,7 +1167,7 @@ function PromptsCard({ group, onSaved }: { group: GroupDetail; onSaved: () => vo
           {rows(NOW_QUESTIONS, now, setNow)}
         </fieldset>
         <fieldset className="field prompt-part">
-          <legend>큰 화면 ‘오늘 할 일’ <small className="muted">(한 줄에 하나 · 8줄까지)</small></legend>
+          <legend>큰 화면 ‘오늘 할 일’ <small className="muted">(한 줄에 하나 · 8줄까지 · 한 줄 60자까지)</small></legend>
           <textarea rows={3} value={present} placeholder={'예) 오른쪽 QR 로 모임에 들어와요.\n떠오르는 순간을 세 개 적어요.\n짝과 한 순간만 이야기해요.'} onChange={(e) => setPresent(e.target.value)} />
         </fieldset>
         {msg && <p className="muted small" role="status">{msg}</p>}

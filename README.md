@@ -10,7 +10,7 @@
 
 <br>
 
-![version](https://img.shields.io/badge/version-1.1.0-E6A79A?style=flat-square)
+![version](https://img.shields.io/badge/version-1.1.1-E6A79A?style=flat-square)
 ![license](https://img.shields.io/badge/license-AGPL--3.0-A9C7B8?style=flat-square)
 ![React](https://img.shields.io/badge/React-19-D8C9E9?style=flat-square&logo=react&logoColor=514943)
 ![Node](https://img.shields.io/badge/Node-24-F3D7A5?style=flat-square&logo=nodedotjs&logoColor=514943)
@@ -218,10 +218,10 @@
 
 ## 🚀 우리 기관에서 열기
 
-[**Releases**](https://github.com/hatility/Gryeobom/releases/latest) 에서 `geuryeobom-v1.1.0.zip` 을 받아 서버에 풀고:
+[**Releases**](https://github.com/hatility/Gryeobom/releases/latest) 에서 `geuryeobom-v1.1.1.zip` 을 받아 서버에 풀고:
 
 ```bash
-cd v1.1.0
+cd v1.1.1
 cp .env.example .env     # 관리자 계정 · AUTH_SECRET · 운영 기관 · 문의처 이메일
 docker compose up -d --build
 ```
@@ -236,7 +236,7 @@ docker compose up -d --build
 기록은 Docker 볼륨(`geuryeobom-data`)에 그대로 있어요. 올리기 전에 **관리자 화면 → 서버 · 백업 → 백업 내려받기** (또는 `./backup.sh`) 를 해 두고:
 
 ```bash
-cd v1.1.0
+cd v1.1.1
 cp ../v1.0.0/.env .env
 docker compose up -d --build
 ```
@@ -299,12 +299,13 @@ Gryeobom/
 
 ## 🏷️ 지나온 버전
 
-0.1.0 의 정적 화면 하나에서 시작해, **1.0.0** 첫 정식 버전을 지나 **1.1.0** 이 되었어요.
+0.1.0 의 정적 화면 하나에서 시작해, **1.0.0** 첫 정식 버전을 지나 **1.1** 이 되었어요.
 그 선도 오르내렸어요 — 버전마다 받을 파일은 [Releases](https://github.com/hatility/Gryeobom/releases), 바뀐 것은 [CHANGELOG.md](CHANGELOG.md) 에.
 
 | 버전 | 날짜 | 한 줄 |
 |---|---|---|
-| **1.1.0** | 2026-11-10 | 모바일 화면 · 달로 · 시간으로 · 모임 질문 정하기 · 큰 화면 진행 · 기관 · 그리기 단순하게 |
+| **1.1.1** | 2026-11-11 | 모바일(아이폰) 화면 넘침 · 글자 수 · 자잘한 오류 고침 |
+| 1.1.0 | 2026-11-10 | 모바일 화면 · 달로 · 시간으로 · 모임 질문 정하기 · 큰 화면 진행 · 기관 · 그리기 단순하게 |
 | 1.0.0 | 2026-11-04 | 첫 정식 버전 — 그래프 · 회고 · 모임 · 공유 링크 · 오늘의 한 줄 · 연말 돌아보기 · 운영자 화면 |
 
 > [!NOTE]

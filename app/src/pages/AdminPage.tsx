@@ -1851,7 +1851,7 @@ function MaintenanceCard() {
       <h3 className="card-title">점검 모드 {m.on && <span className="badge badge-dev">켜져 있어요</span>}</h3>
       <p className="muted small">서버를 옮기거나 백업을 되돌리기 전에 켜 두세요. 사람들은 보기만 할 수 있고 저장 · 가입 · 나누기가 잠시 멈춰요 (관리자 화면은 그대로). 작성 중인 글은 저장되지 않으니 짧게 써 주세요.</p>
       <label className="field">
-        <span className="field-label">안내 한 줄 <em>(선택)</em></span>
+        <span className="field-label">안내 한 줄 <em>(선택)</em> <small className="muted">{m.message.length}/200</small></span>
         <input value={m.message} maxLength={200} placeholder="예) 밤 11시 30분까지 서버를 옮겨요" onChange={(e) => setM({ ...m, message: e.target.value })} />
       </label>
       {msg && <p className="muted small" role="status">{msg}</p>}
@@ -2063,7 +2063,7 @@ function InquiryBody({ q, onDone }: { q: Awaited<ReturnType<typeof api.adminInqu
       <p className="inquiry-message">{q.message}</p>
       <p className="muted small">{q.member ? `회원 · ${q.nickname}` : '탈퇴했거나 예전에 로그인 없이 남긴 문의'}{q.contact && <> · 예전에 적은 연락처 <code>{q.contact}</code></>}</p>
       <label className="field">
-        <span className="field-label">이용자에게 보낼 답 {q.answeredAt && <small className="muted">· {new Date(q.answeredAt).toLocaleString('ko-KR')}에 보냄</small>}</span>
+        <span className="field-label">이용자에게 보낼 답 <small className="muted">{answer.length}/2000</small> {q.answeredAt && <small className="muted">· {new Date(q.answeredAt).toLocaleString('ko-KR')}에 보냄</small>}</span>
         <textarea rows={4} maxLength={2000} value={answer} placeholder="여기 적은 답은 문의한 사람의 ‘문의하기 → 내 문의’ 에 보이고, 기록 모아보기에 ‘새 답’ 으로 알려요." onChange={(e) => setAnswer(e.target.value)} />
       </label>
       <div className="field-row">

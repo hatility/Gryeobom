@@ -599,6 +599,11 @@ function TimePreview({ graph, group }: { graph: Graph; group: Group | null }) {
   )
 }
 
+/** 긴 글 칸(1000자): 거의 다 찼을 때만 글자 수를 보여 준다 (평소에는 조용히) */
+function NearLimit({ n, max = 1000 }: { n: number; max?: number }) {
+  return n >= max * 0.8 ? <small className="muted field-count">{n}/{max}</small> : null
+}
+
 function NumberField({ label, value, min, max, onChange }: {
   label: string; value: number; min: number; max: number; onChange: (v: number) => void
 }) {
@@ -959,7 +964,7 @@ function EntryForm({ entry: d, graph, isNew, onChange, onClose, onDismiss, onDel
     </>,
     <>
       <label className="field">
-        <span className="field-label">짧은 설명 <em>(선택)</em></span>
+        <span className="field-label">짧은 설명 <em>(선택)</em> <small className="muted">{d.description.length}/300</small></span>
         <textarea
           rows={3}
           maxLength={300}
@@ -1119,6 +1124,7 @@ function StepReflect({ graph, update, onDone }: { graph: Graph; update: Update; 
                   value={answerOf(e, q.key)}
                   onChange={(ev) => setR(e.id, q.key, ev.target.value)}
                 />
+                <NearLimit n={answerOf(e, q.key).length} />
                 {labs && <Starters onPick={(t) => setR(e.id, q.key, addStart(answerOf(e, q.key), t))} />}
               </label>
             ))}
@@ -1243,7 +1249,7 @@ function ReflectPaged({ graph, sorted, questionsOf, setR, onDone, onSet }: {
   return (
     <section className="card reflect-paged">
       {/* 지금 돌아보는 순간 하나만 크게. ‹ › 로 넘기고, 가운데를 누르면 폰의 목록에서 고른다 */}
-      <div className="moment-head">
+      <div className="moment-pager">
         <button type="button" className="m-icon-btn" disabled={idx === 0} onClick={() => setPick(sorted[idx - 1].id)} aria-label="이전 순간">‹</button>
         <label className="moment-head-main">
           <span className="moment-head-meta">순간 {idx + 1} / {sorted.length} · {tl(graph, e.timePoint)}</span>
@@ -1267,6 +1273,7 @@ function ReflectPaged({ graph, sorted, questionsOf, setR, onDone, onSet }: {
             <label className="field">
               <span className="field-label">{q.q}</span>
               <textarea rows={4} maxLength={1000} placeholder={q.placeholder} value={answerOf(e, q.key)} onChange={(ev) => setR(e.id, q.key, ev.target.value)} />
+              <NearLimit n={answerOf(e, q.key).length} />
               <StartersIf onPick={(t) => setR(e.id, q.key, addStart(answerOf(e, q.key), t))} />
             </label>
           ),
@@ -1317,6 +1324,7 @@ function StepNow({ graph, update, onFinish }: { graph: Graph; update: Update; on
       ) : (
         <>
           <textarea rows={paged ? 4 : 3} maxLength={1000} placeholder={q.placeholder} value={r[q.key]} onChange={(e) => set(q.key, e.target.value)} />
+          <NearLimit n={r[q.key].length} />
           {labs && paged && <Starters onPick={(t) => set(q.key, addStart(r[q.key], t))} />}
         </>
       )}
@@ -1387,7 +1395,7 @@ function FutureLetter({ graph, update }: { graph: Graph; update: Update }) {
       </p>
       <p className="muted small">정한 날이 지나 이 그래프를 다시 열면, 봉투가 열리며 지금 쓴 편지가 도착해요. 그 전에는 나도 열어 볼 수 없어요.</p>
       <label className="field">
-        <span className="field-label">그때의 나에게 건네고 싶은 말</span>
+        <span className="field-label">그때의 나에게 건네고 싶은 말 <small className="muted">{(fl?.text ?? '').length}/500</small></span>
         <textarea rows={3} maxLength={500} placeholder="“잘 지내고 있니? 지금의 나는 …”" value={fl?.text ?? ''} onChange={(e) => put(e.target.value, months)} />
       </label>
       <fieldset className="field">

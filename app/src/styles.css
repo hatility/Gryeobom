@@ -2407,9 +2407,9 @@ html.m .dev-badge { right: auto; }
 @media (prefers-reduced-motion: reduce) { .q-page { animation: none; } }
 .recall-inline { margin: 0 0 4px; padding: 12px 14px; border-radius: 12px; background: var(--bg); color: var(--text-soft); line-height: 1.7; }
 /* 그때의 마음(모바일): 지금 돌아보는 순간 하나를 크게 */
-.moment-head { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 4px; padding: 12px 6px; border-radius: 14px; background: var(--bg); }
-.moment-head .m-icon-btn { font-size: 28px; line-height: 1; color: var(--text-soft); }
-.moment-head .m-icon-btn:disabled { opacity: 0.25; }
+.moment-pager { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 4px; padding: 12px 6px; border-radius: 14px; background: var(--bg); }
+.moment-pager .m-icon-btn { font-size: 28px; line-height: 1; color: var(--text-soft); }
+.moment-pager .m-icon-btn:disabled { opacity: 0.25; }
 .moment-head-main { position: relative; display: grid; gap: 2px; justify-items: center; text-align: center; cursor: pointer; min-width: 0; }
 .moment-head-title { font-size: 19px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .moment-head-title span { font-size: 12px; color: var(--text-soft); }
@@ -3050,3 +3050,64 @@ html:not(.m) .result-group-title { min-width: 64px; text-align: right; }
 .prompt-rows { padding-left: 0; list-style: none; }
 /* 나눈 그래프: 카드 간격(gap)과 응원 줄 위 여백이 겹쳐 비던 것 */
 .post > .cheer-bar { margin-top: 0; }
+
+/* ───── 1.1.0 모바일 고침 ───── */
+/* 두 칸 줄의 칸이 내용 폭보다 줄어들 수 있게 (날짜 · 달 칸이 카드 밖으로 밀리던 것) */
+.field-row > * { min-width: 0; }
+/* iPhone · iPad Safari: 날짜 · 시각 · 달 칸은 기본 최소 폭이 커서 width:100% 를 넘는다 → 기본 모양을 끄고 폭에 맞춘다 (누르면 그대로 고르기 창) */
+@supports (-webkit-touch-callout: none) {
+  input[type='date'], input[type='time'], input[type='month'], input[type='datetime-local'] {
+    -webkit-appearance: none; appearance: none; display: block; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;
+  }
+  input::-webkit-date-and-time-value { text-align: left; margin: 0; }
+}
+input[type='checkbox'], input[type='radio'] { accent-color: var(--primary-hover); }
+
+/* 함께 나누기: 모임 이름이 줄어들고(… 로), 기관 꼬리표는 남은 자리만큼 */
+.group-rows > li { min-width: 0; }
+.group-row { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.group-row-name { flex: 1 1 auto; }
+@media (max-width: 480px) { .group-row-org { max-width: 45%; } }
+
+/* 기관 리포트 표: 숫자 · 머리글은 한 줄로, 좁으면 표만 옆으로 넘겨 봐요 */
+.stats-table :is(th, td) { white-space: nowrap; }
+.stats-table :is(th, td):first-child { white-space: normal; min-width: 8.5em; }
+.stats-table-wrap { -webkit-overflow-scrolling: touch; }
+
+/* 나의 한 줄 머리: 좁은 화면에서도 제목 · 개수 한 줄, ‘달력 · 목록’ 은 오른쪽에 작게 */
+.answers-head { flex-wrap: wrap; row-gap: 8px; }
+.answers-head .card-title small { display: inline; margin-left: 4px; }
+.answers-head .segmented-sm { display: inline-flex; width: auto; margin-left: auto; grid-template-columns: none; }
+/* 기관 리포트 제목: 날짜 · 안내는 제목 아래 줄로, 날짜가 중간에서 끊기지 않게 */
+.org-report-title small { display: block; margin-top: 4px; font-weight: 400; }
+.org-report-title small span { white-space: nowrap; }
+html.m .answers-head, .answers-head { flex-wrap: nowrap; }
+html.m .answers-head .card-title { min-width: 0; }
+html.m .answers-head .segmented.segmented-sm, .answers-head .segmented.segmented-sm { display: inline-flex; width: auto; flex: none; margin-left: auto; }
+
+/* ───── 1.1.1 글자 수 ───── */
+.field-count { justify-self: end; text-align: right; font-size: 12px; }
+
+/* ───── 1.1.1 점검 ───── */
+/* 띄어쓰기 없는 긴 제목이 격자 칸을 넓혀 화면이 옆으로 밀리던 것 (한 권 화면) */
+h1, h2, h3, .book-title { overflow-wrap: anywhere; }
+.book > * { min-width: 0; }
+/* 아이폰: 입력 글자가 16px 보다 작으면 누를 때 화면이 확대된다 */
+html.m .stats-range input[type='date'] { font-size: 16px; }
+/* 모바일 터치 영역: 오늘의 색 점 · 질문 넘김 막대 */
+html.m .mood-pick { gap: 8px; }
+html.m .mood-dot { width: 30px; height: 30px; position: relative; }
+html.m .mood-dot::after, html.m .q-dots button::after { content: ''; position: absolute; inset: -5px; }
+html.m .q-dots button { position: relative; }
+html.m .q-dots button::after { inset: -14px 0; }
+/* 띄어쓰기 없는 긴 글(ㅋㅋㅋ… · 긴 영문)이 한 권 · A4 한 장 · 오늘의 질문을 화면 밖으로 밀던 것 */
+:is(.book, .sheet, .today) { overflow-wrap: anywhere; }
+:is(.book, .sheet, .today) * { min-width: 0; overflow-wrap: anywhere; }
+/* 참여 코드 표: 머리글 · 코드는 한 줄로, 긴 초대 링크만 줄바꿈 */
+.codes-table th, .codes-table .code-cell { white-space: nowrap; }
+.codes-table td:last-child { word-break: break-all; }
+/* 아이폰 입력 확대 막기: 더 구체적인 규칙이 글자를 줄여도 모바일 입력 칸은 늘 16px */
+html.m :is(input, textarea, select):not([type='range']):not([type='checkbox']):not([type='radio']) { font-size: 16px !important; }
+/* 관리자: 띄어쓰기 없는 긴 이름이 표를 넓혀 본문 칸 전체가 화면 밖으로 밀리던 것 — 본문 칸은 폭을 넘지 않고, 표만 안에서 옆으로 넘겨요 */
+.admin-main { grid-template-columns: minmax(0, 1fr); }
+.admin-main > * { min-width: 0; }

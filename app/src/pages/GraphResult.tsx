@@ -451,7 +451,7 @@ function ShareDialog({ dialogRef, graph, onVisibility }: {
         <EntryPicker graph={graph} ids={ids} onToggle={(id) => setIds((s) => toggleIn(s, id))} />
         <label className="check">
           <input type="checkbox" checked={time} onChange={(e) => setTime(e.target.checked)} />
-          나이 · 연도 · 달을 보여주기 <small className="muted">(끄면 ‘그때 → 지금’으로만)</small>
+          {{ age: '나이를', year: '연도를', month: '달을', hour: '시각을' }[graph.timeScale]} 보여주기 <small className="muted">(끄면 ‘그때 → 지금’으로만)</small>
         </label>
         <label className="check">
           <input type="checkbox" checked={descriptions} onChange={(e) => setDescriptions(e.target.checked)} />

@@ -254,13 +254,13 @@ function BulkGroups({ onDone }: { onDone: () => void }) {
     <details className="card bulk-groups">
       <summary><strong>여러 모임 한 번에 만들기</strong> <small className="muted">기관 · 반 단위</small></summary>
       <p className="small">교실에서 종이로 먼저 해 보려면 <Link to="/worksheet">종이 활동지 인쇄</Link> 를 써 보세요.</p>
-      <p className="muted small">한 줄에 모임 이름 하나씩, 30개까지. 만든 사람이 모든 모임의 모임장이 돼요.</p>
+      <p className="muted small">한 줄에 모임 이름 하나씩(이름은 30자까지), 30개까지. 만든 사람이 모든 모임의 모임장이 돼요.</p>
       <label className="field">
         <span className="field-label">모임 이름 ({list.length}/30)</span>
         <textarea rows={5} value={names} placeholder={'예)\n1반\n2반\n수요일 진로반'} onChange={(e) => setNames(e.target.value)} />
       </label>
       <label className="field">
-        <span className="field-label">모임 소개 <em>(선택 · 모두 같게)</em></span>
+        <span className="field-label">모임 소개 <em>(선택 · 모두 같게)</em> <small className="muted">{intro.length}/200</small></span>
         <input value={intro} maxLength={200} onChange={(e) => setIntro(e.target.value)} />
       </label>
       {err && <p className="alert" role="alert">{err}</p>}
