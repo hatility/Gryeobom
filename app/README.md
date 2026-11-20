@@ -14,7 +14,7 @@
 | 관리자 화면 | `ADMIN_ID=admin ADMIN_PASSWORD=12자이상비밀번호 npm run dev:api` 로 띄운 뒤 `/admin` |
 | 테스트 | `npm test` (서버 · 화면 로직 94개) · `npm run test:e2e` (브라우저 흐름, Playwright) |
 | 빌드 | `npm run build` (타입 검사 → 화면 → 오픈소스 고지 확인 → 서버 번들) |
-| 배포 묶음 | `npm run release` → `../release/v<버전>/` 정식 묶음 + `../release/개발용/v<버전>-dev/` (이미 있는 버전은 `-- --force`) |
+| 배포 묶음 | `npm run release` → `../release/v<버전>/` 정식 묶음 + `../release/개발용/v<버전>-dev/` (이미 있는 버전은 `-- --force`) · 개발 중에는 `npm run release:dev` → 개발용 묶음만 (정식 폴더는 그대로) |
 
 ## 버전 올리기
 

@@ -68,10 +68,13 @@ export default function Join() {
         <div>
           <p className="eyebrow en">YOU&apos;RE INVITED</p>
           <h1 className="page-title">‘{invite.name}’에 초대받았어요</h1>
-          <p className="muted">
-            {invite.preset ? `함께 그릴 시간 · ${presetLabel(invite.preset)}` : '서로의 선을 판단하지 않고 바라보는 모임이에요.'}
-          </p>
+          {/* 모임 소개가 있으면 그 말이 먼저 — 기본 소개 문장과 두 번 말하지 않게 */}
           {invite.intro && <p className="group-intro">{invite.intro}</p>}
+          {(invite.preset || !invite.intro) && (
+            <p className="muted">
+              {invite.preset ? `함께 그릴 시간 · ${presetLabel(invite.preset)}` : '서로의 선을 판단하지 않고 바라보는 모임이에요.'}
+            </p>
+          )}
         </div>
       </header>
 

@@ -246,7 +246,7 @@ export interface Developer { name: string; org: string; contact: string; url: st
 export interface Operator { name: string; contact: string }
 
 /** 화면에 보이는 사이트 설정 (/config). .env 가 기본이고, 관리자 화면에서 고칠 수 있다. */
-export interface Site { publicUrl: string | null; developer: Developer | null; operator: Operator | null }
+export interface Site { publicUrl: string | null; developer: Developer | null; operator: Operator | null; /** 푸터 한 줄 (운영 기관 홍보 등, 비우면 안 보임) */ footer?: string; /** 약관 · 처리방침 시행일 YYYY-MM-DD (비우면 화면의 기본 날짜) */ policyDate?: string }
 
 /** 관리자가 고친 사이트 설정 검증. 화면에 그대로 보이므로 길이를 자르고, 주소는 http(s) · 문의처는 이메일만. */
 function sanitizeSite(b: any): Site {
@@ -273,7 +273,20 @@ function sanitizeSite(b: any): Site {
     publicUrl,
     developer: Object.values(developer).some(Boolean) ? developer : null,
     operator: operator.name || operator.contact ? operator : null,
+    footer: t(b?.footer, 80),
+    policyDate: policyDate(b?.policyDate),
   }
+}
+
+/** 시행일: 비우거나 YYYY-MM-DD 인 실제 날짜만 (2020~2100) */
+function policyDate(x: unknown): string {
+  const s = clean(x).slice(0, 10)
+  if (!s) return ''
+  const d = new Date(`${s}T00:00:00Z`)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s || s < '2020-01-01' || s > '2100-12-31') {
+    throw new HttpError(400, '시행일은 실제 있는 날짜로 골라 주세요.')
+  }
+  return s
 }
 
 export interface AppOptions {
@@ -1276,7 +1289,7 @@ export function createApp(db: Db, opts: AppOptions) {
     const u = me(c)
     openCircle(memberOf(c.params.id, u.id).closed_at)
     const g = ownGraph(str(c.body.graphId, 64), u.id)
-    if (g.visibility !== 'link') throw new HttpError(403, "먼저 이 그래프를 '함께 나누기'로 바꿔 주세요.")
+    if (g.visibility !== 'link') throw new HttpError(403, '먼저 이 그래프를 ‘함께 나누기’ 로 바꿔 주세요.')
     // 나눌 내용은 서버가 그래프에서 직접 만든다 (회고는 들어갈 자리가 없다)
     const o = sanitizePostOptions(c.body.options)
     if (!o) throw new HttpError(400, '나눌 내용을 읽지 못했어요.')
@@ -1430,7 +1443,9 @@ export function createApp(db: Db, opts: AppOptions) {
   }
   on('GET', '/config', () => {
     const m = maintenance()
-    return { ...site(), dev: !!opts.devServer, flags: FLAGS.filter((f) => lab(f.key)).map((f) => f.key), ...(m?.on ? { maintenance: { message: m.message, at: m.at } } : {}) }
+    // 약관 · 처리방침 맨 위 ‘최근에 바뀐 점’: 관리자가 ‘약관 다시 동의’ 에 올린 바뀐 점 (회원에게 이미 보여 주는 같은 글)
+    const t = lab('me') ? savedTerms() : null
+    return { ...site(), dev: !!opts.devServer, flags: FLAGS.filter((f) => lab(f.key)).map((f) => f.key), ...(m?.on ? { maintenance: { message: m.message, at: m.at } } : {}), ...(t ? { termsChange: t } : {}) }
   })
   on('GET', '/admin/maintenance', (c) => {
     labs('ops')

@@ -17,10 +17,152 @@ export interface DevChange {
   check: string[]
   /** 손댄 코드 (개발자용) */
   files?: string
+  /** 전후 사진 (public 아래 주소 — 있을 때만 보여요) */
+  shots?: [before: string, after: string]
 }
 export interface DevRelease { id: string; title: string; date: string; summary: string; items: DevChange[] }
 
 export const DEVLOG: DevRelease[] = [
+  {
+    id: 'ui-16',
+    title: '16차 (1.2.0-dev) — 새 사이트 틀 (실험판 1.2.0-ui-test 를 합침)',
+    date: '2026-11-12',
+    summary: '감성 일기장 틀(종이 · 계절빛 하늘 · 고운바탕 · 손글씨 로고 · 아래 둥근 메뉴)과 Stageshow 장면들을 정식 · 개발 모두에. 합치기 전 원래 판은 보관/1.2.0-dev-UI합치기전-2026-11-12',
+    items: [
+      {
+        title: '새 사이트 틀', where: '모든 화면 (PC · 휴대폰 · 태블릿)', path: '/', scope: '정식 · 개발',
+        what: '위 줄(로고 · 로그인) + 아래 가운데 떠 있는 둥근 메뉴(가운데 ＋ 그리기) · 휴대폰 · 태블릿도 같은 둥근 메뉴. 종이 결 바탕 · 계절빛 하늘 · 제목 고운바탕 · 카드는 종이 그림자 · 그래프 판에 마스킹테이프 · 로고는 개구(Gaegu) 손글씨(세 글자만 Google Fonts). 화면 머리는 가운데 포스터, 결과 · 예시 · 공유는 세로 시간선, 기록은 폴라로이드, 모임은 쪽지 · 입장권 참여 코드.',
+        check: ['PC · 휴대폰 · 태블릿 첫 화면', '그리기 4단계', '결과 · 예시', '기록 모아보기', '모임 · 함께 나누기', '어두운 화면', '인쇄(활동지 · 한 권으로)'],
+        files: 'App.tsx · mobile.tsx · styles.css (새 틀 층) · index.html (Gaegu) · Legal.tsx (처리방침 글꼴 문장)',
+        shots: ['/devlog/16-home-before.jpeg', '/devlog/16-home-after.jpeg'],
+      },
+      {
+        title: '장면 (Stageshow)', where: '첫 화면 · 그리기 · 결과 · 모임 · 큰 화면 · 한 해 · 관리자 · 404', path: '/', scope: '정식 · 개발',
+        what: '처음 온 사람 손끝 장면(보일 때 시작) · 휴대폰 손가락 장면 · 세 걸음 차례로 · 2단계 첫 안내(한 번) · 완성 장면 · 그때와 지금(지난 선 그려짐) · 응원 마음 · 큰 화면 마치기(함께 그린 선) · 한 해 숫자 차오르기 · 마음 색 지도 · 관리자 숫자 · 지금의 나 한 문장 써지기 · 새 글 스며들기 · 404 길 잃은 선. 모두 한 번만, 움직임 줄이기면 끝 모습.',
+        check: ['/?done=1 없이 결과 · ?done=1 결과', '처음 그리기 2단계', '모임 응원 · 큰 화면 마치기', '한 해 돌아보기', '움직임 줄이기 켜고 다시'],
+        files: 'Home.tsx · mobile.tsx · GraphEditor.tsx · GraphResult.tsx · GroupPage.tsx · GroupPresent.tsx · YearReview.tsx · AdminPage.tsx · App.tsx · components/CountUp.tsx · components/once.ts · styles.css',
+        shots: ['/devlog/16-example-before.jpeg', '/devlog/16-example-after.jpeg'],
+      },
+      {
+        title: '이미지 · 영상 저장', where: '결과 → 이미지로 저장 · 모임 리포트', path: '/my', scope: '정식 · 개발',
+        what: '저장 창 미리보기(PC 두 칸) · 카드 다섯 가지 새 틀(로고 머리글 · 고운바탕 · 종이 판 + 테이프) · 그때와 지금 카드(지난 선 점선) · 실험: 세로 · 정사각 · 올해 카드 4초 영상(mp4/webm) · 모임 리포트 한 장 그림 · 휴대폰은 공유 시트로 저장.',
+        check: ['모양 · 배경 · 글씨 바꾸며 미리보기', '지난 선 겹쳐 보기 켠 뒤 카드', '영상으로', '휴대폰 저장 → 공유 시트'],
+        files: 'graph.ts (drawStoryCard · drawYearCard · recordCard · exportGroupCard) · GraphResult.tsx · GroupPage.tsx',
+        shots: ['/devlog/16-card-before.jpeg', '/devlog/16-card-after.jpeg'],
+      },
+      {
+        title: '장면 4 · 5차', where: '그리기 3 · 4단계 · 함께 나누기 · 기관 리포트 · 활동지 · 첫 화면 · 결과 · 모임 · 문의 · 약관 · 관리자 · 인터넷 끊김', path: '/graph/new', scope: '정식 · 개발',
+        what: '3단계 적은 순간 점 채움(LifeGraph doneIds) · 4단계 NowStrip(지금의 나 옆 단어) · 모임 줄 새 소식 점 · 기관 반별 막대 · 활동지 고르면 새로 놓기 · PC 처음 환영 선 · 결과 그때의 마음 펼침(animation-timeline: view) · 함께하는 사람 한 명씩 · 문의 보낸 뒤 접힘 · 약관 바뀐 점 형광펜 · 휴대폰 질문 밀려 들어오기 · 관리자 7일 추세선(Spark) · 인터넷 끊김 알림(OfflineNote, html[data-offline]) · 그리기 화면 개발 표시를 위 줄 가운데로.',
+        check: ['3단계에서 한 순간에 적고 그래프 점', '4단계 단어 카드 고르기', '모임 소식 올린 뒤 함께 나누기', '기관 리포트', '활동지 칸 수 바꾸기', '문의 보내기', '관리자 한눈에', '와이파이 끄고 켜기'],
+        files: 'LifeGraph.tsx · GraphEditor.tsx · Share.tsx · OrgReport.tsx · Worksheet.tsx · Home.tsx · Contact.tsx · AdminPage.tsx · App.tsx · styles.css',
+      },
+      {
+        title: '정식 전 점검 고침', where: '조용한 시간(밤) 전체 · 오류 안내 상자 · 첫 화면', path: '/', scope: '정식 · 개발',
+        what: '조용한 시간: animation-delay 도 0 · art-line 3.4s 덮어쓰기 없앰 · reflection view() 끔 · hero-art 멈춤 풀기 · PageLink · 밝기 전환 · CountUp 도 조용한 시간이면 바로. 오류 상자: App useAlertsInView (role=alert 가 메뉴 아래면 scrollIntoView, scroll-margin-bottom 120px). 첫 화면 기울인 카드 margin-bottom 8px. 브라우저 점검(ECC browser-qa · Stageshow layout · Lighthouse) 결과 콘솔 오류 · 넘침 · 죽은 링크 0, 접근성 100.',
+        check: ['밤 10시 이후(또는 조용한 시간) 첫 화면 · 결과 · 그리기', '로그인에 틀린 생년월일 → 안내가 메뉴 위로', '다시 온 사람 첫 화면'],
+        files: 'styles.css · App.tsx · components/PageLink.tsx · components/CountUp.tsx · view.ts',
+      },
+      {
+        title: '장면 6차 (스무 가지)', where: '그리기 1 · 2단계 · 결과 · 모임 · 기록 · 한 해 · 오늘의 한 줄 · 휴대폰 첫 화면 · 관리자 · 기관 · 메뉴 이동 · 밝기 · 오류 화면', path: '/', scope: '정식 · 개발',
+        what: '1단계 범위 바꾸면 미리보기 새로 · 점 끌어 놓으면 마음 점수 말풍선 · 전환점 별 반짝 · 그때와 지금 사이 색 띠(g-diff) · 결과 제목 물결선 · 모임 주제 쪽지 · 내일 일정 띠 · 출석 도장 · 끝난 모임 안내 · 참여 코드 복사 입장권 · 빈 기록 점선 폴라로이드 · 한 해 끝 ‘수고했어요’ · 오늘의 한 줄 이어서(실 길이 · 굵기) · 휴대폰 당겨서 새로고침 · 신고 처리 도장 · 기관 소식 점 · 백업 도장 · 메뉴 이동 View Transitions(PageLink) · 밝기 바꿀 때 스며들기 · 오류 화면(ErrorBoundary).',
+        check: ['1단계 나이 바꾸기', '2단계 점 끌어 놓기 (PC)', '지난 선 겹쳐 보기', '빈 기록 모아보기', '오늘의 한 줄 이틀 이어서', '휴대폰 첫 화면 당기기', '메뉴로 화면 옮기기 · 밝기 바꾸기 (크롬)', '모임 코드 복사 · 출석'],
+        files: 'LifeGraph.tsx · GraphEditor.tsx · GroupPage.tsx · MyGraphs.tsx · YearReview.tsx · Home.tsx · mobile.tsx · OrgReport.tsx · AdminPage.tsx · App.tsx · view.ts · components/PageLink.tsx · styles.css',
+      },
+      {
+        title: '링크 미리보기 · 인쇄 · 개발 표시', where: 'index.html · deploy/nginx.conf · 인쇄 · 그리기 화면', scope: '정식 · 개발',
+        what: 'og.png 새 틀(원본 docs/og-source.html) · nginx sub_filter 로 /og.png 를 접속한 주소의 절대 주소로(X-Forwarded-Proto 따름) · 인쇄에 하늘 · 그림자 · 테이프 · 메뉴 여백 빼기 · 개발 표시가 ‘다음 단계’ 를 가리지 않게.',
+        check: ['카톡에 주소 붙여 미리보기 그림', '활동지 · 한 권으로 인쇄 미리보기'],
+        files: 'public/og.png · docs/og-source.html · deploy/nginx.conf · styles.css',
+        shots: ['/devlog/16-og-before.png', '/devlog/16-og-after.png'],
+      },
+    ],
+  },
+  {
+    id: 'words-15',
+    title: '15차 (1.2.0-dev) — 용어 · 문체 맞추기',
+    date: '2026-11-11',
+    summary: '담당 선생님 요청(단순화 · 용어 정리): 회고 → 그때의 마음 · 지금의 나, 시점 → 때, 공유하기 → 나누기, PC 메뉴 ‘그래프 그리기’, 같은 버튼은 같은 이름, 링크 끝 ‘ ›’, 따옴표 · 해요체 · 긴 안내 줄이기',
+    items: [
+      {
+        title: '이미지 저장 창 (휴대폰) · ‘지금의 나’ 글씨', where: '결과 → 이미지로 저장 (휴대폰 /m) · 저장된 세로 · 정사각 카드', path: '/my', scope: '정식 · 개발',
+        what: '.export-dialog 칸을 minmax(0, 1fr) 로 (html.m .seg span nowrap 이 칸을 밀던 것) · 모양 이름의 괄호는 small.seg-note(휴대폰은 다음 줄) · 넷이면 2×2. exportStoryCard ‘지금의 나’: 위 · 아래 · 점 왼쪽 후보 중 들어오는 선(앞 점 → 끝 점 → 지금)과 안 겹치고 판 안에 드는 첫 자리.',
+        check: ['휴대폰으로 결과 → 이미지로 저장: 오른쪽 안 잘림', '달 그래프(모양 넷)도', '끝 점이 +5 · -5 인 그래프를 세로 · 정사각 카드로 저장'],
+        files: 'GraphResult.tsx · graph.ts · styles.css (실험판 1.2.0-ui-test 에서 옮김)',
+      },
+      {
+        title: '약관 시행일 설정 · 약관 최신화 · 함께 선 · 기관 · 관리자 · 정사각 카드', where: '관리자 사이트 설정 · /terms · /privacy · 모임 · 기관 · 관리자 신고함 · 이미지 저장', path: '/terms', scope: '정식 · 개발',
+        what: 'Site.policyDate(YYYY-MM-DD, 실제 날짜만 — 서버 테스트) → /config → Legal usePolicyDate(없으면 POLICY_DATE). /config 에 termsChange(약관 다시 동의 글) → 약관 맨 위 ‘최근에 바뀐 점’. 이용약관 공유 링크 항목에 링크 미리보기 문장. TogetherLines 선 --i 차례 · 지금 점선. 기관: org-more 접기, stats-total 한 판. 관리자: admin-report-detail 높이 · admin-alert 왼쪽 아래. exportStoryCard square. 함께 나누기 hub 버튼 낮춤. 홍보 영상은 저장소 밖(개발/홍보).',
+        check: ['관리자 설정에서 시행일 고르고 /terms · /privacy 날짜', '잘못된 날짜(2월 30일) 저장 막힘', '약관 다시 동의 글 올린 뒤 약관 맨 위', '모임 함께 겹쳐 보기(선 2개 이상)', '기관 화면 · 리포트', '정사각 카드 저장'],
+        files: 'server/app.ts (Site.policyDate · /config termsChange) · server/app.test.ts · api.ts · AdminPage.tsx · Legal.tsx · GroupPage.tsx · OrgReport.tsx · graph.ts · GraphResult.tsx · styles.css',
+      },
+      {
+        title: '공유 · 카드 · 링크 미리보기 · 큰 화면 · 모바일 · 불러오기 · 한 해', where: '/s/… · 이미지 카드 · index.html · 큰 화면 진행 · /m · 불러오는 중 · 한 해 돌아보기', path: '/share', scope: '정식 · 개발',
+        what: 'SharedView: graph-card is-done + closing-band. exportStoryCard: 머리글 그려봄 · 판 760px · 지금의 나(빛 + 점 + 글씨 아래) · 그때/지금. og: public/og.png(1200×630, 정식 장미색) + og/twitter 메타 — og:image 는 /og.png(상대 주소)라 카톡은 정식 주소를 절대 주소로 바꿔야 확실. StepArt 를 components 로(time · moment · reflect · join · share), 큰 화면 howto 3열. 모바일 m-start-line 그리기, 3단계 reflect-setup order 3 · reflect-top 작게 · entry-qset 조용히. .page.loading 의 ::before(제목 막대) · ::after(그래프 판 + 빛). 한 해: is-today · is-future, review-stats 차례로.',
+        check: ['/s/코드 처음 열기', '이미지로 저장 카드', '카톡에 주소 붙이기(정식 주소)', '큰 화면 진행(진행안 없을 때)', '모바일 첫 화면 · 3단계', '느린 인터넷에서 결과 화면 열기', '한 해 돌아보기 오늘 칸'],
+        files: 'Share.tsx · graph.ts · index.html · public/og.png · components/StepArt.tsx · Home.tsx · GroupPresent.tsx · mobile.tsx · YearReview.tsx · styles.css',
+      },
+      {
+        title: '완성 장면 · 세 걸음 그림 · 빈 화면 · 모임 정리', where: '결과(?done=1) · 예시 · 첫 화면 소개 · 빈 화면 · 모임 · 기록 모아보기', path: '/example', scope: '정식 · 개발',
+        what: '완성: .is-done 에서 g-dot · g-label 이 --i 순서로(0.22초 간격), g-now 2.5초, now-arrive 빛 한 번, done-card 2.9초. LifeGraph 점에 --i. 예시 그래프 graph-card 에 is-done. 세 걸음: StepArt(SVG 세 장, 테마 색). EmptyDoodle 을 components 로 꺼내 404 · 찾을 수 없는 기록 · 모임 없음 · 나눈 선 없음에도, 선이 한 번 그려짐. 모임: EventsCard 빈 상태는 topic-empty 버튼, 입력은 adding 일 때만(그만두기), 셋 다 비면 3열. 결과: 지난 선 겹쳐 보기 details. 기록: 날짜 한 줄 · tile-foot 바닥. e2e: 활동은 버튼을 눌러 펼친 뒤 적기.',
+        check: ['완성하고 결과 화면 (선 → 점 → 지금의 나 → 고마워요)', '예시 그래프', '첫 화면 세 걸음 PC · 모바일', '404 · 기록 없음 · 모임 없음', '모임: 빈 소식 · 주제 · 활동 한 줄, 활동 더하기 · 그만두기', '움직임 줄이기 켜고 끝 모습'],
+        files: 'GraphResult.tsx · LifeGraph.tsx · Example.tsx · Home.tsx (StepArt) · components/EmptyDoodle.tsx · App.tsx · Share.tsx · GroupPage.tsx · MyGraphs.tsx · e2e/flows.e2e.ts · styles.css',
+      },
+      {
+        title: '그리기 3단계 PC · 이름 없는 순간 · 함께 나누기 · 소개 고침', where: '그리기 3단계(PC) · 모든 그래프 · 함께 나누기 · 첫 화면', path: '/graph/new', scope: '정식 · 개발',
+        what: '3단계: 왼쪽 그래프(selectedId = 펼친 순간, 점 누르면 그 카드로 스크롤) · 오른쪽 카드. 다음 버튼은 다음 순간 이름(없으면 때)으로, 마지막은 ‘지금의 나로’. layoutLabels: 이름 없는 점은 고른 점일 때만 이름표(테스트 추가). 함께 나누기: 모임이 있으면 약속 order 맨 아래(:has). PC step-nav: 반투명 + 가는 선. 고침: 다시 온 사람 첫 화면에서 #intro 가 사라져 ‘소개’ 메뉴가 헛돌던 것 → 소개를 맨 아래에, 불러온 뒤 #intro 로 스크롤. 2단계 목록 때 칸 nowrap · 지우기 조용히.',
+        check: ['3단계 점 누르기 → 그 카드 펼침', '마지막 순간 → 지금의 나로', '이름 없는 순간이 섞인 그래프', '기록 모아보기에서 위 메뉴 소개 → 세 걸음', '함께 나누기 모임 있음 / 없음'],
+        files: 'GraphEditor.tsx (StepReflect) · graph.ts (layoutLabels) · store.test.ts · Share.tsx · Home.tsx · styles.css',
+      },
+      {
+        title: '글자 대비 · 4단계 요약 · 개발용 묶음', where: '사이트 전체 · 그리기 4단계 · 배포', path: '/', scope: '정식 · 개발',
+        what: '--text-2 를 #7a6f67(바탕 대비 4.7:1)로, 강조색 글자는 새 --primary-ink(강조색 45% + 본문색, 4.6:1↑) — 테두리 · 바탕 · 선은 그대로. 4단계 한 줄: 이름 있는 순간 3개까지 + 나머지 개수(모두 이름이 없으면 ‘N개의 순간’). npm run release:dev: 임시 폴더에서 만들어 개발용으로만 옮기고 정식 폴더는 그대로.',
+        check: ['밝은 화면 작은 회색 글자 · 강조색 글자 읽힘', '이름 없는 순간이 섞인 그래프 4단계', 'npm run release:dev 뒤 release/v1.2.0 시각 그대로'],
+        files: 'styles.css (글자 대비) · GraphEditor.tsx (4단계 한 줄) · scripts/release.mjs · package.json · README.md',
+      },
+      {
+        title: '첫 화면 · 그리기 2단계 · 점검 고침', where: '첫 화면(PC) · 그리기 2단계(PC) · 결과 · 기록 모아보기 · 사이트 전체', path: '/', scope: '정식 · 개발',
+        what: '첫 화면: 그래프가 있으면 인사 + 할 일 두 개 + 최근 그래프(순간 2개 이상인 것 먼저), 세 걸음 · 마무리는 처음 온 사람만. 처음 온 사람 그림: 손끝이 점 셋 → 선 → 지금의 나 (한 번, 4.5초 뒤 선, 움직임 줄이기면 끝 모습). 2단계: 왼쪽 그래프(따라 내려옴) · 오른쪽 판(더하기 · 예시 또는 목록). 결과: 고치기 전 모습 접기. 기록: 지우기 조용히. 점검: PC 마음 막대 · 오늘의 색 누를 자리 · 개발 표시 위치 · 메뉴 색 · 좁은 창 넘침 · 나 화면 h1 · 새로 쓴 작은 글자 대비 4.5:1.',
+        check: ['로그인 + 그래프 있음 / 처음 온 사람 첫 화면', '2단계 빈 상태 · 순간 3개', '결과 고치기 전 모습 펼치고 고르기', 'PC 마음 높이 막대', '1280 · 820 · 390 · /m 넘침 없음'],
+        files: 'Home.tsx (WelcomeBack · HeroArt) · GraphEditor.tsx (StepMoments) · GraphResult.tsx (versions) · mobile.tsx (Me h1) · styles.css',
+      },
+      {
+        title: '그리기 1단계 ‘나의 시간’ PC 새 판', where: '그래프 그리기 → 1 나의 시간 (PC)', path: '/graph/new', scope: '정식 · 개발',
+        what: '입력 판: 구역마다 질문 문장 + 칸 이름이 겹치던 것 → 번호 붙은 짧은 머리 하나(질문은 화면 읽기에만). 다 채우면 번호에 색. 나이 · 연도 칸 안에 단위(살 · 년), 칸 이름은 ‘시작 나이 · 지금 나이’ 로 짧게. 기준 고르기는 네 칸 꽉 차게. 미리보기: 더 넓게(1.3 : 1), 따라 내려오고, 선 색 · 누가 볼지 작은 표시. 머리: 큰 제목은 단계 탭과 같은 말이라 PC 에서 숨기고 자동 저장은 다짐 줄 오른쪽. 1단계 ‘이전’ 숨김. 이름 칸 아래 안내는 미리보기 제목과 겹쳐 PC 에서 뺌.',
+        check: ['PC 1280 밝은 · 어두운 화면', '기준을 바꿔도 칸 이름 · 단위가 맞음 (나이 → 살, 연도 → 년)', '모임 그래프(정해 둔 시간)일 때 미리보기에 모임 이름', '모바일 · 태블릿은 이전처럼 한 장씩'],
+        files: 'GraphEditor.tsx (StepTime · TimePreview · NumberField) · styles.css (그리기 1단계 새 판)',
+      },
+      {
+        title: '화면 새 옷', where: '사이트 전체 · 첫 화면 · 기록 모아보기 · 관리자 한눈에', path: '/', scope: '정식 · 개발',
+        what: '카드: 테두리 대신 그림자 · 둥글기 20px. 메뉴의 지금 있는 곳: 옅은 판. 버튼: 누르면 살짝 내려앉음. 입력칸: 누르면 강조색 테두리 + 번짐. 첫 화면: 세 걸음은 이어진 선, 떠올릴 질문은 한 판 목록, 마무리는 계절빛 판, 그래프 뒤 계절빛 번짐. 안내 띠 안 버튼은 한 단계 낮춤. 푸터는 옅은 바탕. 관리자 한눈에 숫자는 한 판.',
+        check: ['첫 화면 PC · 모바일 · 어두운 화면', '기록 모아보기 안내 띠 버튼', '관리자 한눈에 · 왼쪽 메뉴', '390px 에서 옆으로 넘치지 않음'],
+        files: 'styles.css (1.2.0 새 옷) · Home.tsx',
+      },
+      {
+        title: '푸터 한 줄', where: '관리자 → 설정 → 사이트 설정 → 사이트 아래 · 모든 화면 맨 아래', path: '/admin', scope: '정식 · 개발',
+        what: '사이트 설정에 ‘푸터 한 줄’(80자) 칸. 적으면 모든 화면 맨 아래 문구 · 링크 사이에 작게 보이고, 비우면 안 보임. 코드에 넣지 않아 다른 기관이 받아 써도 그 기관 문구로 바꿀 수 있음.',
+        check: ['사이트 설정에 한 줄 적고 저장 → 맨 아래에 보임', '비우고 저장 → 안 보임', '모바일은 나 탭 → 정보 목록 아래에 보임'],
+        files: 'app.ts (Site.footer · sanitizeSite) · api.ts · AdminPage.tsx (SettingsTab) · App.tsx (FooterNote) · mobile.tsx · app.test.ts',
+      },
+      {
+        title: '관리자 화면 다듬기', where: '관리자 화면 13개 메뉴 · 작은 탭 모두', path: '/admin', scope: '정식 · 개발',
+        what: '한눈에 ‘처리하지 않은 신고’ 카드가 사이트 전체 알림과 이름이 겹쳐 오른쪽 위에 떠 로그아웃 버튼을 가리던 것 · ‘hour’ → ‘시간으로’. 작은 탭이 있으면 같은 제목 숨김, 탭 머리말을 아래 카드와 겹치지 않게 줄임. 표: 카드 끝까지 · 숫자 오른쪽 · 긴 이름 한 줄 줄임 · 줄 높이 낮춤, 이름 링크와 같은 ‘자세히’ · ‘보기 · 고치기’ 버튼 뺌. 빈 화면 한 모양, ‘요청 0건’ · ‘막힌 곳 없음’ 처럼 두 번 말하던 것 정리, 휴면 계정이 없으면 정리 버튼 숨김. 공지 · 사이트 설정 상태 줄을 카드 안으로, 설정 묶음은 작은 머리. 서버 오류 카드, 자동 백업 목록 카드 안 스크롤, 백업 카드 겹치는 문단 뺌, 실험 기능 ‘정식’ 묶음 조용히, 언제 많이 쓰나요 표를 카드 폭으로.',
+        check: ['/admin 한눈에: 신고 카드가 본문 맨 위에 있고 로그아웃 버튼이 가려지지 않음', '1280 에서 사람 · 모임 · 나눈 그래프 표에 가로 스크롤이 없고 숫자 칸이 오른쪽 정렬', '신고 · 문의 / 설정 처럼 작은 탭이 있는 화면에 같은 제목이 두 번 나오지 않음'],
+        files: 'AdminPage.tsx · styles.css (1.2.0 관리자 다듬기)',
+      },
+      {
+        title: '화면 다듬기 (Stageshow 원칙)', where: '첫 화면 · 결과 화면 · 기록 모아보기 · 기관 · 약관 · 그리기 1~4단계 · 나누기 · 이미지로 저장 · 함께 나누기 · 모임 · 문의하기 · 로그인', path: '/', scope: '정식 · 개발',
+        what: '장식용 영어 머리글을 PC 에서도 숨김. 첫 화면 순서: 함께 그릴 주제 → 모임 소식 → 기관(한 줄). 결과 화면 순간 카드 · 요약 카드 여백 줄임. 기록 카드 날짜는 같으면 한 줄. 기관 화면 제목 ‘기관’. 약관의 회고 → 그때의 마음, 시점 → 때, 큰 화면 진행 모드 → 큰 화면으로 진행하기 (뜻은 그대로라 다시 동의는 받지 않음). 그리기: 1단계 미리보기 아래 겹치는 안내 · 기간 글 한 번만, 2단계 빈 그래프 안내 한 줄 · 순간 목록 가는 선 · 순간이 생기면 모바일 ‘+ 순간 적기’ 를 테두리 버튼으로, 3단계 접힌 ‘질문 바꾸기’ 글 한 줄, 4단계 겹치는 안내 뺌. 이미지로 저장 창 안내와 ‘지금의 나 한 문장’ 이 엇갈리지 않게. 함께 나누기 약속 네 줄 조용히(모바일 두 칸). 모임: 주제 머리글을 소식과 같게, 빈 묶음 두 배 간격 정리, 내 그래프 보러 가기는 테두리 버튼, 어두운 화면 약속 띠 낮춤. 문의하기 머리말 두 줄, 로그인 아래 두 문장 한 줄씩. 이어서: 나누기 창은 모임이 없으면 ‘링크로 보내기’ 먼저, 결과 화면 맨 아래 문장 뺌 · 다 그린 뒤 인사 한 문장, 첫 화면 영어 ‘MY LIFE, MY LINE’ 뺌, 404 영어 머리글 숨김, 그리기 ‘다음 단계 ›’ · 태블릿 아래 바 숫자 숨김, 한 해 돌아보기 숫자 한 줄 요약 · 응원 0번 숨김 · 모바일 색 지도 스크롤 없앰, 초대 화면 소개 두 번 말하지 않게, 기관 겹치는 말 · 링크 하나로 · 빈 리포트에 ‘모임 잇기’, 기록 모아보기 맨 아래 간격, 큰 화면 참여 코드 가운데, 태블릿 위 바 제목 겹침 · 가로 960px · 결과 화면 목록 나란히.',
+        check: ['PC 화면에 영어 작은 제목이 없음', '첫 화면에서 주제 카드가 기관 줄보다 위', '결과 화면 순간 카드가 낮아짐', '그리기 2단계 순간 목록이 상자 없이 가는 선으로 나뉨', '그리기 3단계 맨 위 ‘⚙ 질문 바꾸기’ 가 카드 아닌 글 한 줄', '함께 나누기 약속 네 줄에 흰 카드 바탕이 없음', '모임이 없는 계정의 나누기 창이 ‘링크로 보내기’ 로 열림', '한 해 돌아보기(모바일) 마음 색 지도에 가로 스크롤이 없음', '가로 태블릿(1024)에서 함께 나누기가 화면 폭을 다 씀'],
+        files: 'styles.css (1.2.0 UI 다듬기 · 1.2.0 사용자 화면 다듬기) · Home.tsx · mobile.tsx · MyGraphs.tsx · OrgReport.tsx · Legal.tsx · GraphEditor.tsx · GraphResult.tsx · GroupPage.tsx · Contact.tsx · YearReview.tsx · Join.tsx · App.tsx',
+      },
+      {
+        title: '용어 · 문체 맞추기', where: '모든 화면 (약관 본문 빼고)', path: '/', scope: '정식 · 개발',
+        what: '핵심 용어를 하나씩: 회고 → 그때의 마음 · 지금의 나, 시점 → 때, 공유하기 → 나누기, 그래프 수정하기 → 고치기. PC 메뉴 나의 그래프 → 그래프 그리기, 모바일 그래프 책 → 한 권으로, 큰 화면 진행 모드 → 큰 화면으로 진행하기. 인쇄 버튼 · 시작 버튼 이름 하나로. 링크 끝 ‘ ›’, 따옴표 ‘ ’ · “ ”. 약속은 docs/용어와 문체.md.',
+        check: ['PC 맨 위 메뉴에 ‘그래프 그리기’', '결과 화면 큰 버튼 ‘나누기’ · ‘그래프 고치기’', '화면에 ‘회고’ 라는 말이 없음 (약관 본문 빼고)', 'docs/용어와 문체.md 의 선생님과 정할 것'],
+        files: 'App.tsx · mobile.tsx · GraphResult · GroupPage · GraphBook · Share · OrgReport · GroupPresent · Home · MyGraphs · GraphEditor · AdminPage · GuardianConsent · YearReview · app.ts · docs/용어와 문체.md',
+      },
+    ],
+  },
   {
     id: 'mobile-14',
     title: '14차 (1.1.1) — 모바일 고침 · 글자 수',

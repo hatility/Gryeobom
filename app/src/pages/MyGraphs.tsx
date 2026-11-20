@@ -1,3 +1,4 @@
+import EmptyDoodle from '../components/EmptyDoodle'
 import { useNewAnswers } from './Contact'
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router'
@@ -58,7 +59,7 @@ export default function MyGraphs() {
           <h1 className="page-title">기록 모아보기</h1>
           <p className="muted">내가 그린 선들이, 나의 이야기가 되는 곳.</p>
         </div>
-        {graphs && graphs.length > 0 && <Link to="/graph/new" className="btn btn-primary">새 그래프</Link>}
+        {graphs && graphs.length > 0 && <Link to="/graph/new" className="btn btn-primary">새 그래프 그리기</Link>}
       </header>
 
       <GuardianNotice />
@@ -74,7 +75,7 @@ export default function MyGraphs() {
         <Link to={`/review/${new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear()}`} className="card review-banner">
           <span className="eyebrow en">MY YEAR, MY LINE</span>
           <span className="serif review-banner-title">한 해를 돌아볼 시간이에요</span>
-          <span className="muted small">남긴 한 줄과 마음 색, 선 위의 순간들을 한 장으로 →</span>
+          <span className="muted small">남긴 한 줄과 마음 색, 선 위의 순간들을 한 장으로 ›</span>
         </Link>
       )}
       {err && <p className="alert" role="alert">{err}</p>}
@@ -82,11 +83,12 @@ export default function MyGraphs() {
       {graphs === null ? (
         <p className="muted serif">불러오는 중이에요…</p>
       ) : graphs.length === 0 ? (
-        <div className="card empty-state">
-          <EmptyDoodle />
+        <div className="card empty-state my-empty">
+          {/* 빈 폴라로이드 틀: 첫 장이 붙을 자리 */}
+          <Link to="/graph/new" className="empty-polaroid" aria-label="첫 그래프 그리기"><span className="empty-polaroid-photo"><EmptyDoodle /></span><span className="empty-polaroid-cap">첫 장을 붙여 봐요</span></Link>
           <p className="serif big">아직 그려진 이야기가 없어요.</p>
           <p className="muted">첫 번째 나의 그래프를 그려볼까요?</p>
-          <Link to="/graph/new" className="btn btn-primary">나의 그래프 시작하기</Link>
+          <Link to="/graph/new" className="btn btn-primary">나의 그래프 그리기</Link>
         </div>
       ) : (
         <ul className="tile-grid">
@@ -96,10 +98,9 @@ export default function MyGraphs() {
                 <LifeGraph compact tone={lineColorOf(g.lineColor)} points={graphPoints(g)} timeScale={g.timeScale} start={g.startPoint} end={g.currentPoint} />
                 <h2>{graphTitle(g)}</h2>
               </Link>
-              <p className="muted small">
-                처음 그린 날 {formatDate(g.createdAt)}
-                <br />
-                마지막으로 고친 날 {formatDate(g.updatedAt)}
+              {/* 날짜는 한 줄로 (두 줄 · 한 줄이 섞여 카드 아래 버튼 줄이 들쭉날쭉하던 것) — 처음 그린 날은 가리키면 */}
+              <p className="muted small" title={`처음 그린 날 ${formatDate(g.createdAt)}`}>
+                {formatDate(g.createdAt) === formatDate(g.updatedAt) ? `${formatDate(g.createdAt)}에 그림` : `${formatDate(g.updatedAt)}에 고침`}
               </p>
               <div className="tile-foot">
                 <span className="badge">{g.completed ? '완성' : '그리는 중'}</span>
@@ -201,7 +202,7 @@ function MyAnswers({ graphs }: { graphs: Graph[] }) {
           ))}
         </div>
       </div>
-      <p className="muted small">첫 화면 ‘오늘의 질문’에 남긴 답이에요. 나만 볼 수 있어요. <Link to={`/review/${new Date().getFullYear()}`}>올해 돌아보기 →</Link></p>
+      <p className="muted small">첫 화면 ‘오늘의 질문’에 남긴 답이에요. 나만 볼 수 있어요. <Link to={`/review/${new Date().getFullYear()}`}>올해 돌아보기 ›</Link></p>
 
       {mode === 'calendar' ? (
         <>
@@ -290,14 +291,6 @@ function DeleteAccount() {
   )
 }
 
-function EmptyDoodle() {
-  return (
-    <svg className="empty-doodle" viewBox="0 0 160 70" aria-hidden="true">
-      <path d="M8 50c20-2 26-30 46-28s22 30 44 26 30-30 52-34" />
-      <circle cx="150" cy="14" r="5" />
-    </svg>
-  )
-}
 
 /** 모임에서 받은 응원 알림. 누가 보냈는지는 알려주지 않는다. ‘잘 받았어요’를 누르면 그 뒤에 온 것만 다시 보인다. */
 function ReceivedCheers() {

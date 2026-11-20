@@ -10,7 +10,7 @@
 
 <br>
 
-![version](https://img.shields.io/badge/version-1.1.1-E6A79A?style=flat-square)
+![version](https://img.shields.io/badge/version-1.2.0-E6A79A?style=flat-square)
 ![license](https://img.shields.io/badge/license-AGPL--3.0-A9C7B8?style=flat-square)
 ![React](https://img.shields.io/badge/React-19-D8C9E9?style=flat-square&logo=react&logoColor=514943)
 ![Node](https://img.shields.io/badge/Node-24-F3D7A5?style=flat-square&logo=nodedotjs&logoColor=514943)
@@ -18,14 +18,14 @@
 ![Docker](https://img.shields.io/badge/Docker-ready-94BEDF?style=flat-square&logo=docker&logoColor=white)
 ![mobile](https://img.shields.io/badge/PC%20%C2%B7%20Mobile-ready-E6A79A?style=flat-square)
 
-[**📦 내려받기**](https://github.com/hatility/Gryeobom/releases/latest) · [**📖 사용 설명서**](docs/GUIDE.md) · [**🆕 1.1.0 에서 달라진 것**](#-110-에서-달라진-것) · [**🚀 우리 기관에서 열기**](#-우리-기관에서-열기)
+[**📦 내려받기**](https://github.com/hatility/Gryeobom/releases/latest) · [**📖 사용 설명서**](docs/GUIDE.md) · [**🆕 1.2.0 에서 달라진 것**](#-120-에서-달라진-것) · [**🚀 우리 기관에서 열기**](#-우리-기관에서-열기)
 
 </div>
 
 <br>
 
 <p align="center">
-  <img src="docs/screenshots/v1-home.webp" alt="그려봄 첫 화면 — 지나온 나를 그리고, 지금의 나를 만나다" width="100%">
+  <img src="docs/screenshots/v12-home.jpeg" alt="그려봄 첫 화면 — 지나온 나를 그리고, 지금의 나를 만나다" width="100%">
 </p>
 
 <br>
@@ -69,7 +69,33 @@
 
 <p align="center"><img src="docs/divider.svg" alt="" width="60%"></p>
 
-## 🆕 1.1.0 에서 달라진 것
+## 🆕 1.2.0 에서 달라진 것
+
+> 종이 일기장처럼, 새 옷을 입었어요 — 손글씨 로고 · 종이 결 · 계절빛 하늘, 그리고 무슨 일이 일어나는지 보이는 작은 장면들.
+
+<table>
+  <tr>
+    <td align="center" width="66%" valign="top"><img src="docs/screenshots/v12-draw.jpeg" alt="새 틀의 그리기 화면"><br><b>📔 새 사이트 틀</b><br><sub>종이 한 장 같은 카드와 마스킹테이프, 아래 가운데 떠 있는 둥근 메뉴 하나로<br>PC · 휴대폰 · 태블릿 모두 같은 길로 다녀요</sub></td>
+    <td align="center" width="34%" valign="top"><img src="docs/screenshots/v12-mobile.jpeg" alt="휴대폰 첫 화면"><br><b>📱 휴대폰도 새 틀로</b><br><sub>내 그래프는 폴라로이드처럼 넘겨 보고,<br>오늘의 질문은 바로 아래에</sub></td>
+  </tr>
+</table>
+
+| | 무엇이 | 어떻게 |
+|:---:|---|---|
+| 🖼️ | **화면마다 다시** | 첫 화면은 큰 한 문장 포스터, 결과 · 예시는 세로 시간선, 기록 모아보기는 폴라로이드, 모임은 쪽지와 입장권 모양 참여 코드 |
+| ✨ | **작은 장면들** | 처음 온 사람에게 점을 찍는 손끝, 그리기 첫 안내, 완성 장면, 함께 그린 선이 겹쳐지는 큰 화면 끝 장면, 한 해 돌아보기 숫자 · 마음 색 지도 (모두 한 번만, ‘움직임 줄이기’ · 조용한 시간에는 바로 끝 모습) |
+| 🧭 | **그리면서 보이게** | 점을 끌면 마음 점수가 보이고, 마음을 적은 순간은 점이 채워지고, 고른 단어가 ‘지금의 나’ 옆에. 예시 그래프 위에 내 선을 그려 볼 수도 있어요 |
+| 🔁 | **그때와 지금** | 지난 선을 겹쳐 보면 두 선 사이가 색 띠로, 이미지 카드에도 지난 선을 점선으로 |
+| 🖨️ | **이미지로 저장** | 저장될 카드를 미리 보며 고르고, 휴대폰에서는 공유 시트로 사진첩에 바로 |
+| 🔗 | **링크 미리보기** | 카톡 등에 주소를 붙이면 새 대표 그림이 떠요 |
+| 📝 | **용어 · 문체 맞추기** | 회고 → 그때의 마음 · 지금의 나, 공유하기 → 나누기 등 같은 일은 같은 이름으로, 안내 글은 짧은 해요체로 |
+| ⚖️ | **약관 시행일 · 푸터** | 관리자 ‘사이트 설정’ 에서 시행일을 고르면 약관 날짜와 ‘최근에 바뀐 점’ 이, 운영 기관 소개 한 줄은 모든 화면 아래에 |
+
+전체는 [CHANGELOG.md](CHANGELOG.md) 에 있어요.
+
+<details>
+<summary><b>🆕 1.1.0 에서 달라진 것</b></summary>
+<br>
 
 > 휴대폰으로도, 모임으로도, 기관으로도 — 함께 그리는 길은 넓히고, 그리는 길은 더 단순하게.
 
@@ -101,7 +127,7 @@
 | 🛠️ | **운영자 화면** | 메뉴 13개로 정리 · 한 시간마다 자동 백업(7일) · 서버 상태 · 진단 · 휴면 계정 · 요청 대장 · 공지 예약 · 점검 띠 · 관리자 계정 더 두기 · 새 신고 · 문의 알림 |
 | 🔐 | **안정성** | 다른 버전의 DB 로 열어도 깨지지 않게 저장 코드를 칸 이름으로 고정, 1.0.0 DB 를 그대로 이어받아요 |
 
-전체는 [CHANGELOG.md](CHANGELOG.md) 에 있어요.
+</details>
 
 </details>
 
@@ -122,7 +148,7 @@
 
 ### ✏️ 낮 — 나의 선 그리기
 
-<p align="center"><img src="docs/screenshots/pc-draw.webp" alt="선 그리기" width="100%"></p>
+<p align="center"><img src="docs/screenshots/v12-draw.jpeg" alt="선 그리기" width="100%"></p>
 
 > 나이로, 연도로, 달로, 하루의 시각으로. 기억에 남는 순간을 점으로 찍고, 끌어서 높이를 맞추면 선이 이어져요.
 > 순간마다 *그때 나는 어떤 기분이었나요?* 를 천천히 적어요. 떠오르지 않으면 건너뛰어도 괜찮아요.
@@ -144,7 +170,7 @@
 ### 🌙 밤 — 조용한 시간
 
 <p align="center">
-  <img src="docs/screenshots/quiet-night.png" alt="조용한 시간" width="100%">
+  <img src="docs/screenshots/v12-quiet.jpeg" alt="조용한 시간" width="100%">
 </p>
 <p align="center">
   <sub>밤 10시가 지나면 화면이 한 톤 더 어두워지고, 움직임이 멈추고, 질문도 잠들기 전에 어울리는 것으로 바뀌어요.<br>
@@ -189,7 +215,7 @@
 <details>
 <summary><b>🖼️ 더 보기 — 완성된 선 · 운영자 화면</b></summary>
 <br>
-<p align="center"><img src="docs/screenshots/v1-result.webp" alt="완성된 인생 그래프" width="100%"></p>
+<p align="center"><img src="docs/screenshots/v12-result.jpeg" alt="완성된 인생 그래프" width="100%"></p>
 <p align="center"><sub>완성된 선 · 계절 빛깔 위에서 가장 높이 닿은 곳과 깊이 내려간 곳을 함께 돌아봐요</sub></p>
 <br>
 <p align="center"><img src="docs/screenshots/admin-person.png" alt="운영자 화면 — 사람 자세히" width="100%"></p>
@@ -218,10 +244,10 @@
 
 ## 🚀 우리 기관에서 열기
 
-[**Releases**](https://github.com/hatility/Gryeobom/releases/latest) 에서 `geuryeobom-v1.1.1.zip` 을 받아 서버에 풀고:
+[**Releases**](https://github.com/hatility/Gryeobom/releases/latest) 에서 `geuryeobom-v1.2.0.zip` 을 받아 서버에 풀고:
 
 ```bash
-cd v1.1.1
+cd v1.2.0
 cp .env.example .env     # 관리자 계정 · AUTH_SECRET · 운영 기관 · 문의처 이메일
 docker compose up -d --build
 ```
@@ -230,13 +256,29 @@ docker compose up -d --build
 > 이 저장소 맨 위의 `docker-compose.yml` · `api/` · `web/` 도 같은 배포 묶음이라, 저장소를 받아 바로 `docker compose up -d --build` 해도 돼요.
 
 <details>
+<summary><b>⬆️ 1.1.x 에서 올리기</b></summary>
+<br>
+
+1.2.0 은 DB 구조가 1.1.1 과 같아서 따로 바뀌는 것이 없어요. 그래도 **백업 내려받기** 를 해 두고, 새 폴더에 풀어 쓰던 `.env` 를 옮긴 뒤:
+
+```bash
+cd v1.2.0
+cp ../v1.1.1/.env .env
+docker compose up -d --build
+```
+
+올린 뒤 관리자 **설정 → 사이트 설정 → 시행일** 을 정해 주세요 (처리방침 문장이 조금 바뀌었어요).
+
+</details>
+
+<details>
 <summary><b>⬆️ 1.0.0 에서 올리기</b></summary>
 <br>
 
 기록은 Docker 볼륨(`geuryeobom-data`)에 그대로 있어요. 올리기 전에 **관리자 화면 → 서버 · 백업 → 백업 내려받기** (또는 `./backup.sh`) 를 해 두고:
 
 ```bash
-cd v1.1.1
+cd v1.2.0
 cp ../v1.0.0/.env .env
 docker compose up -d --build
 ```
@@ -299,12 +341,13 @@ Gryeobom/
 
 ## 🏷️ 지나온 버전
 
-0.1.0 의 정적 화면 하나에서 시작해, **1.0.0** 첫 정식 버전을 지나 **1.1** 이 되었어요.
+0.1.0 의 정적 화면 하나에서 시작해, **1.0.0** 첫 정식 버전을 지나 **1.2** 가 되었어요.
 그 선도 오르내렸어요 — 버전마다 받을 파일은 [Releases](https://github.com/hatility/Gryeobom/releases), 바뀐 것은 [CHANGELOG.md](CHANGELOG.md) 에.
 
 | 버전 | 날짜 | 한 줄 |
 |---|---|---|
-| **1.1.1** | 2026-11-11 | 모바일(아이폰) 화면 넘침 · 글자 수 · 자잘한 오류 고침 |
+| **1.2.0** | 2026-11-20 | 새 사이트 틀(감성 일기장 · 손글씨 로고 · 아래 둥근 메뉴) · 작은 장면들 · 용어 · 문체 맞추기 · 약관 시행일 |
+| 1.1.1 | 2026-11-11 | 모바일(아이폰) 화면 넘침 · 글자 수 · 자잘한 오류 고침 |
 | 1.1.0 | 2026-11-10 | 모바일 화면 · 달로 · 시간으로 · 모임 질문 정하기 · 큰 화면 진행 · 기관 · 그리기 단순하게 |
 | 1.0.0 | 2026-11-04 | 첫 정식 버전 — 그래프 · 회고 · 모임 · 공유 링크 · 오늘의 한 줄 · 연말 돌아보기 · 운영자 화면 |
 

@@ -10,7 +10,9 @@ import { fileURLToPath } from 'node:url'
 const at = (p) => new URL(p, import.meta.url)
 const { version } = JSON.parse(readFileSync(at('../package.json'), 'utf8'))
 const release = at('../../release/')
-const dir = new URL(`v${version}/`, release)
+// --dev-only: 개발용 묶음만 (정식 v<버전>/ 은 건드리지 않아요 — 임시 폴더에서 만들고 개발용으로 옮긴 뒤 지워요)
+const devOnly = process.argv.includes('--dev-only')
+const dir = new URL(devOnly ? `.tmp-v${version}/` : `v${version}/`, release)
 const out = (p) => new URL(p, dir)
 const fail = (msg) => {
   console.error(`✗ ${msg}`)
@@ -26,7 +28,7 @@ const section = (v) => {
 }
 
 if (!changelog.includes(`## [${version}]`)) fail(`CHANGELOG.md 에 ## [${version}] 변경 내용을 먼저 적어 주세요.`)
-if (existsSync(dir) && !process.argv.includes('--force')) {
+if (!devOnly && existsSync(dir) && !process.argv.includes('--force')) {
   fail(`v${version} 은 이미 릴리스돼 있어요. package.json 버전을 올리거나, 꼭 다시 만들려면 --force 를 붙여 주세요.`)
 }
 
@@ -111,5 +113,6 @@ ${rows.join('\n')}
 > \`.env\` 에는 관리자 비밀번호 같은 값이 들어가므로 저장소에 올리지 않습니다 (\`.gitignore\`).
 `,
 )
-console.log(`✓ release v${version}:`, fileURLToPath(dir))
+if (devOnly) rmSync(dir, { recursive: true, force: true })
+else console.log(`✓ release v${version}:`, fileURLToPath(dir))
 console.log(`✓ 개발용 v${version}-dev:`, fileURLToPath(devDir))

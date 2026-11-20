@@ -295,7 +295,7 @@ export type StatKey = 'signups' | 'graphs' | 'groups' | 'posts' | 'cheers' | 'an
 export interface AdminStats { from: string; to: string; rows: ({ day: string } & Record<StatKey, number>)[]; total: Record<StatKey, number> }
 export interface Notice { title: string; body: string; at: string }
 export interface AdminNotice extends Notice { on: boolean; /** 예약 게시 (실험) */ from?: string; to?: string }
-export interface SiteConfig { publicUrl: string | null; developer: Developer | null; operator: Operator | null; /** 개발 테스트 서버 */ dev?: boolean; /** 점검 중 (실험) */ maintenance?: { message: string; at: string }; /** 켜진 실험 묶음 */ flags?: string[] }
+export interface SiteConfig { publicUrl: string | null; developer: Developer | null; operator: Operator | null; /** 푸터 한 줄 */ footer?: string; /** 약관 시행일 YYYY-MM-DD */ policyDate?: string; /** 약관 · 처리방침의 최근에 바뀐 점 (관리자 ‘약관 다시 동의’) */ termsChange?: { summary: string; at: string }; /** 개발 테스트 서버 */ dev?: boolean; /** 점검 중 (실험) */ maintenance?: { message: string; at: string }; /** 켜진 실험 묶음 */ flags?: string[] }
 
 /** 서버 설정(.env) 중 화면에 필요한 것. 서버가 없으면 빈 설정. 한 번만 받아 둔다. */
 let cfg: Promise<SiteConfig> | null = null

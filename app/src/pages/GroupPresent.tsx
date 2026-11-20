@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import StepArt from '../components/StepArt'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { api, shareBase, type GroupDetail } from '../api'
 import { useAuth } from '../auth'
 import QrCode from '../components/QrCode'
 import { PLAYBOOKS } from '../content'
 import { useLabs } from '../labs'
-import { dayLabel } from './GroupPage'
+import { TogetherLines, dayLabel } from './GroupPage'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 /** 진행 단계의 ‘(5분)’ → 300초 */
@@ -29,6 +30,8 @@ export default function GroupPresent() {
   const [total, setTotal] = useState(() => (plan ? minutesOf(plan.steps[0]) : 0) || 5 * 60)
   const [left, setLeft] = useState(total)
   const [running, setRunning] = useState(false)
+  // 마치기: 오늘 함께 그린 선을 겹쳐 보여 주는 끝 장면
+  const [ended, setEnded] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -88,7 +91,7 @@ export default function GroupPresent() {
     return (
       <section className="container page empty-state">
         <h1>모임장 · 공동 모임장 · 도우미만 열 수 있어요</h1>
-        <Link to={`/groups/${id}`} className="btn btn-primary">모임으로</Link>
+        <Link to={`/groups/${id}`} className="btn btn-primary">모임으로 가기</Link>
       </section>
     )
   }
@@ -96,6 +99,29 @@ export default function GroupPresent() {
   const ev = group.events?.find((e) => e.day === today)
   const full = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {})
   const topic = group.topic || plan?.topic || '오늘, 나의 선을 그려요'
+
+  // 끝 장면: 오늘 나눈 선이 한 사람씩 겹쳐 그려지고, 모두 ‘지금’ 에 닿으면 맺음 말
+  if (ended) {
+    // 나눈 때도 한국 시간으로 날짜를 잘라 비교 (UTC 로 자르면 새벽 0~9시에 나눈 선이 어제가 돼요)
+    const kst = (iso: string) => new Date(Date.parse(iso) + 9 * 3600_000).toISOString().slice(0, 10)
+    const todays = group.posts.filter((p) => p.createdAt && kst(p.createdAt) === today)
+    const shown = todays.length > 1 ? todays : group.posts
+    return (
+      <section className="present present-end" style={{ '--n': Math.max(1, shown.length) } as CSSProperties}>
+        <p className="present-group">{group.name} · {dayLabel(today)}</p>
+        {/* 오늘 나눈 선이 둘 이상일 때만 ‘오늘’ — 아니면 그동안 나눈 선으로 */}
+        <h1 className="present-end-title">{todays.length > 1 ? '오늘, 함께 그렸어요' : '우리, 함께 그려 왔어요'}</h1>
+        {shown.length > 1 ? <TogetherLines posts={shown} /> : <p className="present-end-none muted">나눈 선이 둘 이상이면 여기에 겹쳐 보여요.</p>}
+        <p className="present-end-line">
+          {todays.length ? <><strong>{todays.length}</strong>개의 선이 오늘 모였어요. </> : null}모양은 달라도, 모두 지금에 닿아 있어요.
+        </p>
+        <span className="present-bar no-print">
+          <button type="button" className="btn btn-ghost" onClick={() => setEnded(false)}>← 진행 화면으로</button>
+          <Link to={`/groups/${group.id}`} className="btn btn-primary">모임으로</Link>
+        </span>
+      </section>
+    )
+  }
 
   return (
     <section className="present">
@@ -107,6 +133,7 @@ export default function GroupPresent() {
         <span className="present-bar no-print">
           <Link to={`/groups/${group.id}`} className="btn btn-text btn-sm">← 모임으로</Link>
           <button type="button" className="btn btn-ghost btn-sm" onClick={full}>전체 화면</button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => setEnded(true)}>마치기</button>
         </span>
       </header>
 
@@ -126,16 +153,19 @@ export default function GroupPresent() {
               </ol>
               <span className="present-step-nav">
                 <button type="button" className="btn btn-ghost" disabled={step === 0} onClick={() => go(step - 1)}>‹ 이전 단계</button>
-                <button type="button" className="btn btn-primary" disabled={step === steps.length - 1} onClick={() => go(step + 1)}>다음 단계 ›</button>
+                {step === steps.length - 1
+                  ? <button type="button" className="btn btn-primary" onClick={() => setEnded(true)}>마치기 · 함께 그린 선 보기</button>
+                  : <button type="button" className="btn btn-primary" onClick={() => go(step + 1)}>다음 단계 ›</button>}
               </span>
             </>
           ) : (
             <>
               <p className="present-label">오늘 할 일</p>
-              <ol className="present-howto">
-                <li>오른쪽 QR 을 휴대폰 카메라로 찍어 모임에 들어와요.</li>
-                <li>‘이 주제로 그리기’ 를 눌러 떠오르는 순간을 적어요.</li>
-                <li>다 그리면 모임에 저절로 나눠져요. 서로의 선에 응원을 보내요.</li>
+              {/* 말로만 하던 세 단계를 작은 화면 그림과 함께 — 교실 뒤에서도 무엇을 하는지 보이게 */}
+              <ol className="present-howto is-art">
+                <li><StepArt kind="join" /><span>오른쪽 QR 을 휴대폰 카메라로 찍어 모임에 들어와요.</span></li>
+                <li><StepArt kind="moment" /><span>‘이 주제로 그리기’ 를 눌러 떠오르는 순간을 적어요.</span></li>
+                <li><StepArt kind="share" /><span>다 그리면 모임에 저절로 나눠져요. 서로의 선에 응원을 보내요.</span></li>
               </ol>
               <p className="present-next">모임 화면 ‘모임 꾸리기 → 질문 정하기’ 에서 오늘 할 일을 바꾸거나, ‘진행안 모음’ 에서 골라요.</p>
             </>
@@ -145,6 +175,7 @@ export default function GroupPresent() {
         <aside className="present-side">
           <div className="present-card present-timer">
             <p className={`present-clock${left === 0 ? ' is-done' : ''}`} role="timer" aria-label={`남은 시간 ${Math.floor(left / 60)}분 ${left % 60}초`}>{pad(Math.floor(left / 60))}:{pad(left % 60)}</p>
+            {left === 0 && <p className="present-done" role="status">시간이 다 됐어요. 다음 단계로 넘어가 볼까요?</p>}
             <span className="present-progress" aria-hidden="true"><i style={{ width: `${total ? (left / total) * 100 : 0}%` }} /></span>
             <span className="present-timer-ctl">
               {[3, 5, 10, 15].map((m) => <button key={m} type="button" className="chip" aria-pressed={total === m * 60} onClick={() => setTimer(m * 60)}>{m}분</button>)}
@@ -159,7 +190,7 @@ export default function GroupPresent() {
               {url && <QrCode text={url} size={170} label="모임 참여 QR" />}
               <div>
                 <p className="present-code"><span>참여 코드</span><strong>{group.code}</strong></p>
-                <p className="present-count"><strong>{group.members.length}</strong>명 함께해요{ev && <><br />오늘 참여 <strong>{ev.count ?? 0}</strong>명</>}</p>
+                <p className="present-count"><strong key={group.members.length} className="present-count-n">{group.members.length}</strong>명 함께해요{ev && <><br />오늘 참여 <strong>{ev.count ?? 0}</strong>명</>}</p>
               </div>
             </div>
           )}

@@ -41,7 +41,7 @@ export default function GuardianConsent() {
             <p>‘<strong>{info.nickname}</strong>’ 님이 그려봄에 가입하면서 {info.relation}의 동의를 부탁했어요. 그려봄은 지나온 시간을 인생 그래프로 그리고 돌아보는 청소년 프로그램이에요.</p>
             <ul className="muted small">
               <li>이름 · 생년월일은 저장하지 않고, 로그인 확인용 변환값만 둬요.</li>
-              <li>그래프 · 회고는 기본이 ‘나만 보기’ 이고, 아이가 고를 때만 모임 · 링크로 나눠요. 회고는 어디에도 나가지 않아요.</li>
+              <li>그래프는 기본이 ‘나만 보기’ 이고, 아이가 고를 때만 모임 · 링크로 나눠요. 그때의 마음 · 지금의 나는 어디에도 나가지 않아요.</li>
               <li>보호자 연락처는 동의 확인에만 쓰고, 다른 회원에게 보이지 않아요.</li>
             </ul>
             <p className="small">자세한 내용: <Link to="/terms" target="_blank">이용약관</Link> · <Link to="/privacy" target="_blank">개인정보 처리방침</Link></p>

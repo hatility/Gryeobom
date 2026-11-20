@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- 링크 미리보기 그림(public/og.png, 1200×630) 원본. 다시 만들 때: 개발 서버 public 에 잠깐 두고 1200×630 창으로 열어 화면을 찍은 뒤 public/og.png 로 바꿔요 (이 파일은 public 에 남기지 않아요). -->
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&text=%EA%B7%B8%EB%A0%A4%EB%B4%84&display=swap" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+<style>
+  html, body { margin: 0; }
+  body { width: 1200px; height: 630px; overflow: hidden; position: relative; font-family: 'Pretendard Variable', sans-serif; color: #514943;
+    background: radial-gradient(80% 70% at 85% 0%, #f6e3d3 0%, transparent 60%), radial-gradient(70% 60% at 0% 100%, #e9eef3 0%, transparent 60%), #faf4ec; }
+  .copy { position: absolute; left: 88px; top: 0; bottom: 0; display: grid; align-content: center; gap: 22px; width: 520px; }
+  .logo { font-family: 'Gaegu', serif; font-weight: 700; font-size: 46px; letter-spacing: -0.07em; line-height: 1; position: relative; width: max-content; padding-bottom: 10px; }
+  .logo svg { position: absolute; left: -4px; bottom: -4px; width: 130px; }
+  h1 { font-family: 'Gowun Batang', serif; font-weight: 700; font-size: 62px; line-height: 1.28; margin: 0; letter-spacing: -0.02em; }
+  h1 u { text-decoration: none; background: linear-gradient(transparent 88%, #b9cbe2 88%); }
+  p { margin: 0; font-size: 24px; color: #7a6f67; }
+  .paper { position: absolute; right: 70px; top: 120px; width: 500px; height: 380px; background: #fffdf9; border-radius: 10px; transform: rotate(2deg);
+    box-shadow: 0 1px 0 #fff inset, 0 3px 6px rgba(110,80,50,.06), 0 40px 70px -34px rgba(110,80,50,.5); }
+  .tape { position: absolute; left: 50%; top: -16px; width: 130px; height: 32px; transform: translateX(-50%) rotate(-3deg); border-radius: 3px; opacity: .9;
+    background: repeating-linear-gradient(90deg, rgba(255,255,255,.28) 0 7px, transparent 7px 14px), rgba(217,168,108,.6); box-shadow: 0 1px 2px rgba(110,80,50,.12); }
+  .paper svg { position: absolute; inset: 40px 30px 30px; width: calc(100% - 60px); height: calc(100% - 70px); overflow: visible; }
+  .lbl { font-family: 'Pretendard Variable', sans-serif; font-size: 15px; fill: #7a6f67; }
+  .now { font-weight: 700; fill: #514943; }
+</style>
+</head>
+<body>
+  <div class="copy">
+    <div class="logo">그려봄<svg viewBox="0 0 130 12"><path d="M2 8C30 10 60 3 90 6s30 1 36-2" fill="none" stroke="#e8a89a" stroke-width="3" stroke-linecap="round"/><circle cx="126" cy="4" r="4" fill="#6b93c6"/></svg></div>
+    <h1>지나온 나를 <u>그리고</u>,<br />지금의 나를 만나다.</h1>
+    <p>기억에 남는 순간을 점으로 이어, 나만의 선을 그려요.</p>
+  </div>
+  <div class="paper">
+    <span class="tape"></span>
+    <svg viewBox="0 0 440 280">
+      <line x1="0" y1="150" x2="440" y2="150" stroke="#e4d6cb" stroke-width="2" stroke-dasharray="6 8" />
+      <path d="M10 190 C60 120 100 96 130 104 S190 236 236 222 S300 70 340 76 S395 120 420 60" fill="none" stroke="#e39c8b" stroke-width="5" stroke-linecap="round" />
+      <g fill="#fff" stroke="#d99082" stroke-width="3.5">
+        <circle cx="130" cy="104" r="9" /><circle cx="236" cy="222" r="9" /><circle cx="340" cy="76" r="9" />
+      </g>
+      <circle cx="420" cy="60" r="26" fill="#d99082" opacity=".18" /><circle cx="420" cy="60" r="11" fill="#d99082" />
+      <text x="130" y="80" text-anchor="middle" class="lbl">첫 무대</text>
+      <text x="236" y="256" text-anchor="middle" class="lbl">전학 온 봄</text>
+      <text x="320" y="52" text-anchor="middle" class="lbl">새 친구</text>
+      <text x="440" y="20" text-anchor="end" class="lbl now">지금의 나</text>
+    </svg>
+  </div>
+</body>
+</html>

@@ -55,9 +55,10 @@ export default function Worksheet() {
         <button type="button" className="btn btn-primary" onClick={() => window.print()}>인쇄 · PDF로 저장</button>
       </div>
 
-      <article className="worksheet">
+      {/* 고른 것이 바뀌면 종이가 한 번 새로 놓여요 (무엇이 바뀌었는지 눈이 가게) */}
+      <article key={`${set}-${rows}-${scale}`} className="worksheet is-fresh">
         <header className="ws-head">
-          <p className="ws-brand">그려봄 활동지</p>
+          <p className="ws-brand"><span className="ws-logo">그려봄</span>활동지</p>
           <h2>{title}</h2>
           <p className="ws-meta"><span>이름(별명) ______________</span><span>날짜 ______________</span></p>
         </header>

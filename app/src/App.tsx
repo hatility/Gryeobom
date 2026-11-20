@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
+import EmptyDoodle from './components/EmptyDoodle'
+import { Component, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Link, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { api, siteConfig, type Notice } from './api'
 import { useAuth } from './auth'
 import Logo from './components/Logo'
+import PageLink from './components/PageLink'
 import ViewSettings from './components/ViewSettings'
 import Example from './pages/Example'
 import Credits from './pages/Credits'
@@ -55,33 +57,42 @@ export default function App() {
       {!pathname.startsWith('/admin') && !/^\/graph\/(new|[^/]+\/edit)|\/present$/.test(pathname) && <AdminAlert />}
       {user && !/^\/(terms|privacy|admin)/.test(pathname) && <TermsPrompt onLogout={logout} />}
       <DevBadge />
+      <OfflineNote />
       {mobile ? <MobileBar /> : (
-      <header className="site-header no-print">
-        <div className="container header-inner">
-          <Logo />
-          <nav aria-label="주요 메뉴" className="nav">
-            <Link to="/#intro">소개</Link>
-            <NavLink to="/graph/new">나의 그래프</NavLink>
-            <NavLink to="/my">기록 모아보기</NavLink>
-            <NavLink to="/share">함께 나누기</NavLink>
-            {!!orgs?.length && <NavLink to="/org">기관</NavLink>}
-          </nav>
+      // 1.2.0-ui 실험 ‘새 사이트’: 위에는 로고 · 로그인만, 이동은 화면 아래 가운데 떠 있는 둥근 메뉴(독) — 휴대폰 탭과 같은 앱
+      <>
+      <header className="topline no-print">
+        <Logo />
+        <span className="topline-side">
           <ViewSettings />
           {user ? (
-            <span className="header-user">
-              <Link to="/my" className="btn btn-ghost btn-sm">{user.nickname}님</Link>
+            <>
+              <Link to="/my" className="topline-me" title={`${user.nickname}님`}><span className="rail-avatar" aria-hidden="true">{user.nickname.slice(0, 1)}</span>{user.nickname}님</Link>
               <button type="button" className="btn btn-text btn-sm" onClick={logout}>로그아웃</button>
-            </span>
+            </>
           ) : (
-            <Link to={pathname === '/' || pathname === '/login' ? '/login' : `/login?next=${encodeURIComponent(pathname + search)}`} className="btn btn-ghost btn-sm header-cta">로그인</Link>
+            <Link to={pathname === '/' || pathname === '/login' ? '/login' : `/login?next=${encodeURIComponent(pathname + search)}`} className="btn btn-ghost btn-sm">로그인</Link>
           )}
-        </div>
+        </span>
       </header>
+      <nav className="dock no-print" aria-label="주요 메뉴">
+        <PageLink to="/" end className="dock-item"><span className="rail-icon">{RI('M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z')}</span><span>처음</span></PageLink>
+        <PageLink to="/my" className="dock-item"><span className="rail-icon">{RI('M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h11')}</span><span>기록</span></PageLink>
+        <PageLink to="/graph/new" className="dock-draw" aria-label="새 그래프 그리기"><span className="rail-icon">{RI('M12 5v14M5 12h14')}</span></PageLink>
+        <PageLink to="/share" className="dock-item"><span className="rail-icon">{RI('M8 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20c0-3 2-5 5-5s5 2 5 5M11 20c0-3 2-5 5-5s5 2 5 5')}</span><span>함께</span></PageLink>
+        {orgs?.length ? (
+          <PageLink to="/org" className="dock-item"><span className="rail-icon">{RI('M4 20V9l8-5 8 5v11M9 20v-6h6v6M4 20h16')}</span><span>기관</span></PageLink>
+        ) : (
+          <Link to="/#intro" className="dock-item"><span className="rail-icon">{RI('M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01')}</span><span>소개</span></Link>
+        )}
+      </nav>
+      </>
       )}
 
       <main id="main">
         {/* 로그인 여부를 알아야 어느 저장소(이 기기/내 계정)를 쓸지 정할 수 있다 */}
         {ready ? (
+          <ErrorBoundary>
           <Routes>
             <Route path="/" element={mobile ? <MobileHome /> : <Home />} />
             <Route path="/me" element={<Me />} />
@@ -112,6 +123,7 @@ export default function App() {
             <Route path="/privacy" element={<Privacy />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </ErrorBoundary>
         ) : (
           <p className="container page loading serif">천천히 불러오는 중이에요…</p>
         )}
@@ -124,6 +136,7 @@ export default function App() {
             <span className="line">모든 사람의 선은 서로 달라요.</span>{' '}
             <span className="line">나만의 속도로 그려도 괜찮아요.</span>
           </p>
+          <FooterNote />
           <nav className="footer-links" aria-label="사이트 정보">
             <span className="footer-group">
               <Link to="/terms">이용약관</Link>
@@ -151,6 +164,9 @@ export default function App() {
     </>
   )
 }
+
+/** 세로 메뉴 아이콘 (모바일 탭과 같은 선 아이콘) */
+const RI = (d: string) => <svg viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>
 
 /** 개발 테스트 서버 표시: 정식 사이트와 헷갈리지 않게 화면 구석에 늘 */
 function DevBadge() {
@@ -199,12 +215,70 @@ function ToPc() {
   return <p className="container page loading serif">PC 화면으로 옮기는 중이에요…</p>
 }
 
+/** 인터넷이 끊기면 html[data-offline] — 로고 아래 선이 끊어져 보이고 한 줄 알림 (다시 이어지면 사라져요) */
+function useOffline() {
+  const [off, setOff] = useState(() => typeof navigator !== 'undefined' && navigator.onLine === false)
+  useEffect(() => {
+    const on = () => setOff(false), down = () => setOff(true)
+    addEventListener('online', on); addEventListener('offline', down)
+    return () => { removeEventListener('online', on); removeEventListener('offline', down) }
+  }, [])
+  useEffect(() => { document.documentElement.toggleAttribute('data-offline', off) }, [off])
+  return off
+}
+/**
+ * 오류 · 안내 상자(role=alert)가 새로 뜨면, 아래 떠 있는 메뉴에 가려지는 자리일 때 화면을 살짝 올려 보이게 해요.
+ * (로그인 · 문의 · 나누기 등 11곳 — 한 곳에서)
+ */
+function useAlertsInView() {
+  useEffect(() => {
+    const seen = new WeakSet<Element>()
+    const check = () => {
+      for (const el of document.querySelectorAll('main [role="alert"]')) {
+        if (seen.has(el)) continue
+        seen.add(el)
+        const r = el.getBoundingClientRect()
+        if (r.height && r.bottom > innerHeight - 110) el.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+      }
+    }
+    const mo = new MutationObserver(check)
+    mo.observe(document.body, { childList: true, subtree: true })
+    return () => mo.disconnect()
+  }, [])
+}
+
+export function OfflineNote() {
+  useAlertsInView()
+  const off = useOffline()
+  return off ? <p className="offline-note no-print" role="status">인터넷이 잠시 끊겼어요. 다시 이어지면 이 알림이 사라져요.</p> : null
+}
+
+/** 화면을 그리다 문제가 생기면: 길 잃은 선 + 다시 불러오기 (빈 화면으로 멈추지 않게) */
+class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  render() {
+    if (!this.state.failed) return this.props.children
+    return (
+      <section className="container page empty-state">
+        <EmptyDoodle />
+        <h1>잠깐 길이 엉켰어요</h1>
+        <p className="muted">화면을 그리다 문제가 생겼어요. 적던 것은 저장된 만큼 남아 있어요. 다시 불러와 볼까요?</p>
+        <svg className="lost-path" viewBox="0 0 120 40" aria-hidden="true"><path d="M8 6C30 2 40 30 62 20S96 4 100 34" pathLength={1} /><path d="M94 28l6 7 6-8" className="lost-tip" /></svg>
+        <button type="button" className="btn btn-primary" onClick={() => location.reload()}>다시 불러오기</button>
+      </section>
+    )
+  }
+}
+
 function NotFound() {
   return (
     <section className="container page empty-state">
-      <p className="eyebrow">LOST LINE</p>
+      <EmptyDoodle />
       <h1>길을 잠시 잃었어요</h1>
       <p className="muted">찾으려던 페이지가 없어요. 처음으로 돌아가 천천히 다시 시작해 봐요.</p>
+      {/* 길 잃은 선이 ‘처음으로’ 버튼까지 이어져요 */}
+      <svg className="lost-path" viewBox="0 0 120 40" aria-hidden="true"><path d="M8 6C30 2 40 30 62 20S96 4 100 34" pathLength={1} /><path d="M94 28l6 7 6-8" className="lost-tip" /></svg>
       <Link to="/" className="btn btn-primary">처음으로</Link>
     </section>
   )
@@ -302,4 +376,11 @@ function AdminAlert() {
       <button type="button" aria-label="알림 닫기" onClick={() => setHidden(n)}>✕</button>
     </p>
   )
+}
+
+/** 사이트 설정의 ‘푸터 한 줄’ (운영 기관 홍보 등) */
+function FooterNote() {
+  const [t, setT] = useState('')
+  useEffect(() => { siteConfig().then((c) => setT(c.footer ?? '')) }, [])
+  return t ? <p className="footer-note muted small">{t}</p> : null
 }

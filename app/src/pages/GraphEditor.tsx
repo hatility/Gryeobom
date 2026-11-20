@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { smoothPath, spreadSameTime, sx, sy, type Frame } from '../graph'
+import { SAMPLE } from './Example'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import LifeGraph from '../components/LifeGraph'
 import HourRange from '../components/HourRange'
@@ -70,7 +72,10 @@ export default function GraphEditor() {
   // 같은 기간 다시 그리기(?again=그래프id): 그때의 기간 · 선 색 · 제목을 그대로 두고, 그때의 선을 흐리게 겹쳐 본다
   const pastId = graph?.redrawOf ?? (id ? null : params.get('again'))
   const [past, setPast] = useState<Graph | null>(null)
+  // 예시 위에 내 선 그려 보기(?ghost=example): 예시 선을 흐리게 깔아 두기만 (기간 · 제목은 내 것)
+  const exampleGhost = !id && params.get('ghost') === 'example'
   useEffect(() => {
+    if (exampleGhost) return setPast(SAMPLE)
     if (!pastId) return setPast(null)
     repo.get(pastId).then(
       (g) => {
@@ -84,7 +89,7 @@ export default function GraphEditor() {
       },
       () => setPast(null),
     )
-  }, [pastId, repo])
+  }, [pastId, repo, exampleGhost])
 
   // 오늘의 한 줄을 순간으로 옮기기 (?moment=글&q=질문&at=날짜): 불러온 그래프에 순간 하나를 그 날짜쯤에 놓는다.
   // 불러오기가 두 번 끝나도(개발 모드 등) 같은 순간 하나만 들어가게, 만든 순간을 기억해 둔다.
@@ -338,7 +343,7 @@ export default function GraphEditor() {
         <span className="step-count">{step} / {LAST}</span>
         {step < LAST ? (
           <button type="button" className="btn btn-primary" disabled={!rangeOk} onClick={() => goTo(step + 1)}>
-            다음 →
+            다음 단계 ›
           </button>
         ) : (
           <button type="button" className="btn btn-primary" onClick={finish}>
@@ -433,13 +438,13 @@ function StepTime({ graph, update, group, onDone }: { graph: Graph; update: Upda
         ) : (
           <div className="field-row">
             <NumberField
-              label={isMobile() ? (age ? '시작 나이' : '시작 연도') : age ? '어디서부터 그릴까요? (나이)' : '어디서부터 그릴까요? (연도)'}
-              value={graph.startPoint} min={lim[0]} max={lim[1]}
+              label={age ? '시작 나이' : '시작 연도'}
+              value={graph.startPoint} min={lim[0]} max={lim[1]} unit={age ? '살' : '년'}
               onChange={(v) => update({ startPoint: v })}
             />
             <NumberField
               label={age ? '지금 나이' : '지금 연도'}
-              value={graph.currentPoint} min={lim[0]} max={lim[1]}
+              value={graph.currentPoint} min={lim[0]} max={lim[1]} unit={age ? '살' : '년'}
               onChange={(v) => update({ currentPoint: v })}
             />
           </div>
@@ -450,10 +455,10 @@ function StepTime({ graph, update, group, onDone }: { graph: Graph; update: Upda
         <p className="alert" role="alert">
           {choice === 'month' ? '끝 달은 시작 달과 같거나 뒤여야 하고, 36개월까지 그릴 수 있어요.'
             : choice === 'hour' ? '끝 시각은 시작보다 뒤여야 하고, 14일까지 그릴 수 있어요.'
-            : '시작 시점은 지금보다 앞이어야 해요. 숫자를 한 번만 다시 확인해 줄래요?'}
+            : '시작은 지금보다 앞이어야 해요. 숫자를 한 번만 다시 확인해 줄래요?'}
         </p>
       ) : (
-        <p className="muted small">{choice === 'month' ? `${rangeLabel('month', graph.startPoint, graph.currentPoint)} · 주 단위까지 적을 수 있어요.` : choice === 'hour' ? `${rangeLabel('hour', graph.startPoint, graph.currentPoint)} · 10분 단위로 적어요.` : '대략적인 시간이면 충분해요.'}</p>
+        <p className="muted small">{choice === 'month' ? '주 단위까지 적을 수 있어요.' : choice === 'hour' ? '10분 단위로 적어요.' : '대략적인 시간이면 충분해요.'}</p>
       )}
   </>)
   const lookField = (<>
@@ -482,7 +487,7 @@ function StepTime({ graph, update, group, onDone }: { graph: Graph; update: Upda
           <span className="field-label">누가 볼 수 있을까요?</span>
           <p className="field-note">
             <strong>‘{group.name}’ 모임과 함께 나눠요</strong>
-            <span className="muted small"> 완성하면 순간 · 시점 · 짧은 설명이 모임에 저절로 나눠지고, 고친 내용도 바로 보여요. 그때의 마음 · 지금의 나는 나가지 않아요.</span>
+            <span className="muted small"> 완성하면 순간 · 때 · 짧은 설명이 모임에 저절로 나눠지고, 고친 내용도 바로 보여요. 그때의 마음 · 지금의 나는 나가지 않아요.</span>
           </p>
         </div>
       ) : (
@@ -498,7 +503,7 @@ function StepTime({ graph, update, group, onDone }: { graph: Graph; update: Upda
             <span>함께 나누기</span>
           </label>
         </div>
-        <small className="muted">{graph.visibility === 'private' ? '기본이에요. 나만 봐요.' : '완성한 뒤 고른 순간만, 회고는 빼고 나눠요.'}</small>
+        <small className="muted">{graph.visibility === 'private' ? '기본이에요. 나만 봐요.' : '완성한 뒤 고른 순간만 나눠요. 그때의 마음 · 지금의 나는 빼고요.'}</small>
       </fieldset>
       )}
   </>)
@@ -512,7 +517,7 @@ function StepTime({ graph, update, group, onDone }: { graph: Graph; update: Upda
   if (isMobile()) {
     return (
       <div className="split split-time is-paged">
-        <TimePreview graph={graph} group={group} />
+        <TimePreview graph={graph} />
         <section className="card form-card">
           <QuestionPager
             pages={sections.map(([key, , node, done]) => ({ key, done, node }))}
@@ -524,11 +529,14 @@ function StepTime({ graph, update, group, onDone }: { graph: Graph; update: Upda
     )
   }
   return (
-    <div className="split split-time">
+    <div className="split split-time is-desk">
       <TimePreview graph={graph} group={group} />
       <section className="card form-card form-sections time-form">
-        {sections.map(([key, , node]) => (
-          <div key={key} className="form-section">{node}</div>
+        {sections.map(([key, label, node, done], i) => (
+          <div key={key} className={`form-section time-row${done ? ' is-done' : ''}`}>
+            <p className="time-row-head" aria-hidden="true"><span className="time-row-no">{i + 1}</span>{label}</p>
+            {node}
+          </div>
         ))}
       </section>
     </div>
@@ -569,8 +577,9 @@ function StagesField({ graph, update }: { graph: Graph; update: Update }) {
 }
 
 /** 1단계 왼쪽: 고른 제목 · 기간으로 그려질 선의 틀을 미리 보여준다 */
-function TimePreview({ graph, group }: { graph: Graph; group: Group | null }) {
+function TimePreview({ graph, group }: { graph: Graph; group?: Group | null }) {
   const ok = rangeValid(graph)
+  const tone = LINE_COLORS.find((c) => c.key === (graph.lineColor ?? 'rose'))
   return (
     <aside className="card graph-card sticky time-preview" aria-label="미리보기">
       <p className="eyebrow en">PREVIEW</p>
@@ -578,8 +587,14 @@ function TimePreview({ graph, group }: { graph: Graph; group: Group | null }) {
         <p className="serif preview-title">{graphTitle(graph)}</p>
         <p className="muted small">{ok ? rangeLabel(graph.timeScale, graph.startPoint, graph.currentPoint) : '기간을 다시 확인해 주세요'}</p>
       </div>
+      {group !== undefined && (
+        <p className="preview-meta small">
+          {tone && <span style={{ '--tone': tone.color } as CSSProperties}><i aria-hidden="true" />{tone.label}</span>}
+          <span>{group ? `‘${group.name}’ 모임과 나눠요` : graph.visibility === 'link' ? '함께 나누기' : '나만 보기'}</span>
+        </p>
+      )}
       {ok && (
-        <LifeGraph tone={lineColorOf(graph.lineColor)}
+        <LifeGraph key={`${graph.timeScale}-${graph.startPoint}-${graph.currentPoint}`} tone={lineColorOf(graph.lineColor)}
           points={graphPoints(graph)}
           timeScale={graph.timeScale}
           start={graph.startPoint}
@@ -588,13 +603,6 @@ function TimePreview({ graph, group }: { graph: Graph; group: Group | null }) {
           emptyText="순간을 적으면 여기에 선이 그려져요"
         />
       )}
-      <p className="preview-notes muted small">
-        정확하지 않아도 괜찮아요 · {group
-          ? `완성하면 ‘${group.name}’ 모임에 나눠져요.`
-          : graph.visibility === 'private'
-            ? '지금은 나만 볼 수 있어요.'
-            : '완성한 뒤 고른 것만 나눠요.'}
-      </p>
     </aside>
   )
 }
@@ -604,14 +612,15 @@ function NearLimit({ n, max = 1000 }: { n: number; max?: number }) {
   return n >= max * 0.8 ? <small className="muted field-count">{n}/{max}</small> : null
 }
 
-function NumberField({ label, value, min, max, onChange }: {
-  label: string; value: number; min: number; max: number; onChange: (v: number) => void
+function NumberField({ label, value, min, max, unit, onChange }: {
+  label: string; value: number; min: number; max: number; /** 칸 안 오른쪽에 붙는 단위 (살 · 년) */ unit?: string; onChange: (v: number) => void
 }) {
   const [text, setText] = useState(String(value))
   useEffect(() => setText(String(value)), [value])
   return (
     <label className="field">
       <span className="field-label">{label}</span>
+      <span className={unit ? 'num-unit' : undefined} data-unit={unit}>
       <input
         type="number"
         inputMode="numeric"
@@ -625,6 +634,7 @@ function NumberField({ label, value, min, max, onChange }: {
         }}
         onBlur={() => setText(String(value))}
       />
+      </span>
     </label>
   )
 }
@@ -693,6 +703,22 @@ const isBlank = (e: LifeEntry) => !e.title.trim() && !e.description.trim() && !e
  * 위의 선에서 점을 끌어 옮기거나 빈 곳을 눌러 더하고, 아래에서 순간을 적는다.
  * 순간(목록 · 점)을 누르면 팝업에서 고치고, 적는 대로 바로 저장된다.
  */
+/** 2단계 첫 안내 장면 (한 번만): 손끝이 그래프 빈 곳을 눌러 점이 생겨요 — 점을 하나 찍으면 다시 안 나와요 */
+function TapDemo() {
+  // 저장소를 못 쓰는 브라우저(사생활 보호 등)에선 그냥 보여 줘요 · ‘봤음’ 은 한 번 다 돈 뒤(3.2초)에만 남겨요 — 빨리 지나가면 다음에 다시
+  const [show] = useState(() => { try { return !localStorage.getItem('gb-tap-demo') } catch { return true } })
+  useEffect(() => {
+    const t = setTimeout(() => { try { localStorage.setItem('gb-tap-demo', '1') } catch { /* 저장 못 해도 괜찮아요 */ } }, 3200)
+    return () => clearTimeout(t)
+  }, [])
+  if (!show) return null
+  return (
+    <span className="tap-demo" aria-hidden="true">
+      <i className="tap-demo-ring" /><i className="tap-demo-dot" /><i className="tap-demo-hand" />
+    </span>
+  )
+}
+
 function StepMoments({ graph, update, removeEntry, onPlaced, past }: {
   graph: Graph; update: Update; removeEntry: (id: string) => boolean; onPlaced: (title: string) => void
   /** 다시 그리는 중이면 처음 그린 그래프 (흐린 점선으로) */
@@ -745,18 +771,17 @@ function StepMoments({ graph, update, removeEntry, onPlaced, past }: {
   }
 
   return (
-    <div className="split split-moments">
+    <div className={`split split-moments${isMobile() ? '' : ' is-desk'}`}>
       <aside className="card graph-card">
         <div className="graph-card-head">
           <p className="eyebrow en">MY LINE, SO FAR</p>
-          {!isMobile() && <button type="button" className="btn btn-primary btn-sm" onClick={() => add(middle(), 0, '', true)}>+ 순간 적기</button>}
         </div>
-        {/* 모바일: 빈 그래프에는 그래프 안 안내만, 순간이 생기면 고치는 법만 */}
-        {(!isMobile() || graph.entries.length > 0) && (
+        {/* 빈 그래프에는 그래프 안 안내(‘빈 곳을 눌러…’)만, 순간이 생기면 고치는 법만 — 같은 안내를 두 번 하지 않게 */}
+        {graph.entries.length > 0 && (
           <p className="hint">
             {isMobile()
               ? '빈 곳을 누르면 더해지고, 점을 누르면 고칠 수 있어요.'
-              : '빈 곳을 누르거나 ‘+ 순간 적기’ 로 더하고, 점을 끌어 옮겨요.'}
+              : '빈 곳을 눌러 더하고, 점을 끌어 옮겨요.'}
             <span className="kbd-hint"> · 키보드: Tab 으로 고르고 화살표로 옮겨요</span>
           </p>
         )}
@@ -774,25 +799,19 @@ function StepMoments({ graph, update, removeEntry, onPlaced, past }: {
           ghost={past ? graphPoints(past) : undefined}
           stages={graph.stages}
         />
+        {/* 처음 그리는 사람에게 한 번: 손끝이 그래프를 톡 눌러 점이 생기는 장면 */}
+        {graph.entries.length === 0 && !past && <TapDemo />}
         {past && (
           <p className="muted small ghost-legend">
-            <span className="ghost-swatch" aria-hidden="true" />점선은 {formatDate(past.createdAt)}에 그린 ‘{graphTitle(past)}’예요. 지금의 마음으로 다시 그려 봐요.
+            <span className="ghost-swatch" aria-hidden="true" />{past.id === 'example' ? <>점선은 예시 ‘{graphTitle(past)}’예요. 그 위에 나만의 선을 그려 봐요.</> : <>점선은 {formatDate(past.createdAt)}에 그린 ‘{graphTitle(past)}’예요. 지금의 마음으로 다시 그려 봐요.</>}
           </p>
-        )}
-        {/* 순간이 없을 때만: 막막하면 예시에서 (누르면 같은 창이 그 이름으로 열린다) */}
-        {!isMobile() && graph.entries.length === 0 && (
-          <details className="moment-examples">
-            <summary>무엇을 적을지 막막하면 · 예시에서 고르기</summary>
-            <div className="chips">
-              {examples.map((t) => <button key={t} type="button" className="chip" onClick={() => add(middle(), 0, t)}>+ {t}</button>)}
-            </div>
-          </details>
         )}
       </aside>
       {isMobile() ? (
         // 모바일 · 태블릿: 더하는 길은 버튼 하나로, 예시는 순간이 없을 때만 접어서
         <section className="card moments-card-m">
-          <button type="button" className="btn btn-primary btn-block" onClick={() => add(middle(), 0, '', true)}>+ 순간 적기</button>
+          {/* 순간이 생기면 눈이 갈 곳은 아래 ‘다음’ — 더하기 버튼은 한 단계 낮춘다 */}
+          <button type="button" className={`btn ${graph.entries.length ? 'btn-ghost' : 'btn-primary'} btn-block`} onClick={() => add(middle(), 0, '', true)}>+ 순간 적기</button>
           {graph.entries.length === 0 && (
             <details className="moment-examples">
               <summary>무엇을 적을지 막막하면 · 예시에서 고르기</summary>
@@ -808,10 +827,24 @@ function StepMoments({ graph, update, removeEntry, onPlaced, past }: {
             </>
           )}
         </section>
-      ) : graph.entries.length > 0 && (
-        <section className="card moments-list-card">
-          <h2 className="card-title">나의 순간들 <small className="muted">{graph.entries.length}개 · 과거 → 지금 · 누르면 고칠 수 있어요</small></h2>
-          <EntryList graph={graph} onEdit={setOpenId} onRemove={removeEntry} />
+      ) : (
+        // PC: 오른쪽 판 — 더하기 버튼 하나 + (순간이 없으면) 예시 · (있으면) 순간 목록. 1단계와 같은 ‘왼쪽 그래프 · 오른쪽 판’
+        <section className="card moments-side" aria-label="나의 순간들">
+          <button type="button" className={`btn ${graph.entries.length ? 'btn-ghost' : 'btn-primary'} btn-block`} onClick={() => add(middle(), 0, '', true)}>+ 순간 적기</button>
+          {graph.entries.length === 0 ? (
+            <div className="moments-start">
+              <p className="serif moments-start-title">어떤 순간부터 떠올려 볼까요?</p>
+              <p className="muted small">하나를 누르면 그 이름으로 적기 시작해요. 그래프의 빈 곳을 눌러도 돼요.</p>
+              <div className="chips">
+                {examples.map((t) => <button key={t} type="button" className="chip" onClick={() => add(middle(), 0, t)}>+ {t}</button>)}
+              </div>
+            </div>
+          ) : (
+            <>
+              <h2 className="moments-side-title">나의 순간들 <small className="muted">{graph.entries.length}개 · 과거 → 지금</small></h2>
+              <EntryList graph={graph} onEdit={setOpenId} onRemove={removeEntry} />
+            </>
+          )}
         </section>
       )}
       <dialog
@@ -1058,6 +1091,11 @@ function StepReflect({ graph, update, onDone }: { graph: Graph; update: Update; 
     }))
 
   const mixed = graph.entries.some((e) => e.questionSet && e.questionSet !== (graph.questionSet ?? 'basic'))
+  // PC: 그래프에서 점을 눌러 순간을 고르면 그 카드로 (펼친 카드가 화면 밖이면 보이게)
+  const pick = (id: string) => {
+    setOpenId(id)
+    requestAnimationFrame(() => document.getElementById(`reflect-${id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }))
+  }
   if (!sorted.length) {
     return (
       <section className="card empty-state">
@@ -1100,14 +1138,25 @@ function StepReflect({ graph, update, onDone }: { graph: Graph; update: Update; 
       </div>
       {paged ? (
         <ReflectPaged graph={graph} sorted={sorted} questionsOf={questionsOfEntry} setR={setR} onDone={onDone} onSet={labs ? setEntrySet : undefined} />
-      ) : sorted.map((e, i) => {
+      ) : (
+      // PC: 1 · 2단계와 같은 틀 — 왼쪽 그래프(지금 적는 순간이 표시됨 · 점을 눌러 고르기) · 오른쪽 순간 카드
+      <div className="split split-reflect is-desk">
+        <aside className="card graph-card reflect-graph" aria-label="지금 적는 순간">
+          <p className="muted small reflect-graph-tip">점을 누르면 그 순간으로 가요.</p>
+          <LifeGraph tone={lineColorOf(graph.lineColor)}
+            points={graphPoints(graph)} timeScale={graph.timeScale} start={graph.startPoint} end={graph.currentPoint}
+            selectedId={openId} onSelect={(id) => id && pick(id)} stages={graph.stages}
+            doneIds={new Set(sorted.filter((e) => questionsOfEntry(e).some((q) => answerOf(e, q.key).trim())).map((e) => e.id))} />
+        </aside>
+        <div className="reflect-list">
+      {sorted.map((e, i) => {
         const questions = questionsOfEntry(e)
         const filled = questions.filter((q) => answerOf(e, q.key).trim()).length
         // 처음엔 두 질문만. 더 적었거나 ‘질문 더 보기’ 를 누르면 모두
         const all = more.includes(e.id) || questions.slice(2).some((q) => answerOf(e, q.key).trim())
         const next = sorted[i + 1]
         return (
-          <details key={e.id} className="card reflect-card" open={openId === e.id}
+          <details key={e.id} id={`reflect-${e.id}`} className="card reflect-card" open={openId === e.id}
             onToggle={(ev) => { const o = (ev.currentTarget as HTMLDetailsElement).open; if (o) setOpenId(e.id); else if (openId === e.id) setOpenId(null) }}>
             <summary>
               <span className="entry-time">{tl(graph, e.timePoint)}</span>
@@ -1134,13 +1183,21 @@ function StepReflect({ graph, update, onDone }: { graph: Graph; update: Update; 
               )}
               {labs && <EntrySetPick value={setOf(graph, e)} onChange={(v) => setEntrySet(e.id, v)} />}
               <span className="spacer" />
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpenId(next?.id ?? null)}>
-                {next ? (filled ? '다음 순간 ›' : '이 순간 건너뛰기 ›') : '접기'}
-              </button>
+              {/* 아래 ‘다음 단계’ 와 헷갈리지 않게: 다음 순간은 이름으로, 마지막 순간이면 바로 지금의 나로 */}
+              {next ? (
+                <button type="button" className="btn btn-ghost btn-sm reflect-next" onClick={() => pick(next.id)}>
+                  {filled ? '다음 순간' : '건너뛰고 다음 순간'}: {next.title.trim() || tl(graph, next.timePoint)} ›
+                </button>
+              ) : onDone ? (
+                <button type="button" className="btn btn-ghost btn-sm reflect-next" onClick={onDone}>지금의 나로 ›</button>
+              ) : null}
             </div>
           </details>
         )
       })}
+        </div>
+      </div>
+      )}
     </>
   )
 }
@@ -1290,6 +1347,25 @@ function ReflectPaged({ graph, sorted, questionsOf, setR, onDone, onSet }: {
 
 /** 먼저 묻는 두 질문 (단어 · 한 문장). 나머지는 ‘더 적어 보기’ 에 */
 const NOW_FIRST = ['word', 'oneLine']
+/** 4단계 위 작은 선: 지나온 선이 지금의 나에 닿고, 고른 단어가 그 옆에 톡 붙어요 */
+function NowStrip({ graph, word }: { graph: Graph; word: string }) {
+  const f: Frame = { w: 600, h: 96, l: 14, r: 150, t: 14, b: 14, start: graph.startPoint, end: graph.currentPoint }
+  const pts = graphPoints(graph)
+  const xy = spreadSameTime(sortEntries(pts).map((p) => ({ x: sx(f, p.timePoint), y: sy(f, p.emotionScore) })), 10, f.l, f.w - f.r)
+  const last = xy[xy.length - 1]
+  const now = { x: sx(f, graph.currentPoint), y: last ? last.y : sy(f, 0) }
+  return (
+    <svg className="now-strip" viewBox="0 0 600 96" aria-hidden="true" style={{ '--line': lineColorOf(graph.lineColor) } as CSSProperties}>
+      <line x1={f.l} x2={now.x} y1={sy(f, 0)} y2={sy(f, 0)} className="now-strip-base" />
+      {xy.length > 1 && <path d={smoothPath(xy)} className="now-strip-line" />}
+      {last && last.x < now.x - 2 && <path d={`M${last.x},${last.y} L${now.x},${now.y}`} className="now-strip-trail" />}
+      <circle cx={now.x} cy={now.y} r={12} className="now-strip-glow" />
+      <circle cx={now.x} cy={now.y} r={5.5} className="now-strip-dot" />
+      <text key={word} x={now.x + 18} y={now.y + 5} className={`now-strip-word${word ? ' is-word' : ''}`}>{word || '지금의 나'}</text>
+    </svg>
+  )
+}
+
 function StepNow({ graph, update, onFinish }: { graph: Graph; update: Update; onFinish: () => void }) {
   const labs = useLabs('graph')
   const groupLabs = useLabs('group')
@@ -1339,9 +1415,15 @@ function StepNow({ graph, update, onFinish }: { graph: Graph; update: Update; on
       </div>
       {/* 지나온 순간은 한 줄로 (질문이 바로 보이게) */}
       {graph.entries.length > 0 && (() => {
-        const names = sortEntries(graph.entries).map((e) => e.title || '이름 없는 순간')
-        return <p className="serif recall-inline">{names.slice(0, 3).join(' · ')}{names.length > 3 ? ` 외 ${names.length - 3}개` : ''}의 순간을 지나, 지금의 내가 있어요.</p>
+        // 이름 없는 순간은 이름으로 늘어놓지 않고 개수에만 (‘이름 없는 순간 · 이름 없는 순간’ 처럼 되풀이되지 않게)
+        const all = sortEntries(graph.entries)
+        const names = all.map((e) => e.title.trim()).filter(Boolean).slice(0, 3)
+        const rest = all.length - names.length
+        const head = names.length ? `${names.join(' · ')}${rest ? ` 외 ${rest}개` : ''}의 순간` : `${all.length}개의 순간`
+        return <p className="serif recall-inline">{head}을 지나, 지금의 내가 있어요.</p>
       })()}
+      {/* 나의 선 끝 ‘지금의 나’ 옆에 고른 단어가 붙어요 */}
+      {graph.entries.length > 0 && <NowStrip graph={graph} word={r.word.trim()} />}
       {paged ? (
         <QuestionPager
           pages={[
@@ -1355,7 +1437,7 @@ function StepNow({ graph, update, onFinish }: { graph: Graph; update: Update; on
           ? rest.map((q) => <div key={q.key} className="form-section">{nowField(q)}</div>)
           : <button type="button" className="btn btn-ghost btn-sm now-more" onClick={() => setMoreOpen(true)}>+ 더 적어 보기 <small className="muted">질문 {rest.length}개 더</small></button>)}
       </>}
-      <p className="muted small">마음이 가는 질문 하나면 충분해요. 비워 두고 완성해도 괜찮아요.</p>
+      <p className="muted small">마음이 가는 질문 하나면 충분해요.</p>
     </section>
     {!paged && (
       <details className="card letter letter-future" open={!!graph.futureLetter}>

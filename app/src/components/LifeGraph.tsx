@@ -41,6 +41,8 @@ interface Props {
   tone?: string
   /** 인생 구간 띠 (실험): 시간 눈금 아래에 이름 띠로 */
   stages?: LifeStage[]
+  /** 그때의 마음을 적은 순간 (3단계): 점이 채워지고 톡 */
+  doneIds?: ReadonlySet<string>
   onSelect?: (id: string | null) => void
   onMove?: (id: string, timePoint: number, score: number) => void
   onAdd?: (timePoint: number, score: number) => void
@@ -48,7 +50,7 @@ interface Props {
 
 export default function LifeGraph({
   points, timeScale, start, end, showTimeLabels = true, compact, editable, noDrag,
-  selectedId, onSelect, onMove, onAdd, emptyText, ghost, tone, stages,
+  selectedId, onSelect, onMove, onAdd, emptyText, ghost, tone, stages, doneIds,
 }: Props) {
   const wrap = useRef<HTMLDivElement>(null)
   const svg = useRef<SVGSVGElement>(null)
@@ -57,6 +59,8 @@ export default function LifeGraph({
   // 끌기: 손가락이 처음 닿은 자리에서 얼마나 움직였는지만큼 점을 옮긴다 (점이 손가락 밑으로 튀지 않게)
   const drag = useRef<{ id: string; moved: boolean; x0: number; y0: number; px: number; py: number } | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
+  // 끌어 놓은 순간: 그 점의 마음 점수를 잠깐 말풍선으로 (몇 점으로 옮겼는지)
+  const [dropped, setDropped] = useState<{ id: string; n: number } | null>(null)
   const uidBase = useId().replace(/:/g, '')
 
   useLayoutEffect(() => {
@@ -90,6 +94,14 @@ export default function LifeGraph({
   const ghostLine = ghost
     ? smoothPath(spreadSameTime(sortEntries(ghost.filter((p) => p.timePoint >= start && p.timePoint <= end)).map((p) => ({ x: sx(f, p.timePoint), y: sy(f, p.emotionScore) })), 18, f.l, w - f.r))
     : ''
+  // 그때와 지금 사이 넓이: 지금 선 → (끝에서) 지난 선 거꾸로 → 닫기
+  const diffArea = (() => {
+    if (!ghost || sorted.length < 2) return ''
+    const g = sortEntries(ghost.filter((p) => p.timePoint >= start && p.timePoint <= end)).map((p) => ({ x: sx(f, p.timePoint), y: sy(f, p.emotionScore) }))
+    if (g.length < 2) return ''
+    const back = smoothPath([...g].reverse())
+    return `${smoothPath(xy)} L${back.slice(1)} Z`
+  })()
   const y0 = sy(f, 0)
   const area = xy.length > 1 ? `${line} L${xy[xy.length - 1].x},${y0} L${xy[0].x},${y0} Z` : ''
   const selected = sorted.find((p) => p.id === sel)
@@ -156,6 +168,7 @@ export default function LifeGraph({
   }
   const onPointUp = (id: string) => {
     if (drag.current && !drag.current.moved) select(sel === id ? null : id)
+    else if (drag.current?.moved) setDropped({ id, n: Date.now() })
     drag.current = null
     setDragId(null)
   }
@@ -282,7 +295,9 @@ export default function LifeGraph({
           aria-hidden="true"
         />
 
-        {ghostLine && <path d={ghostLine} className="g-ghost" aria-hidden="true" />}
+        {/* 그때와 지금 사이: 두 선 사이를 옅은 계절빛으로 (어디서 얼마나 달라졌는지) */}
+        {diffArea && <path key={`d${ghostLine}`} d={diffArea} className="g-diff" aria-hidden="true" />}
+        {ghostLine && <path key={ghostLine} d={ghostLine} className="g-ghost" aria-hidden="true" />}
 
         {area && (
           <g aria-hidden="true" className="g-area">
@@ -312,8 +327,9 @@ export default function LifeGraph({
           return (
             <g
               key={p.id}
-              className={`g-point${isSel ? ' is-selected' : ''}${p.id === dragId ? ' is-dragging' : ''}`}
+              className={`g-point${isSel ? ' is-selected' : ''}${p.id === dragId ? ' is-dragging' : ''}${doneIds?.has(p.id) ? ' is-answered' : ''}`}
               transform={`translate(${x},${y})`}
+              style={{ '--i': i } as CSSProperties}
               tabIndex={compact ? -1 : 0}
               role="button"
               aria-pressed={isSel}
@@ -334,6 +350,13 @@ export default function LifeGraph({
                 : <circle r={compact ? 3.5 : isSel ? 11 : 8} className="g-dot" />}
               {label && (
                 <text x={label.dx} y={label.dy} textAnchor="middle" className="g-label">{label.text}</text>
+              )}
+              {dropped?.id === p.id && (
+                <g key={dropped.n} className="g-drop-tip" aria-hidden="true">
+                  {/* 점 오른쪽 옆에 (위아래 이름표를 가리지 않게) */}
+                  <rect x={16} y={-11} width={40} height={22} rx={11} />
+                  <text x={36} y={5} textAnchor="middle">{signed(p.emotionScore)}</text>
+                </g>
               )}
             </g>
           )

@@ -382,6 +382,15 @@ describe('api', () => {
     expect((await client()('GET', '/config')).data).toMatchObject({
       publicUrl: 'https://grb.example', operator: { name: '○○수련관', contact: 'privacy@grb.example' }, developer: { name: '팀', org: '', contact: '', url: '' }, dev: true,
     })
+    // 푸터 한 줄: 80자까지, 화면 설정으로 나간다
+    expect((await adm('PUT', '/admin/settings', { ...site, footer: 'HYBS ' + 'ㄱ'.repeat(100) })).status).toBe(200)
+    expect((await client()('GET', '/config')).data.footer).toHaveLength(80)
+    // 약관 시행일: 실제 날짜만 (YYYY-MM-DD), 비우면 빈 값
+    expect((await adm('PUT', '/admin/settings', { ...site, policyDate: '2026-12-01' })).status).toBe(200)
+    expect((await client()('GET', '/config')).data.policyDate).toBe('2026-12-01')
+    expect((await adm('PUT', '/admin/settings', { ...site, policyDate: '2026-02-30' })).status).toBe(400)
+    expect((await adm('PUT', '/admin/settings', { ...site, policyDate: '내일' })).status).toBe(400)
+    expect((await adm('PUT', '/admin/settings', { ...site, policyDate: '' })).status).toBe(200)
     expect((await client()('PUT', '/admin/settings', site)).status).toBe(401)
     expect((await adm('GET', '/admin/settings')).data.saved).toBe(true)
     await adm('DELETE', '/admin/settings')

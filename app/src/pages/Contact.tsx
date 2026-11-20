@@ -35,6 +35,7 @@ export default function Contact() {
   const [err, setErr] = useState('')
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
+  const [sent, setSent] = useState(0)
   const [mine, setMine] = useState<Mine | null>(null)
   const load = () => api.myInquiries().then((l) => {
     setMine(l)
@@ -62,6 +63,7 @@ export default function Contact() {
       setKind('')
       setMessage('')
       setMsg('문의를 받았어요. 답이 오면 아래 ‘내 문의’ 와 기록 모아보기에 알려 드려요.')
+      setSent((n) => n + 1)
       load()
     } catch (e) {
       setErr(e instanceof Error ? e.message : '보내지 못했어요.')
@@ -74,10 +76,11 @@ export default function Contact() {
       <header className="page-head">
         <div>
           <h1 className="page-title">문의하기</h1>
-          <p className="muted">궁금한 점 · 고쳐야 할 것 · 내 개인정보(열람 · 고치기 · 지우기) 요청을 남겨 주세요. 운영자만 보고, 답은 아래 ‘내 문의’ 에 와요.</p>
+          <p className="muted">개인정보 열람 · 고치기 · 지우기 요청도 여기에 남겨 주세요. 운영자에게만 전해지고, 답은 아래 ‘내{'\u00a0'}문의’ 에 와요.</p>
         </div>
       </header>
-      <form className="card form-card" onSubmit={(e) => { e.preventDefault(); send() }}>
+      {/* 보내면 종이가 한 번 접혔다 펴져요 (보낸 글은 아래 ‘내 문의’ 맨 위에 새로 놓여요) */}
+      <form key={sent} className={`card form-card${sent ? ' is-sent' : ''}`} onSubmit={(e) => { e.preventDefault(); send() }}>
         <fieldset className="field">
           <legend className="field-label">무엇에 대한 문의인가요?</legend>
           <div className="segmented">

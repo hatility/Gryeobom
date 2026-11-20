@@ -50,7 +50,13 @@ export function saveView(v: View) {
   } catch {
     /* 저장이 막혀도 이번 화면에는 적용된다 */
   }
-  applyView(v)
+  const d = document as Document & { startViewTransition?: (cb: () => void) => unknown }
+  const still = (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) || !!document.documentElement.dataset.quiet
+  if (d.startViewTransition && !still) {
+    document.documentElement.classList.add('vt-theme')
+    const t = d.startViewTransition(() => applyView(v)) as { finished?: Promise<void> }
+    t.finished?.finally(() => document.documentElement.classList.remove('vt-theme'))
+  } else applyView(v)
   window.dispatchEvent(new Event('geuryeobom:view'))
 }
 

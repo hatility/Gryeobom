@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react'
+import CountUp from '../components/CountUp'
 import MoodWords, { topWords } from '../components/MoodWords'
 import { useLabs } from '../labs'
 import { api } from '../api'
@@ -7,7 +8,7 @@ import type { Answer } from '../api'
 import { useAuth, useRepo } from '../auth'
 import { MOOD_COLORS, moodOf, scoreWord, signed } from '../content'
 import { exportReviewCard, type ReviewData } from '../graph'
-import { useJournal } from '../journal'
+import { dayKey, useJournal } from '../journal'
 import { graphTitle } from '../store'
 import type { LifeGraph } from '../types'
 
@@ -43,8 +44,11 @@ export default function YearReview() {
     repo.list().then(setGraphs, () => setGraphs([]))
   }, [journal, repo, year])
 
+  // 이 해를 이번 접속에서 이미 봤으면 차오르는 장면 없이 바로 (다시 볼 때마다 기다리지 않게)
+  const [seenYear] = useState(() => { try { const k = `gb-review-${year}`; const v = sessionStorage.getItem(k); sessionStorage.setItem(k, '1'); return !!v } catch { return false } })
   if (!answers) return <p className="container page loading serif">한 해를 펼치는 중이에요…</p>
   const byDay = new Map(answers.map((a) => [a.day, a]))
+  const todayKey = dayKey(new Date())
   const moments = momentsIn(graphs, year)
   const madeThisYear = graphs.filter((g) => g.createdAt.startsWith(`${year}-`)).length
   const hi = moments.length ? moments.reduce((a, b) => (b.score > a.score ? b : a)) : null
@@ -78,29 +82,29 @@ export default function YearReview() {
   }
 
   return (
-    <section className="container page review">
+    <section className={`container page review${seenYear ? ' is-seen' : ''}`}>
       <header className="review-head">
         <p className="eyebrow en">MY YEAR, MY LINE</p>
         <h1 className="page-title serif">{year}년의 나</h1>
         <p className="muted">한 해 동안 남긴 한 줄과 마음의 색, 그리고 선 위의 순간들이에요.</p>
         <nav className="review-years" aria-label="다른 해">
           <Link to={`/review/${year - 1}`} className="btn btn-text btn-sm">← {year - 1}년</Link>
-          {year < now.getFullYear() && <Link to={`/review/${year + 1}`} className="btn btn-text btn-sm">{year + 1}년 →</Link>}
+          {year < now.getFullYear() && <Link to={`/review/${year + 1}`} className="btn btn-text btn-sm">{year + 1}년 ›</Link>}
         </nav>
       </header>
 
       {empty ? (
         <div className="card empty-state">
           <p className="serif big">{year}년에는 아직 남긴 이야기가 없어요.</p>
-          <p className="muted">{user ? '첫 화면의 ‘오늘의 질문’에 한 줄을 남기면, 이 곳이 조금씩 채워져요.' : '오늘의 한 줄은 로그인한 계정에 남아요. 로그인하면 한 해의 마음 색을 모아 볼 수 있어요.'}</p>
+          <p className="muted">{user ? '첫 화면의 ‘오늘의 질문’에 한 줄을 남기면, 이곳이 조금씩 채워져요.' : '오늘의 한 줄은 로그인한 계정에 남아요. 로그인하면 한 해의 마음 색을 모아 볼 수 있어요.'}</p>
           <Link to={user ? '/' : `/login?next=/review/${year}`} className="btn btn-primary">{user ? '오늘의 질문 보러 가기' : '로그인하기'}</Link>
         </div>
       ) : (
         <>
           <ul className="review-stats">
-            <li><strong>{answers.length}</strong><span>일 동안 한 줄을 남겼어요</span></li>
-            <li><strong>{madeThisYear}</strong><span>개의 선을 새로 그렸어요</span></li>
-            <li><strong>{moments.length}</strong><span>개의 순간이 이 해에 놓였어요</span></li>
+            <li><strong><CountUp n={answers.length} instant={seenYear} /></strong><span>일 동안 한 줄을 남겼어요</span></li>
+            <li><strong><CountUp n={madeThisYear} instant={seenYear} /></strong><span>개의 선을 새로 그렸어요</span></li>
+            <li><strong><CountUp n={moments.length} instant={seenYear} /></strong><span>개의 순간이 이 해에 놓였어요</span></li>
           </ul>
 
           <section className="card review-colors">
@@ -108,19 +112,23 @@ export default function YearReview() {
             <p className="muted small">한 칸이 하루예요. 고른 색으로 물들고, 색 없이 남긴 날은 옅은 점이에요.</p>
             <ol className="mood-map" aria-label={`${year}년 마음 색`}>
               {Array.from({ length: 12 }, (_, m) => (
-                <li key={m}>
+                <li key={m} style={{ '--m': m } as CSSProperties}>
                   <span className="mood-map-m">{m + 1}월</span>
                   <span className="mood-map-days">
                     {Array.from({ length: new Date(year, m + 1, 0).getDate() }, (_, d) => {
                       const day = `${year}-${String(m + 1).padStart(2, '0')}-${String(d + 1).padStart(2, '0')}`
                       const a = byDay.get(day)
                       const mood = moodOf(a?.color)
-                      return <i key={d} className={a ? (mood ? 'is-color' : 'is-on') : ''} style={mood ? ({ '--mood': mood.hex } as CSSProperties) : undefined} title={a ? `${m + 1}월 ${d + 1}일 · ${a.text}` : undefined} />
+                      // 오늘은 테두리로, 앞으로 올 날은 흐리게 — 한 해의 어디쯤인지 보이게
+                      const when = day === todayKey ? ' is-today' : day > todayKey ? ' is-future' : ''
+                      return <i key={d} className={(a ? (mood ? 'is-color' : 'is-on') : '') + when} style={mood ? ({ '--mood': mood.hex } as CSSProperties) : undefined} title={a ? `${m + 1}월 ${d + 1}일 · ${a.text}` : undefined} />
                     })}
                   </span>
                 </li>
               ))}
             </ol>
+            {/* 지난해 · 12월에는 지도 위로 한 줄 */}
+            {(year < now.getFullYear() || now.getMonth() === 11) && <p className="review-thanks serif">{year < now.getFullYear() ? `${year}년도 수고했어요` : '올해도 수고했어요'}</p>}
             {counts.length > 0 && (
               <p className="review-top">
                 가장 많이 고른 색은 <span className="mood-chip" style={{ '--mood': counts[0].hex } as CSSProperties}>{counts[0].name}</span>
@@ -161,7 +169,7 @@ export default function YearReview() {
             </section>
           )}
 
-          {labs && user && <p className="review-cheers serif center">올해 모임에서 받은 응원 <strong>{cheers}</strong>번</p>}
+          {labs && user && cheers > 0 && <p className="review-cheers serif center">올해 모임에서 받은 응원 <strong>{cheers}</strong>번</p>}
           <MoodWords graphs={graphs.filter((g) => g.createdAt.startsWith(`${year}-`) || g.updatedAt.startsWith(`${year}-`))} title={`${year}년의 마음 단어`} />
 
           <div className="review-actions">
@@ -174,3 +182,4 @@ export default function YearReview() {
     </section>
   )
 }
+

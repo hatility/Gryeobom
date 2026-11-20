@@ -1,3 +1,5 @@
+import EmptyDoodle from '../components/EmptyDoodle'
+import { isMobile } from '../device'
 import { useEffect, useId, useRef, useState, type RefObject } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { useLabs } from '../labs'
@@ -5,7 +7,7 @@ import { api, shareBase, type GroupSummary } from '../api'
 import { useAuth, useRepo } from '../auth'
 import LifeGraph from '../components/LifeGraph'
 import { NOW_QUESTIONS, questionsFor, lineColorOf, sinceLabel, rangeLabel, scoreWord, signed, timeLabel } from '../content'
-import { exportImage, exportStoryCard, exportYearCard, loadHand, CARD_THEMES, type CardTheme } from '../graph'
+import { exportImage, exportStoryCard, exportStoryVideo, exportYearCard, exportYearVideo, loadHand, CARD_THEMES, type CardTheme } from '../graph'
 import { GROUP_POST, encodeShared, toShared, type PostOptions, type SharedGraph } from '../share'
 import { formatDate, graphPoints, graphTitle, normalizeGraph, sortEntries } from '../store'
 import type { LifeGraph as Graph, Visibility } from '../types'
@@ -56,7 +58,7 @@ export default function GraphResult() {
   if (!graph) {
     return (
       <section className="container page empty-state">
-        <p className="eyebrow en">LOST LINE</p>
+        <EmptyDoodle />
         <h1>이 기록을 찾을 수 없어요</h1>
         <p className="muted">
           {repo.remote
@@ -94,11 +96,12 @@ export default function GraphResult() {
         {!graph.completed && <p className="badge">아직 그리는 중이에요</p>}
       </header>
 
+      {/* 완성 직후: 선이 다 그려진 뒤에 나타나는 맺음 말 */}
       {done && (
         <section className="done-card" role="status">
           <p className="eyebrow en">THE LINE IS DRAWN</p>
           <p className="serif done-title">여기까지 와 줘서 고마워요.</p>
-          <p className="muted">이 선에는 당신만의 이야기가 담겨 있어요. 언제든 다시 와서 고쳐 그려도 괜찮아요.</p>
+          <p className="muted">언제든 다시 와서 고쳐 그려도 괜찮아요.</p>
           {graph.groupId && (
             <p className="muted small">
               모임에 함께 나눴어요. 고친 내용도 모임에 바로 보여요. <Link to={`/groups/${graph.groupId}`}>모임에서 보기</Link>
@@ -126,9 +129,10 @@ export default function GraphResult() {
         />
         <p className="hint center">점을 눌러 그때의 이야기를 다시 볼 수 있어요.</p>
         {comparable.length > 0 && (
-          <div className="field ghost-pick no-print">
-            <label className="field-label" htmlFor="ghost">지난 선과 나란히 보기</label>
-            <select id="ghost" value={ghostId} onChange={(e) => setGhostId(e.target.value)}>
+          // 가끔 쓰는 기능: 큰 고르기 칸 대신 접힌 한 줄 (고른 게 있으면 펼친 채로)
+          <details className="field ghost-pick versions-pick no-print" open={!!ghostId || undefined}>
+            <summary className="versions-summary">지난 선과 겹쳐 보기 <small className="muted">{comparable.length}개</small></summary>
+            <select id="ghost" aria-label="겹쳐 볼 지난 선" value={ghostId} onChange={(e) => setGhostId(e.target.value)}>
               <option value="">겹쳐 보지 않기</option>
               {comparable.map((o) => (
                 <option key={o.id} value={o.id}>{graphTitle(o)} · {formatDate(o.updatedAt)}</option>
@@ -139,13 +143,13 @@ export default function GraphResult() {
                 <span className="ghost-swatch" aria-hidden="true" />점선은 ‘{graphTitle(ghost)}’ — 지난 나와 나란히.
               </p>
             )}
-          </div>
+          </details>
         )}
         <Versions graph={graph} onPreview={setVerGhost} onRestored={(g) => { setVerGhost(null); setGraph(g) }} />
       </section>
 
       <div className="result-actions no-print">
-        <button type="button" className="btn btn-primary" onClick={() => shareRef.current?.showModal()}>공유하기</button>
+        <button type="button" className="btn btn-primary" onClick={() => shareRef.current?.showModal()}>나누기</button>
         <div className="result-group" role="group" aria-label="저장 · 인쇄">
           <p className="result-group-title">저장 · 인쇄</p>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => exportRef.current?.showModal()}>이미지로 저장</button>
@@ -154,7 +158,7 @@ export default function GraphResult() {
         </div>
         <div className="result-group" role="group" aria-label="고치기">
           <p className="result-group-title">고치기</p>
-          <Link to={`/graph/${graph.id}/edit?step=1`} className="btn btn-ghost btn-sm">그래프 수정하기</Link>
+          <Link to={`/graph/${graph.id}/edit?step=1`} className="btn btn-ghost btn-sm">그래프 고치기</Link>
           {graph.completed && <Link to={`/graph/new?again=${graph.id}`} className="btn btn-ghost btn-sm">같은 기간 다시 그리기</Link>}
         </div>
       </div>
@@ -252,9 +256,7 @@ export default function GraphResult() {
         </section>
       )}
 
-      <p className="closing-text small-closing">이 선에는 당신만의 이야기가 담겨 있어요.</p>
-
-      <ExportDialog dialogRef={exportRef} graph={graph} />
+      <ExportDialog dialogRef={exportRef} graph={graph} ghost={ghost ? { points: graphPoints(ghost), label: `${formatDate(ghost.createdAt)}의 선` } : undefined} />
       <ShareDialog dialogRef={shareRef} graph={graph} onVisibility={setVisibility} />
     </article>
   )
@@ -283,7 +285,7 @@ function EntryPicker({ graph, ids, onToggle }: { graph: Graph; ids: Set<string>;
   )
 }
 
-function ExportDialog({ dialogRef, graph }: { dialogRef: RefObject<HTMLDialogElement | null>; graph: Graph }) {
+function ExportDialog({ dialogRef, graph, ghost }: { dialogRef: RefObject<HTMLDialogElement | null>; graph: Graph; ghost?: { points: ReturnType<typeof graphPoints>; label: string } }) {
   const [ids, setIds] = useState(() => defaultIds(graph))
   // 달로 그린 그래프는 ‘올해 카드’도 만들 수 있다
   const yearly = graph.timeScale === 'month'
@@ -291,8 +293,10 @@ function ExportDialog({ dialogRef, graph }: { dialogRef: RefObject<HTMLDialogEle
   const months = graph.currentPoint - graph.startPoint + 1
   const oneYear = graph.monthRange === 'thisYear' || (graph.startPoint % 12 === 0 && Math.floor(graph.startPoint / 12) === Math.floor(graph.currentPoint / 12))
   const heading = oneYear ? `${Math.floor(graph.startPoint / 12)}년, 나의 한 해` : months === 12 ? '나의 열두 달' : `나의 ${months}개월`
-  const [format, setFormat] = useState<'wide' | 'story' | 'year'>(yearly && graph.completed ? 'year' : 'story')
+  const [format, setFormat] = useState<'wide' | 'story' | 'square' | 'year'>(yearly && graph.completed ? 'year' : 'story')
   const [withLine, setWithLine] = useState(false)
+  // 그때와 지금: 결과 화면에서 지난 선을 겹쳐 보고 있으면 카드에도 (세로 · 정사각)
+  const [withGhost, setWithGhost] = useState(true)
   const [theme, setTheme] = useState<CardTheme>('paper')
   const [hand, setHand] = useState(false)
   const labs = useLabs('graph')
@@ -300,10 +304,8 @@ function ExportDialog({ dialogRef, graph }: { dialogRef: RefObject<HTMLDialogEle
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
-  const run = async () => {
-    setBusy(true)
-    setErr('')
-    try {
+  /** 지금 고른 모양 · 배경 · 글씨로 카드 한 장 (저장과 미리보기가 같이 쓴다) */
+  const make = async (asVideo = false) => {
       const base = {
         title: graphTitle(graph),
         timeScale: graph.timeScale,
@@ -316,16 +318,57 @@ function ExportDialog({ dialogRef, graph }: { dialogRef: RefObject<HTMLDialogEle
       }
       // 손글씨: 이미지에 들어갈 글자의 글꼴 조각을 먼저 받는다
       if (hand) await loadHand([base.title, ...base.points.map((p) => p.title), oneLine, '나의 열두 달 한 해 그려봄 지나온 나를 그리고, 지금의 나를 만나다 MY LINE 0123456789 살 년 월 개월 이름 없는 순간 그때 지금 · → “”'].join(''))
+      if (asVideo) return format === 'year' ? exportYearVideo({ ...base, heading, line: withLine ? oneLine : undefined }) : exportStoryVideo({ ...base, square: format === 'square', ghost: withGhost ? ghost : undefined, line: format === 'story' && withLine ? oneLine : undefined })
       const blob =
-        format === 'story' ? await exportStoryCard({ ...base, line: withLine ? oneLine : undefined })
+        format === 'story' ? await exportStoryCard({ ...base, ghost: withGhost ? ghost : undefined, line: withLine ? oneLine : undefined })
+        : format === 'square' ? await exportStoryCard({ ...base, square: true, ghost: withGhost ? ghost : undefined })
         : format === 'year' ? await exportYearCard({ ...base, heading, line: withLine ? oneLine : undefined })
         : await exportImage(base)
+      return blob
+  }
+  // 미리보기: 창이 열려 있을 때만, 고른 것이 바뀌면 조금 기다렸다 다시 그린다
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    const d = dialogRef.current
+    if (!d) return
+    const mo = new MutationObserver(() => setOpen(d.open))
+    mo.observe(d, { attributes: true, attributeFilter: ['open'] })
+    return () => mo.disconnect()
+  }, [dialogRef])
+  const [preview, setPreview] = useState('')
+  const pick = [format, theme, hand, withLine, withGhost, ghost?.label, [...ids].join()].join('|')
+  useEffect(() => {
+    if (!open) return
+    let url = '', gone = false
+    const t = setTimeout(async () => {
+      const blob = (await make().catch(() => null)) as Blob | null
+      if (gone || !blob) return
+      url = URL.createObjectURL(blob)
+      setPreview(url)
+    }, 200)
+    return () => { gone = true; clearTimeout(t); if (url) setTimeout(() => URL.revokeObjectURL(url), 1000) }
+  }, [open, pick])
+
+  const runVideo = async () => {
+    setBusy(true)
+    setErr('')
+    try {
+      const v = await make(true)
+      if (!v || v instanceof Blob) throw new Error('no video')
+      await saveFile(v.blob, `그려봄-${graphTitle(graph)}-영상.${v.ext}`)
+    } catch {
+      setErr('이 브라우저에서는 영상을 만들 수 없어요. 이미지로 저장해 볼까요?')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const run = async () => {
+    setBusy(true)
+    setErr('')
+    try {
+      const blob = (await make()) as Blob | null
       if (!blob) throw new Error('no blob')
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = `그려봄-${graphTitle(graph)}${format === 'story' ? '-카드' : format === 'year' ? (oneYear ? '-올해카드' : '-달카드') : ''}.png`
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+      await saveFile(blob, `그려봄-${graphTitle(graph)}${format === 'story' ? '-카드' : format === 'square' ? '-정사각' : format === 'year' ? (oneYear ? '-올해카드' : '-달카드') : ''}.png`)
       dialogRef.current?.close()
     } catch {
       setErr('이미지를 만들지 못했어요. 잠시 뒤에 다시 해볼까요?')
@@ -337,12 +380,17 @@ function ExportDialog({ dialogRef, graph }: { dialogRef: RefObject<HTMLDialogEle
   return (
     <dialog ref={dialogRef} className="dialog export-dialog" aria-labelledby="export-title">
       <h2 id="export-title" className="card-title">이미지로 저장하기</h2>
+      {/* 미리보기: 고른 대로 바로 바뀌어요 (저장될 그림과 같은 것) */}
+      <figure className={`export-preview is-${format}`} aria-hidden="true">
+        {preview ? <img src={preview} alt="" /> : <span className="export-preview-empty" />}
+      </figure>
       <p className="field-label export-label">모양</p>
       <div className="segmented" aria-label="이미지 모양">
-        {([...(yearly ? [['year', oneYear ? '올해 카드' : '달 카드']] as const : []), ['story', '세로 카드 (폰 사진첩용)'], ['wide', '가로 그림']] as const).map(([k, label]) => (
+        {([...(yearly ? [['year', oneYear ? '올해 카드' : '달 카드']] as const : []), ['story', '세로 카드 (폰 사진첩용)'], ['square', '정사각 카드 (피드용)'], ['wide', '가로 그림']] as const).map(([k, label]) => (
           <label key={k} className="seg">
             <input type="radio" name="export-format" checked={format === k} onChange={() => setFormat(k)} />
-            <span>{label}</span>
+            {/* 괄호 속 쓰임새는 작은 글씨 — 휴대폰에선 다음 줄로 */}
+            <span>{label.split(' (')[0]}{label.includes(' (') && <small className="seg-note"> ({label.split(' (')[1]}</small>}</span>
           </label>
         ))}
       </div>
@@ -376,13 +424,21 @@ function ExportDialog({ dialogRef, graph }: { dialogRef: RefObject<HTMLDialogEle
         </>
       )}
       <p className="field-label export-label">담을 순간</p>
-      <p className="muted small export-note">제목 · 선 · 고른 순간의 이름만 담겨요. 회고는 담기지 않아요.</p>
+      {/* 아래 ‘지금의 나 한 문장도 넣기’ 가 보일 때는 ‘지금의 나는 담기지 않아요’ 와 엇갈리지 않게 */}
+      <p className="muted small export-note">제목 · 선 · 고른 순간의 이름만 담겨요. {format !== 'wide' && format !== 'square' && oneLine ? '그때의 마음은' : '그때의 마음 · 지금의 나는'} 담기지 않아요.</p>
       {graph.entries.length ? (
         <EntryPicker graph={graph} ids={ids} onToggle={(id) => setIds((s) => toggleIn(s, id))} />
       ) : (
         <p className="muted">아직 순간이 없어서, 빈 선과 제목만 담겨요.</p>
       )}
-      {format !== 'wide' && oneLine && (
+      {ghost && (format === 'story' || format === 'square') && (
+        <label className="check">
+          <input type="checkbox" checked={withGhost} onChange={(e) => setWithGhost(e.target.checked)} />
+          <span>그때의 선({ghost.label})도 점선으로 넣기 · 그때와 지금</span>
+        </label>
+      )}
+      {/* 정사각 카드는 자리가 좁아 한 문장은 담지 않아요 */}
+      {format !== 'wide' && format !== 'square' && oneLine && (
         <label className="check">
           <input type="checkbox" checked={withLine} onChange={(e) => setWithLine(e.target.checked)} />
           <span>‘지금의 나’ 한 문장도 넣기</span>
@@ -393,6 +449,10 @@ function ExportDialog({ dialogRef, graph }: { dialogRef: RefObject<HTMLDialogEle
         <button type="button" className="btn btn-primary" onClick={run} disabled={busy}>
           {busy ? '그리는 중…' : '이미지 만들기'}
         </button>
+        {/* 실험: 세로 · 정사각 카드는 선이 그려지는 4초 영상으로도 */}
+        {labs && (format === 'story' || format === 'square' || format === 'year') && (
+          <button type="button" className="btn btn-ghost" onClick={runVideo} disabled={busy}>{busy ? '…' : '영상으로'}</button>
+        )}
         <button type="button" className="btn btn-ghost" onClick={() => dialogRef.current?.close()}>닫기</button>
       </div>
     </dialog>
@@ -404,6 +464,9 @@ function ShareDialog({ dialogRef, graph, onVisibility }: {
 }) {
   const { user } = useAuth()
   const [mode, setMode] = useState<'group' | 'link'>(user ? 'group' : 'link')
+  // 들어간 모임이 없으면 처음 한 번은 ‘링크로 보내기’ 로 열어 둔다
+  const autoMode = useRef(true)
+  const noGroups = () => { if (autoMode.current) { autoMode.current = false; setMode('link') } }
   const [title, setTitle] = useState(graphTitle(graph))
   const [ids, setIds] = useState(() => defaultIds(graph))
   // 그래프의 순간이 바뀌면 (더하거나 되돌리면) 고른 순간도 다시
@@ -420,7 +483,7 @@ function ShareDialog({ dialogRef, graph, onVisibility }: {
   return (
     <dialog ref={dialogRef} className="dialog share-dialog" aria-labelledby="share-title">
       <div className="share-head">
-        <h2 id="share-title" className="card-title">공유하기</h2>
+        <h2 id="share-title" className="card-title">나누기</h2>
         <button type="button" className="btn btn-text btn-sm" onClick={close}>닫기</button>
       </div>
 
@@ -428,7 +491,7 @@ function ShareDialog({ dialogRef, graph, onVisibility }: {
         <div className="segmented share-mode" role="radiogroup" aria-label="어떻게 나눌까요">
           {([['group', '모임에 나누기'], ['link', '링크로 보내기']] as const).map(([k, label]) => (
             <label key={k} className="seg">
-              <input type="radio" name="share-mode" checked={mode === k} onChange={() => setMode(k)} />
+              <input type="radio" name="share-mode" checked={mode === k} onChange={() => { autoMode.current = false; setMode(k) }} />
               <span>{label}</span>
             </label>
           ))}
@@ -439,7 +502,7 @@ function ShareDialog({ dialogRef, graph, onVisibility }: {
         <summary>
           <span className="field-label">무엇을 나눌까요?</span>
           <span className="muted small">
-            순간 {ids.size}개 · {time ? '시점 보임' : '시점 숨김'} · {descriptions ? '설명 함께' : '설명 빼고'}
+            순간 {ids.size}개 · {time ? '때 보임' : '때 숨김'} · {descriptions ? '설명 함께' : '설명 빼고'}
           </span>
           <span className="share-what-edit">바꾸기</span>
         </summary>
@@ -461,14 +524,14 @@ function ShareDialog({ dialogRef, graph, onVisibility }: {
       <p className="muted small">그때의 마음 · 지금의 나에 적은 글은 어떤 경우에도 나가지 않아요.</p>
 
       {mode === 'group' && user ? (
-        <GroupShare graph={graph} ready={ids.size > 0} makeOptions={options} ensureOpen={ensureOpen} />
+        <GroupShare graph={graph} ready={ids.size > 0} makeOptions={options} ensureOpen={ensureOpen} onNoGroups={noGroups} />
       ) : (
         <LinkShare graph={graph} ready={ids.size > 0} makeShared={shared} ensureOpen={ensureOpen} deps={[title, ids, descriptions, time]} />
       )}
 
       {graph.visibility === 'link' && !graph.groupId && (
         <button type="button" className="btn btn-text btn-sm danger share-stop" onClick={() => onVisibility('private')}>
-          공유 그만하기 (나만 보기로{user ? ' · 모임 · 링크에서도 내려가요' : ''})
+          나누기 그만하기 (나만 보기로{user ? ' · 모임 · 링크에서도 내려가요' : ''})
         </button>
       )}
       {graph.groupId && <p className="muted small">모임에서 그린 선이라 그 모임과는 늘 함께 나눠요.</p>}
@@ -532,7 +595,7 @@ function LinkShare({ graph, ready, makeShared, ensureOpen, deps }: {
             <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
             <span>
               링크를 받은 사람은 누구나 볼 수 있다는 걸 알아요.{' '}
-              {user ? '만든 링크는 아래에서 언제든 끌 수 있어요.' : <strong>로그인하지 않고 만든 링크는 끌 수 없어요.</strong>}
+              {user ? '만든 링크는 이 창에서 언제든 끌 수 있어요.' : <strong>로그인하지 않고 만든 링크는 끌 수 없어요.</strong>}
             </span>
           </label>
           <button type="button" className="btn btn-primary btn-block" disabled={!ready || !agreed} onClick={make}>
@@ -561,8 +624,8 @@ function LinkShare({ graph, ready, makeShared, ensureOpen, deps }: {
 }
 
 /** 모임에 나누기: 모임을 고르고 큰 버튼 하나로. 나누는 중인 모임은 표시하고 바로 내릴 수 있다. */
-function GroupShare({ graph, ready, makeOptions, ensureOpen }: {
-  graph: Graph; ready: boolean; makeOptions: () => PostOptions; ensureOpen: () => Promise<boolean>
+function GroupShare({ graph, ready, makeOptions, ensureOpen, onNoGroups }: {
+  graph: Graph; ready: boolean; makeOptions: () => PostOptions; ensureOpen: () => Promise<boolean>; onNoGroups: () => void
 }) {
   const [groups, setGroups] = useState<GroupSummary[] | null>(null)
   const [posted, setPosted] = useState<Record<string, string>>({}) // groupId → postId
@@ -585,6 +648,7 @@ function GroupShare({ graph, ready, makeOptions, ensureOpen }: {
     )
   useEffect(() => {
     load().then((r) => {
+      if (r && r.gs.length === 0) onNoGroups()
       // 모임이 하나뿐이고 아직 안 나눴다면 미리 골라 둔다
       const open = r?.gs.filter((g) => g.id !== graph.groupId && !r.p[g.id]) ?? []
       if (open.length === 1) setPicked(new Set([open[0].id]))
@@ -823,9 +887,10 @@ function Versions({ graph, onPreview, onRestored }: { graph: Graph; onPreview: (
     }
   }
   return (
-    <div className="field ghost-pick versions-pick no-print">
-      <label className="field-label" htmlFor="versions">고치기 전 모습 <small className="muted">({list.length}개 남아 있어요)</small></label>
-      <select id="versions" value={pick} onChange={(e) => choose(Number(e.target.value))}>
+    // 가끔 쓰는 기능: 그래프 바로 아래 큰 고르기 칸 대신 접어 두고, 고른 게 있으면 펼친 채로
+    <details className="field ghost-pick versions-pick no-print" open={pick !== 0 || undefined}>
+      <summary className="versions-summary">고치기 전 모습 보기 <small className="muted">{list.length}개</small></summary>
+      <select id="versions" aria-label="고치기 전 모습 고르기" value={pick} onChange={(e) => choose(Number(e.target.value))}>
         <option value={0}>지금 모습</option>
         {list.map((x) => <option key={x.id} value={x.id}>{when(x.at)} · 순간 {x.moments}개{x.done ? ' · 완성' : ''}</option>)}
       </select>
@@ -836,6 +901,22 @@ function Versions({ graph, onPreview, onRestored }: { graph: Graph; onPreview: (
         </p>
       )}
       {msg && <p className="muted small" role="status">{msg}</p>}
-    </div>
+    </details>
   )
+}
+
+/**
+ * 내려받기: 휴대폰(공유 시트가 파일을 받으면)은 공유 시트로 — 아이폰 사파리는 a[download] 가 새 탭으로 열려 사진첩에 넣기 어려워요.
+ * 그 밖에는 보통 내려받기. 공유 창을 닫으면(취소) 조용히 끝.
+ */
+async function saveFile(blob: Blob, name: string) {
+  const file = new File([blob], name, { type: blob.type })
+  if (isMobile() && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); return } catch (e) { if ((e as Error).name === 'AbortError') return }
+  }
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = name
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }

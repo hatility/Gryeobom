@@ -40,7 +40,7 @@ export default function GraphBook() {
       <div className="book-bar no-print">
         <Link to={`/graph/${graph.id}`} className="btn btn-text btn-sm">← 그래프로</Link>
         <p className="muted small">인쇄 창에서 ‘대상’을 <strong>PDF로 저장</strong>으로 고르면 파일 하나로 남아요.</p>
-        <button type="button" className="btn btn-primary" onClick={() => window.print()}>PDF로 저장 · 인쇄</button>
+        <button type="button" className="btn btn-primary" onClick={() => window.print()}>인쇄 · PDF로 저장</button>
       </div>
 
       <header className="book-cover">
@@ -129,7 +129,7 @@ export function GraphSheet() {
     <article className="container page sheet">
       <div className="book-bar no-print">
         <Link to={`/graph/${graph.id}`} className="btn btn-text btn-sm">← 그래프로</Link>
-        <p className="muted small">A4 세로 한 장이에요. 그때의 마음(회고)은 담지 않아요.</p>
+        <p className="muted small">A4 세로 한 장이에요. 그때의 마음 · 지금의 나는 담지 않아요.</p>
         <button type="button" className="btn btn-primary" onClick={() => window.print()}>인쇄 · PDF로 저장</button>
       </div>
       <header className="sheet-head">

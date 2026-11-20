@@ -120,11 +120,32 @@ export async function loadHand(text: string) {
   await Promise.all(['400', '700'].map((w) => document.fonts.load(`${w} 40px Gaegu`, text || '그려봄')))
 }
 
+
+/** (실험 · 새 틀) 이미지 카드도 사이트와 같은 종이 · 테이프 · 로고 글씨로 */
+const LOGO = '"Gaegu", "Gowun Batang", serif'
+const SERIF = '"Gowun Batang", "AppleMyungjo", serif'
+const seasonColor = () => getComputedStyle(document.documentElement).getPropertyValue('--season').trim() || '#e8a7b8'
+/** 그래프 판: 테두리 대신 종이 그림자 + 위 가운데 마스킹테이프 */
+function paperBoard(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.save()
+  ctx.shadowColor = 'rgba(110,80,50,0.22)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 18
+  ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill()
+  ctx.restore()
+  ctx.strokeStyle = 'rgba(240,229,220,0.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.stroke()
+  const tw = Math.round(w * 0.2), th = Math.round(tw * 0.24)
+  ctx.save()
+  ctx.translate(x + w / 2, y); ctx.rotate(-2.5 * Math.PI / 180)
+  ctx.globalAlpha = 0.6; ctx.fillStyle = seasonColor(); ctx.fillRect(-tw / 2, -th / 2, tw, th)
+  ctx.globalAlpha = 0.25; ctx.fillStyle = '#FFFFFF'
+  for (let k = -tw / 2; k < tw / 2; k += th / 2.4) ctx.fillRect(k, -th / 2, th / 4.8, th)
+  ctx.restore()
+}
+
 export async function exportImage(opts: {
   title: string; timeScale: TimeScale; start: number; end: number; points: GraphPoint[]; color?: string; theme?: CardTheme; /** 손글씨(실험) */ hand?: boolean
   /** false 면 나이 · 연도를 빼고 ‘그때 → 지금’으로만 (시점을 숨기고 나눈 모임 그래프) */
   showTime?: boolean
-  /** 제목 위 작은 글씨 (기본 ‘MY LINE · 그려봄’) */
+  /** 제목 위 작은 글씨 (기본: 로고 글씨 ‘그려봄’) */
   eyebrow?: string
 }): Promise<Blob | null> {
   await document.fonts?.ready
@@ -143,15 +164,14 @@ export async function exportImage(opts: {
   ctx.fillStyle = 'rgba(149,138,130,0.08)'
   for (let x = 12; x < W; x += 24) for (let y = 12; y < H; y += 24) ctx.fillRect(x, y, 2, 2)
 
-  ctx.fillStyle = '#958A82'; ctx.font = `600 22px ${sans}`
-  ctx.fillText(opts.eyebrow ?? 'MY LINE · 그려봄', 80, 110)
+  ctx.fillStyle = '#958A82'; ctx.font = opts.eyebrow ? `600 22px ${sans}` : `700 34px ${opts.hand ? HAND : LOGO}`
+  ctx.fillText(opts.eyebrow ?? '그려봄', 80, 110)
   ctx.fillStyle = '#514943'
-  ctx.fillText(fitLine(ctx, opts.title, W - 160, (px) => `700 ${px}px ${sans}`, 54), 80, 180)
+  ctx.fillText(fitLine(ctx, opts.title, W - 160, (px) => `700 ${px}px ${serif}`, 54), 80, 180)
   ctx.fillStyle = '#958A82'; ctx.font = `28px ${serif}`
   ctx.fillText(`${showTime ? rangeLabel(opts.timeScale, opts.start, opts.end) : '그때부터 지금까지'}, 나만의 선`, 80, 228)
 
-  ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = '#F0E5DC'; ctx.lineWidth = 2
-  ctx.beginPath(); ctx.roundRect(60, 280, W - 120, 440, 28); ctx.fill(); ctx.stroke()
+  paperBoard(ctx, 60, 280, W - 120, 440, 28)
   const f: Frame = { w: W, h: 720, l: 130, r: 130, t: 330, b: 50, start: opts.start, end: opts.end }
   const y0 = sy(f, 0)
   ctx.setLineDash([8, 10]); ctx.strokeStyle = '#E4D6CB'
@@ -238,7 +258,9 @@ export function layoutLabels(
   if (keep >= 0) order.sort((a, b) => (a === keep ? -1 : b === keep ? 1 : 0))
   for (const i of order) {
     const p = pts[i]
-    const chars = [...(p.title || '이름 없는 순간')]
+    // 이름 없는 순간은 점만 (그래프에 ‘이름 없는 순간’ 이 여러 번 찍히지 않게) — 고른 점일 때만 이름표
+    if (!p.title.trim() && i !== keep) continue
+    const chars = [...(p.title.trim() || '이름 없는 순간')]
     const text = chars.length > maxChars ? `${chars.slice(0, maxChars).join('').trimEnd()}…` : chars.join('')
     const half = textW(text) / 2 + 4
     const cx = Math.min(Math.max(p.x, half + 2), area.w - half - 2)
@@ -257,12 +279,61 @@ export function layoutLabels(
  * 세로 카드(9:16, 1080×1920): 폰 사진첩에 남기기 좋은 한 장.
  * 제목 · 기간 · 선 · 고른 순간의 이름, 원하면 ‘지금의 나’ 한 문장. 회고는 넣지 않는다.
  */
-export async function exportStoryCard(opts: {
+export interface StoryOpts {
   title: string; timeScale: TimeScale; start: number; end: number; points: GraphPoint[]; line?: string; color?: string; theme?: CardTheme; /** 손글씨(실험) */ hand?: boolean
-}): Promise<Blob | null> {
+  /** 정사각형(1080×1080, 피드용) — 판을 줄이고 순간은 세 개까지 */
+  square?: boolean
+  /** 그때와 지금: 지난 선(흐린 점선)과 그 이름 */
+  ghost?: { points: GraphPoint[]; label: string }
+}
+export async function exportStoryCard(opts: StoryOpts): Promise<Blob | null> {
   await document.fonts?.ready
-  const W = 1080, H = 1920
-  const c = document.createElement('canvas')
+  const c = drawStoryCard(opts, 1)
+  return c ? new Promise((res) => c.toBlob(res, 'image/png')) : null
+}
+
+/**
+ * 카드 영상 (실험): 같은 세로 카드에서 선이 왼쪽부터 그려지고, 점이 하나씩 찍히고, 끝에 ‘지금의 나’ 가 도착해요.
+ * 약 4초 · 브라우저가 되는 형식으로 (mp4 가 되면 mp4, 아니면 webm).
+ */
+export async function exportStoryVideo(opts: StoryOpts): Promise<{ blob: Blob; ext: string } | null> {
+  await document.fonts?.ready
+  return recordCard((k, c) => drawStoryCard(opts, k, c))
+}
+
+/** 카드를 k=0→1 로 그리며 녹화 (2.8초 그리고 1.3초 머물러요). mp4 가 되면 mp4, 아니면 webm */
+async function recordCard(draw: (k: number, c?: HTMLCanvasElement) => HTMLCanvasElement | null): Promise<{ blob: Blob; ext: string } | null> {
+  const c = draw(0)
+  if (!c || typeof MediaRecorder === 'undefined' || !c.captureStream) return null
+  const type = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t))
+  if (!type) return null
+  const rec = new MediaRecorder(c.captureStream(30), { mimeType: type, videoBitsPerSecond: 6_000_000 })
+  const chunks: Blob[] = []
+  rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data) }
+  const done = new Promise<void>((ok) => { rec.onstop = () => ok() })
+  rec.start()
+  const t0 = performance.now(), dur = 2800, hold = 1300
+  await new Promise<void>((ok) => {
+    const tick = () => {
+      const t = performance.now() - t0
+      const k = Math.min(1, t / dur)
+      draw(1 - (1 - k) ** 2, c)
+      if (t < dur + hold) requestAnimationFrame(tick); else ok()
+    }
+    requestAnimationFrame(tick)
+  })
+  rec.stop()
+  await done
+  return { blob: new Blob(chunks, { type: type.split(';')[0] }), ext: type.includes('mp4') ? 'mp4' : 'webm' }
+}
+
+/** 세로 · 정사각 카드 그리기. k(0~1): 선이 그려진 만큼 — 1 이면 다 그린 카드 */
+function drawStoryCard(opts: StoryOpts, k: number, canvas?: HTMLCanvasElement): HTMLCanvasElement | null {
+  const sq = !!opts.square
+  const W = 1080, H = sq ? 1080 : 1920
+  // 자리: [제목 y, 판 위, 판 높이, 순간 첫 줄, 순간 수, 한 문장 최소 y]
+  const L = sq ? { head: 110, title: 195, box: 330, boxH: 450, list: 850, n: 3, line: 0 } : { head: 200, title: 310, box: 500, boxH: 760, list: 1340, n: 6, line: 1700 }
+  const c = canvas ?? document.createElement('canvas')
   c.width = W; c.height = H
   const ctx = c.getContext('2d')
   if (!ctx) return null
@@ -296,47 +367,101 @@ export async function exportStoryCard(opts: {
   }
 
   paintBg(ctx, W, H, opts.theme)
-  center('MY LIFE, MY LINE', 220, `600 30px ${sans}`, '#958A82')
-  let y = wrap(opts.title, 330, `700 72px ${sans}`, '#514943', W - 200, 92)
+  // 1.2.0: 영어 머리글 대신 ‘그려봄’ (화면과 같게) · 그래프 판을 키워 선이 카드의 주인공
+  center('그려봄', L.head, `700 ${sq ? 44 : 50}px ${opts.hand ? HAND : LOGO}`, '#958A82')
+  let y = wrap(opts.title, L.title, `700 ${sq ? 60 : 72}px ${serif}`, '#514943', W - 200, sq ? 76 : 92)
   center(rangeLabel(opts.timeScale, opts.start, opts.end), y + 20, `34px ${serif}`, '#958A82')
 
   // 선
-  ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = '#F0E5DC'; ctx.lineWidth = 2
-  ctx.beginPath(); ctx.roundRect(80, 560, W - 160, 640, 40); ctx.fill(); ctx.stroke()
-  const f: Frame = { w: W, h: 1200, l: 150, r: 150, t: 640, b: 80, start: opts.start, end: opts.end }
+  paperBoard(ctx, 60, L.box, W - 120, L.boxH, 44)
+  const f: Frame = { w: W, h: L.box + L.boxH, l: 120, r: 130, t: L.box + 80, b: 120, start: opts.start, end: opts.end }
   ctx.setLineDash([10, 12]); ctx.strokeStyle = '#E4D6CB'
   ctx.beginPath(); ctx.moveTo(f.l, sy(f, 0)); ctx.lineTo(W - f.r, sy(f, 0)); ctx.stroke(); ctx.setLineDash([])
   const xy = pts.map((p) => ({ x: sx(f, p.timePoint), y: sy(f, p.emotionScore) }))
+  if (opts.ghost && opts.ghost.points.length > 1) {
+    const gxy = sortEntries(opts.ghost.points).filter((p) => p.timePoint >= opts.start && p.timePoint <= opts.end).map((p) => ({ x: sx(f, p.timePoint), y: sy(f, p.emotionScore) }))
+    ctx.save(); ctx.setLineDash([12, 12]); ctx.strokeStyle = '#B9ADA4'; ctx.lineWidth = 4; ctx.lineCap = 'round'
+    if (gxy.length > 1) ctx.stroke(new Path2D(smoothPath(gxy)))
+    ctx.restore()
+    ctx.font = `26px ${sans}`; ctx.fillStyle = '#958A82'; ctx.textAlign = 'left'
+    ctx.fillText(`점선 · ${opts.ghost.label}`, f.l, L.box + 50)
+  }
+  // 영상: 왼쪽부터 reveal 까지만 (선 · 점), ‘지금의 나’ 는 다 그린 뒤에
+  const reveal = f.l - 20 + (W - f.r + 40 - (f.l - 20)) * k
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, reveal, H); ctx.clip()
   if (xy.length > 1) {
     ctx.strokeStyle = opts.color ?? '#E8A89A'; ctx.lineWidth = 7; ctx.lineCap = 'round'
     ctx.stroke(new Path2D(smoothPath(xy)))
   }
-  xy.forEach((p) => {
+  ctx.restore()
+  xy.filter((p) => p.x <= reveal).forEach((p) => {
     ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = opts.color ?? '#D99082'; ctx.lineWidth = 5
     ctx.beginPath(); ctx.arc(p.x, p.y, 14, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
   })
+  // 지금의 나: 마지막 순간의 높이에서 오른쪽 끝, 옅은 빛 + 찬 점 (화면 그래프와 같은 끝맺음)
+  const last = xy[xy.length - 1]
+  const now = { x: sx(f, opts.end), y: last ? last.y : sy(f, 0) }
+  if (k >= 0.97) { // 영상에선 선이 끝에 닿을 때 도착
+  if (last && last.x < now.x - 4) {
+    ctx.setLineDash([6, 10]); ctx.strokeStyle = opts.color ?? '#D99082'; ctx.globalAlpha = 0.5; ctx.lineWidth = 3
+    ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(now.x, now.y); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1
+  }
+  ctx.fillStyle = opts.color ?? '#D99082'
+  ctx.globalAlpha = 0.18; ctx.beginPath(); ctx.arc(now.x, now.y, 32, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1
+  ctx.beginPath(); ctx.arc(now.x, now.y, 15, 0, Math.PI * 2); ctx.fill()
+  ctx.font = `600 30px ${sans}`; ctx.textAlign = 'right'; ctx.fillStyle = '#514943'
+  // 이름표 자리: 위 · 아래 · 점 왼쪽 중에 들어오는 선과 안 겹치고 판 안에 드는 첫 자리
+  const tw = ctx.measureText('지금의 나').width
+  const segs = [xy[xy.length - 2], last].every(Boolean) ? [[xy[xy.length - 2], last], [last, now]] : [[now, now]]
+  const clear = (b: { l: number; r: number; t: number; b: number }) =>
+    b.t > L.box + 16 && b.b < L.box + L.boxH - 70 &&
+    !segs.some(([a, z]) => Array.from({ length: 41 }, (_, k) => ({ x: a.x + ((z.x - a.x) * k) / 40, y: a.y + ((z.y - a.y) * k) / 40 }))
+      .some((p) => p.x > b.l - 8 && p.x < b.r + 8 && p.y > b.t - 8 && p.y < b.b + 8))
+  const fromBelow = segs[0][0].y > now.y
+  const spots = [
+    { x: now.x + 40, y: now.y + (fromBelow ? -46 : 66) },
+    { x: now.x + 40, y: now.y + (fromBelow ? 66 : -46) },
+    { x: now.x - 40, y: now.y + 10 },
+  ]
+  const spot = spots.find((s) => clear({ l: s.x - tw, r: s.x, t: s.y - 26, b: s.y + 6 })) ?? spots[0]
+  ctx.fillText('지금의 나', spot.x, spot.y)
+  }
+  // 그때 · 지금
+  ctx.font = `28px ${sans}`; ctx.fillStyle = '#958A82'
+  ctx.textAlign = 'left'; ctx.fillText('그때', f.l, L.box + L.boxH - 40)
+  ctx.textAlign = 'right'; ctx.fillText('지금', W - f.r, L.box + L.boxH - 40)
 
-  // 순간 이름 (최대 6개)
-  y = 1290
-  pts.slice(0, 6).forEach((p) => {
+  // 순간 이름 (세로 6개 · 정사각형 3개)
+  y = L.list
+  pts.slice(0, L.n).forEach((p) => {
     momentLine(ctx, sans, 34, W / 2, y, W - 240, timeLabel(opts.timeScale, p.timePoint, [opts.start, opts.end]), p.title || '이름 없는 순간', 'center')
     y += 58
   })
-  if (opts.line) wrap(`“${opts.line}”`, Math.max(y + 60, 1700), `40px ${serif}`, '#514943', W - 220, 60)
-  center('그려봄 · 지나온 나를 그리고, 지금의 나를 만나다', H - 90, `28px ${serif}`, '#958A82')
-  return new Promise((res) => c.toBlob(res, 'image/png'))
+  if (opts.line && !sq) wrap(`“${opts.line}”`, Math.max(y + 60, L.line), `40px ${serif}`, '#514943', W - 220, 60)
+  center('그려봄 · 지나온 나를 그리고, 지금의 나를 만나다', H - (sq ? 40 : 90), `28px ${serif}`, '#958A82')
+  return c
 }
 
 /**
  * 올해 카드(4:5, 1080×1350): 월 기준 그래프를 한 해의 이야기로. 선 · 가장 환했던 순간 · 가장 무거웠던 순간 · 지금의 나 한 문장.
  * 회고는 넣지 않는다.
  */
-export async function exportYearCard(opts: {
+export interface YearOpts {
   heading: string; title: string; timeScale: TimeScale; start: number; end: number; points: GraphPoint[]; line?: string; color?: string; theme?: CardTheme; /** 손글씨(실험) */ hand?: boolean
-}): Promise<Blob | null> {
+}
+export async function exportYearCard(opts: YearOpts): Promise<Blob | null> {
   await document.fonts?.ready
+  const c = drawYearCard(opts, 1)
+  return c ? new Promise((res) => c.toBlob(res, 'image/png')) : null
+}
+/** 올해 카드 영상 (실험): 선이 1월부터 그려져요 */
+export async function exportYearVideo(opts: YearOpts) {
+  await document.fonts?.ready
+  return recordCard((k, c) => drawYearCard(opts, k, c))
+}
+function drawYearCard(opts: YearOpts, k: number, canvas?: HTMLCanvasElement): HTMLCanvasElement | null {
   const W = 1080, H = 1350
-  const c = document.createElement('canvas')
+  const c = canvas ?? document.createElement('canvas')
   c.width = W; c.height = H
   const ctx = c.getContext('2d')
   if (!ctx) return null
@@ -351,14 +476,13 @@ export async function exportYearCard(opts: {
   paintBg(ctx, W, H, opts.theme)
   ctx.fillStyle = 'rgba(149,138,130,0.07)'
   for (let x = 14; x < W; x += 28) for (let y = 14; y < H; y += 28) ctx.fillRect(x, y, 2, 2)
-  center('MY YEAR, MY LINE', 150, `600 28px ${sans}`, '#958A82')
-  center(opts.heading, 250, `700 76px ${sans}`, '#514943')
+  center('그려봄', 150, `700 46px ${opts.hand ? HAND : LOGO}`, '#958A82')
+  center(opts.heading, 250, `700 ${opts.heading.length > 10 ? 68 : 76}px ${serif}`, '#514943')
   center(fitLine(ctx, opts.title, W - 200, (px) => `${px}px ${serif}`, 34), 312, ctx.font, '#958A82')
 
   // 선 (달마다 계절 띠를 옅게)
   const f: Frame = { w: W, h: 820, l: 130, r: 130, t: 420, b: 40, start: opts.start, end: opts.end }
-  ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = '#F0E5DC'; ctx.lineWidth = 2
-  ctx.beginPath(); ctx.roundRect(80, 370, W - 160, 470, 36); ctx.fill(); ctx.stroke()
+  paperBoard(ctx, 80, 370, W - 160, 470, 36)
   const tint: Record<string, string> = { spring: 'rgba(240,170,180,0.10)', summer: 'rgba(120,190,170,0.10)', autumn: 'rgba(225,165,95,0.10)', winter: 'rgba(150,170,210,0.10)' }
   if (opts.timeScale === 'month') {
     for (let t = Math.ceil(opts.start); t <= opts.end; t++) {
@@ -371,11 +495,14 @@ export async function exportYearCard(opts: {
   ctx.setLineDash([8, 10]); ctx.strokeStyle = '#E4D6CB'
   ctx.beginPath(); ctx.moveTo(f.l, sy(f, 0)); ctx.lineTo(W - f.r, sy(f, 0)); ctx.stroke(); ctx.setLineDash([])
   const xy = spreadSameTime(pts.map((p) => ({ x: sx(f, p.timePoint), y: sy(f, p.emotionScore) })), 20, f.l, W - f.r)
+  const reveal = f.l - 20 + (W - f.r + 40 - (f.l - 20)) * k
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, reveal, H); ctx.clip()
   if (xy.length > 1) {
     ctx.strokeStyle = color; ctx.lineWidth = 6; ctx.lineCap = 'round'
     ctx.stroke(new Path2D(smoothPath(xy)))
   }
-  xy.forEach((p) => {
+  ctx.restore()
+  xy.filter((p) => p.x <= reveal).forEach((p) => {
     ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = color; ctx.lineWidth = 4
     ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
   })
@@ -397,7 +524,7 @@ export async function exportYearCard(opts: {
     center(`“${opts.line.length > 32 ? `${opts.line.slice(0, 31)}…` : opts.line}”`, Math.max(y + 30, 1190), `38px ${serif}`, '#514943')
   }
   center('그려봄 · 높은 곳도 깊은 곳도, 모두 지나 지금의 내가 되었어요', H - 60, `26px ${serif}`, '#958A82')
-  return new Promise((res) => c.toBlob(res, 'image/png'))
+  return c
 }
 
 export interface ReviewData {
@@ -421,15 +548,15 @@ export async function exportReviewCard(d: ReviewData): Promise<Blob | null> {
   const ctx = c.getContext('2d')
   if (!ctx) return null
   const sans = '"Pretendard Variable", Pretendard, "Apple SD Gothic Neo", sans-serif'
-  const serif = '"Gowun Batang", "AppleMyungjo", serif'
+  const serif = SERIF
   const center = (text: string, y: number, font: string, fill: string) => {
     ctx.font = font; ctx.fillStyle = fill; ctx.textAlign = 'center'; ctx.fillText(text, W / 2, y)
   }
   const clip = (s: string, n: number) => ([...s].length > n ? `${[...s].slice(0, n - 1).join('')}…` : s)
 
   ctx.fillStyle = '#FFF9F3'; ctx.fillRect(0, 0, W, H)
-  center('MY YEAR, MY LINE', 130, `600 26px ${sans}`, '#958A82')
-  center(`${d.year}년의 나`, 220, `64px ${serif}`, '#514943')
+  center('그려봄', 130, `700 44px ${LOGO}`, '#958A82')
+  center(`${d.year}년의 나`, 220, `700 64px ${serif}`, '#514943')
 
   // 숫자 셋
   const stats: [number, string][] = [[d.days, '한 줄을 남긴 날'], [d.graphs, '새로 그린 선'], [d.moments, '이 해의 순간']]
@@ -441,8 +568,7 @@ export async function exportReviewCard(d: ReviewData): Promise<Blob | null> {
   })
 
   // 마음 색 지도: 12줄 × 31칸
-  ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = '#F0E5DC'; ctx.lineWidth = 2
-  ctx.beginPath(); ctx.roundRect(90, 440, W - 180, 470, 32); ctx.fill(); ctx.stroke()
+  paperBoard(ctx, 90, 440, W - 180, 470, 32)
   const answered = new Set(d.answered)
   const cell = 21, gap = 3, left = 210, top = 480
   for (let m = 0; m < 12; m++) {
@@ -471,5 +597,27 @@ export async function exportReviewCard(d: ReviewData): Promise<Blob | null> {
   if (d.cheers && y < H - 200) { center(`모임에서 받은 응원 ${d.cheers}번`, y, `600 24px ${sans}`, '#958A82'); y += 60 }
   if (d.last && y < H - 140) center(`“${clip(d.last, 28)}”`, Math.max(y + 10, H - 150), `30px ${serif}`, '#7d726b')
   center('그려봄 · 한 줄씩, 한 해가 되었어요', H - 60, `24px ${serif}`, '#958A82')
+  return new Promise((res) => c.toBlob(res, 'image/png'))
+}
+
+/** 모임 리포트 한 장 (4:5, 1080×1350): 모임 이름 · 숫자 넷 · 누가 무엇을 그렸는지는 담지 않아요 */
+export async function exportGroupCard(d: { name: string; stats: [string, string][] }): Promise<Blob | null> {
+  await document.fonts?.ready
+  const W = 1080, H = 1350
+  const c = document.createElement('canvas'); c.width = W; c.height = H
+  const ctx = c.getContext('2d'); if (!ctx) return null
+  const center = (t: string, y: number, font: string, fill: string) => { ctx.font = font; ctx.fillStyle = fill; ctx.textAlign = 'center'; ctx.fillText(t, W / 2, y) }
+  paintBg(ctx, W, H, 'paper')
+  center('그려봄', 150, `700 46px ${LOGO}`, '#958A82')
+  center(d.name, 250, `700 70px ${SERIF}`, '#514943')
+  center(`${new Date().toLocaleDateString('ko-KR')} · 우리 모임의 흐름`, 312, `30px ${SERIF}`, '#958A82')
+  paperBoard(ctx, 90, 380, W - 180, 700, 36)
+  d.stats.slice(0, 4).forEach(([n, label], i) => {
+    const x = i % 2 ? W * 0.7 : W * 0.3, y = 560 + Math.floor(i / 2) * 290
+    ctx.textAlign = 'center'; ctx.fillStyle = '#514943'; ctx.font = `700 96px ${SERIF}`; ctx.fillText(n, x, y)
+    ctx.fillStyle = '#958A82'; ctx.font = `30px ${SERIF}`; ctx.fillText(label, x, y + 56)
+  })
+  center('누가 무엇을 그렸는지는 담지 않았어요', H - 150, `28px ${SERIF}`, '#958A82')
+  center('그려봄 · 서로의 선을 판단하지 않고 바라봐요', H - 70, `26px ${SERIF}`, '#958A82')
   return new Promise((res) => c.toBlob(res, 'image/png'))
 }

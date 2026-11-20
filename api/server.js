@@ -943,8 +943,18 @@ function sanitizeSite(b) {
 	return {
 		publicUrl,
 		developer: Object.values(developer).some(Boolean) ? developer : null,
-		operator: operator.name || operator.contact ? operator : null
+		operator: operator.name || operator.contact ? operator : null,
+		footer: t(b?.footer, 80),
+		policyDate: policyDate(b?.policyDate)
 	};
+}
+/** 시행일: 비우거나 YYYY-MM-DD 인 실제 날짜만 (2020~2100) */
+function policyDate(x) {
+	const s = clean(x).slice(0, 10);
+	if (!s) return "";
+	const d = /* @__PURE__ */ new Date(`${s}T00:00:00Z`);
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s || s < "2020-01-01" || s > "2100-12-31") throw new HttpError(400, "시행일은 실제 있는 날짜로 골라 주세요.");
+	return s;
 }
 function createApp(db, opts) {
 	const one = (sql, ...p) => db.prepare(sql).get(...p);
@@ -1993,7 +2003,7 @@ function createApp(db, opts) {
 		const u = me(c);
 		openCircle(memberOf(c.params.id, u.id).closed_at);
 		const g = ownGraph(str(c.body.graphId, 64), u.id);
-		if (g.visibility !== "link") throw new HttpError(403, "먼저 이 그래프를 '함께 나누기'로 바꿔 주세요.");
+		if (g.visibility !== "link") throw new HttpError(403, "먼저 이 그래프를 ‘함께 나누기’ 로 바꿔 주세요.");
 		const o = sanitizePostOptions(c.body.options);
 		if (!o) throw new HttpError(400, "나눌 내용을 읽지 못했어요.");
 		const id = upsertPost(c.params.id, u.id, g, o);
@@ -2120,6 +2130,7 @@ function createApp(db, opts) {
 	};
 	on("GET", "/config", () => {
 		const m = maintenance();
+		const t = lab("me") ? savedTerms() : null;
 		return {
 			...site(),
 			dev: !!opts.devServer,
@@ -2127,7 +2138,8 @@ function createApp(db, opts) {
 			...m?.on ? { maintenance: {
 				message: m.message,
 				at: m.at
-			} } : {}
+			} } : {},
+			...t ? { termsChange: t } : {}
 		};
 	});
 	on("GET", "/admin/maintenance", (c) => {

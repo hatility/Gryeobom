@@ -99,6 +99,12 @@ describe('그래프 이름표 자리', () => {
     const pts = [0, 1].map((i) => ({ x: 300 + i * 10, y: 150, title: '가나다라마바', up: true }))
     expect(layoutLabels(pts, area, 10, 1)[1]?.dy).toBe(-18)
   })
+
+  it('이름 없는 순간은 고른 점일 때만 이름표가 붙는다', () => {
+    const pts = [{ x: 200, y: 150, title: '', up: true }, { x: 400, y: 150, title: ' ', up: true }]
+    expect(layoutLabels(pts, area, 10)).toEqual([null, null])
+    expect(layoutLabels(pts, area, 10, 0)[0]?.text).toBe('이름 없는 순간')
+  })
 })
 
 describe('늦은 밤 모드', () => {

@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
+import { POLICY_DATE } from './Legal'
+import CountUp from '../components/CountUp'
+import { isValidElement, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactElement, type ReactNode } from 'react'
 import { downloadCsv, labOn, useLabs } from '../labs'
 import { FLAGS, OFFICIAL, type Flag } from '../flags'
 import type { DevChange, DevRelease, Scope } from '../devlog'
@@ -11,30 +13,30 @@ import { GroupInfoForm } from './GroupPage'
 type State = 'loading' | 'off' | 'login' | 'in'
 type Tab = 'home' | 'reports' | 'notice' | 'flags' | 'inquiries' | 'orgs' | 'dormant' | 'errors' | 'devlog' | 'server' | 'blocks' | 'privacy' | 'admins' | 'users' | 'groups' | 'posts' | 'links' | 'logins' | 'settings' | 'backup'
 const ROLE = { owner: '모임장', co: '공동 모임장', helper: '도우미', member: '함께하는 사람' } as const
-const SCALE = { age: '나이로', year: '연도로', month: '달로' } as Record<string, string>
+const SCALE = { age: '나이로', year: '연도로', month: '달로', hour: '시간으로' } as Record<string, string>
 
 /** 화면 하나하나: 이름 · 설명 */
 const TAB_INFO: Record<Tab, [string, string]> = {
   home: ['한눈에', '이번 주 흐름과 지금까지 쌓인 것을 한 화면에서 봐요.'],
   reports: ['신고함', '모임 사람들이 보낸 신고예요. 처리하지 않은 것이 위에 있어요.'],
-  inquiries: ['문의함', '‘문의하기’ 로 들어온 문의예요. 답을 적으면 문의한 사람의 ‘내 문의’ 에 보여요. 개인정보 요청이면 요청 대장으로 옮겨 10일 안에 처리해요.'],
-  notice: ['공지 · 점검', '사이트를 처음 열 때 한 번 뜨는 공지예요. 내용을 고치면 이미 본 사람에게도 다시 떠요. 점검 모드도 여기서.'],
+  inquiries: ['문의함', '‘문의하기’ 로 들어온 문의예요. 답은 문의한 사람의 ‘내 문의’ 에 보여요. 개인정보 요청은 요청 대장에 옮겨 적어요.'],
+  notice: ['공지 · 점검', '공지는 사이트를 열 때 한 번 떠요. 고쳐서 다시 올리면 이미 본 사람에게도 다시 떠요.'],
   users: ['사람', '가입한 사람과 모든 기록이에요. 기록은 운영에 꼭 필요할 때만 열어 봐 주세요.'],
   groups: ['모임', '모임 이름 · 소개를 고치거나, 함께하는 사람과 나눈 그래프를 봐요.'],
   posts: ['나눈 그래프', '모임에 나눈 그래프예요. 내려도 본인의 기록은 그대로 남아요.'],
-  links: ['공유 링크', '공유 링크로 나간 내용이에요 (회고는 담기지 않아요). 끄면 받은 사람도 더는 볼 수 없어요.'],
-  orgs: ['기관', '담당자가 ‘기관’ 화면(/org)에서 직접 등록하고, 모임장이 연결 코드로 모임을 이어요. 여기서는 모든 기관을 살펴보고 필요하면 고치거나 지워요.'],
-  privacy: ['요청 대장', '메일 · 전화 · 문의함으로 받은 열람 · 정정 · 삭제 · 처리정지 요청을 적어 두고 10일 안에 처리해요. 아래에 파기 기록.'],
-  dormant: ['휴면 계정', '오래 다녀가지 않은 계정을 골라 정리해요 (개인정보 보유 기간). 지우면 되돌릴 수 없어요.'],
-  logins: ['접속', '관리자 로그인 시도를 최근 300건까지 보여요. IP 에 별칭을 붙이면 누가 들어왔는지 알기 쉬워요.'],
-  blocks: ['요청 제한 · 차단', '로그인 실패나 너무 많은 요청으로 지금 막혀 있는 곳이에요. 수련관 · 교실처럼 여럿이 한 IP 를 쓰다 막혔다면 풀어 주세요.'],
-  errors: ['오류', '서버에서 난 오류(최근 500건)와 브라우저가 보낸 보안 정책 위반 보고예요. 누가 보냈는지는 남기지 않아요.'],
-  server: ['서버 상태', '설정 진단 · 가동 시간 · 메모리 · DB · 디스크 · 응답 속도 · 자동 백업 · DB 점검이에요.'],
-  backup: ['백업 · 복원', 'DB 를 파일 하나로 내려받거나, 그 파일로 되돌리거나, (개발 서버) 처음 상태로 비워요.'],
-  settings: ['사이트 설정', '약관 · 처리방침의 운영 정보, 공유 주소, 만든 사람 정보, 약관 다시 동의를 정해요.'],
-  flags: ['실험 기능 스위치', '1.1.0 부터 대부분 정식 기능이라 늘 켜져 있어요. 남은 실험 기능(보호자 동의)만 여기서 켜고 꺼요. 개발 테스트 서버는 늘 모두 켜져 있어요.'],
-  admins: ['관리자 계정', '함께 운영할 관리자를 더해요. ‘보기만’ 은 열어 볼 수만 있고, ‘바꾸기까지’ 는 지우기 · 설정도 할 수 있어요.'],
-  devlog: ['변경 내역', '개발 테스트 서버에서 바뀐 것을 무엇 · 어디에 · 어떻게 확인하는지와 함께 모았어요. ‘열기’ 는 새 탭으로 열려요.'],
+  links: ['공유 링크', '링크로 나간 그래프예요 (그때의 마음 · 지금의 나는 담기지 않아요). 끄면 받은 사람도 더는 못 봐요.'],
+  orgs: ['기관', '기관은 담당자가 /org 에서 직접 등록해요. 여기서는 모든 기관을 살펴보고 고치거나 지워요.'],
+  privacy: ['요청 대장', '메일 · 전화 · 문의함으로 받은 열람 · 정정 · 삭제 · 처리정지 요청을 적어 두고 10일 안에 처리해요.'],
+  dormant: ['휴면 계정', '처리방침의 보유 기간에 맞춰, 오래 다녀가지 않은 계정을 골라 정리해요. 지우면 되돌릴 수 없어요.'],
+  logins: ['접속', '관리자 로그인 시도 최근 300건이에요. IP 에 별칭을 붙이면 알아보기 쉬워요.'],
+  blocks: ['요청 제한 · 차단', '로그인 실패나 너무 많은 요청으로 막힌 곳이에요. 교실처럼 여럿이 한 IP 를 쓰다 막혔다면 풀어 주세요.'],
+  errors: ['오류', '서버 오류와 브라우저가 보낸 보안 정책 위반 보고예요. 누가 보냈는지는 남기지 않아요.'],
+  server: ['서버 상태', '서버가 잘 돌아가는지, 설정에 빠진 곳은 없는지 봐요.'],
+  backup: ['백업 · 복원', 'DB 를 파일로 내려받아 두고, 필요할 때 그 파일로 되돌려요.'],
+  settings: ['사이트 설정', '약관에 들어갈 운영 정보와 공유 주소 · 만든 사람을 정해요.'],
+  flags: ['실험 기능 스위치', '남은 실험 기능만 여기서 켜고 꺼요. ‘정식’ 묶음은 1.1.0 부터 늘 켜져 있어요.'],
+  admins: ['관리자 계정', '함께 운영할 관리자를 더해요.'],
+  devlog: ['변경 내역', '개발 서버에서 바뀐 것과 확인할 곳을 모았어요. ‘열기’ 는 새 탭으로 열려요.'],
 }
 /** 왼쪽 메뉴: 묶음 → [메뉴 이름, 그 안의 화면들]. 화면이 둘 이상이면 위에 작은 탭으로 */
 const NAV: [string, [string, Tab[]][]][] = [
@@ -290,7 +292,8 @@ export default function AdminPage() {
           )}
           <header className="admin-section-head">
             <div>
-              <h2>{view?.kind === 'user' ? `사람 · ${view.user.nickname}` : view?.kind === 'group' ? `모임 · ${view.group.name}` : title}</h2>
+              {/* 작은 탭이나 사람 카드가 이름을 이미 말하면 같은 말을 두 번 하지 않아요 (모임은 카드에 이름 머리가 없어 남겨요) */}
+              <h2 className={!view && siblings.length > 1 ? 'sr-only' : undefined}>{view?.kind === 'group' ? `모임 · ${view.group.name}` : title}</h2>
               {!view && <p className="muted small">{desc}</p>}
             </div>
             {searchable && (
@@ -388,13 +391,12 @@ export default function AdminPage() {
               empty={q ? '찾는 사람이 없어요.' : '아직 가입한 사람이 없어요.'}
               head={['별명', '그래프 (완성)', '모임', '나눈 그래프', '마지막 방문', '가입한 날', '']}
               rows={users.map((u) => [
-                <button key="n" type="button" className="admin-link" onClick={() => openUser(u.id)}>{u.nickname}</button>,
-                <span key="g">{u.graphCount} <small className="muted">({u.completedCount})</small></span>,
+                <button key="n" type="button" className="admin-link" title="자세히 보기" onClick={() => openUser(u.id)}>{u.nickname}</button>,
+                <span key="g" className="num">{u.graphCount} <small className="muted">({u.completedCount})</small></span>,
                 u.groupCount, u.postCount,
                 <span key="s" className={u.lastSeenAt ? '' : 'muted'}>{since(u.lastSeenAt)}</span>,
                 formatDate(u.createdAt),
                 <span key="d" className="admin-actions">
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => openUser(u.id)}>자세히</button>
                   <button type="button" className="btn btn-text danger btn-sm" onClick={() => remove('users', u.id, `‘${u.nickname}’ 계정을 지울까요? 그 사람의 모든 기록이 함께 지워지고 되돌릴 수 없어요.`)}>지우기</button>
                 </span>,
               ])}
@@ -404,9 +406,8 @@ export default function AdminPage() {
               empty={q ? '찾는 모임이 없어요.' : '아직 모임이 없어요.'}
               head={['이름', '모임장', '사람', '나눈 그래프', '참여 코드', '만든 날', '']}
               rows={groups.map((g) => [
-                <button key="n" type="button" className="admin-link admin-name" onClick={() => openGroup(g.id)}>{g.name}</button>, g.owner, g.memberCount, g.postCount, <code key="c">{g.code}</code>, formatDate(g.createdAt),
+                <button key="n" type="button" className="admin-link admin-name" title={g.name} onClick={() => openGroup(g.id)}>{g.name}</button>, g.owner, g.memberCount, g.postCount, <code key="c">{g.code}</code>, formatDate(g.createdAt),
                 <span key="d" className="admin-actions">
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => openGroup(g.id)}>보기 · 고치기</button>
                   <button type="button" className="btn btn-text danger btn-sm" onClick={() => remove('groups', g.id, `‘${g.name}’ 모임을 없앨까요? 모임에 나눈 그래프도 모두 내려가요.`)}>없애기</button>
                 </span>,
               ])}
@@ -416,7 +417,7 @@ export default function AdminPage() {
               empty={q ? '찾는 그래프가 없어요.' : '아직 나눈 그래프가 없어요.'}
               head={['제목', '나눈 사람', '모임', '나눈 날', '']}
               rows={posts.map((p) => [
-                <strong key="n" className="admin-name">{p.title || '이름 없는 이야기'}</strong>, p.nickname, <span key="g" className="admin-name">{p.groupName}</span>, formatDate(p.createdAt),
+                <strong key="n" className="admin-name" title={p.title}>{p.title || '이름 없는 이야기'}</strong>, p.nickname, <span key="g" className="admin-name" title={p.groupName}>{p.groupName}</span>, formatDate(p.createdAt),
                 <button key="d" type="button" className="btn btn-text danger btn-sm" onClick={() => remove('posts', p.id, `‘${p.title || '이름 없는 이야기'}’ 를 모임에서 내릴까요? (본인의 기록은 그대로 남아요)`)}>내리기</button>,
               ])}
             />
@@ -777,6 +778,12 @@ function DevlogTab() {
                           ))}
                         </ul>
                         {c.files && <p className="muted small devlog-files">코드 · {c.files}</p>}
+                        {c.shots && (
+                          <div className="devlog-shots">
+                            <figure><img src={c.shots[0]} alt="바꾸기 전" loading="lazy" /><figcaption>전</figcaption></figure>
+                            <figure><img src={c.shots[1]} alt="바꾼 뒤" loading="lazy" /><figcaption>후</figcaption></figure>
+                          </div>
+                        )}
                       </div>
                     )}
                   </li>
@@ -815,13 +822,13 @@ function DormantTab({ onDone }: { onDone: () => void }) {
           {[6, 12, 24].map((m) => <option key={m} value={m}>{m}개월 넘음</option>)}
         </select>
         {list && list.length > 0 && <button type="button" className="btn btn-text btn-sm" onClick={() => setPick(pick.size === list.length ? new Set() : new Set(list.map((u) => u.id)))}>{pick.size === list.length ? '모두 풀기' : '모두 고르기'}</button>}
-        <button type="button" className="btn btn-danger btn-sm" disabled={!pick.size} onClick={purge}>고른 {pick.size}개 정리하기</button>
+        {list && list.length > 0 && <button type="button" className="btn btn-danger btn-sm" disabled={!pick.size} onClick={purge}>고른 {pick.size}개 정리하기</button>}
       </div>
-      <p className="muted small">개인정보 처리방침의 보유 기간에 맞춰 정리해요. 정리하기 전 ‘DB 백업 내려받기’ 를 해 두면 안전해요. 지우는 순간에도 다시 확인해, 그 사이 다녀간 사람은 남겨요.</p>
+      <p className="muted small">정리하기 전 ‘DB 백업 내려받기’ 를 해 두면 안전해요. 지우는 순간에도 다시 확인해, 그 사이 다녀간 사람은 남겨요.</p>
       {msg && <p className="notice" role="status">{msg}</p>}
       <AdminTable
         head={['', '별명', '가입', '마지막으로 다녀감', '그래프']}
-        empty="휴면 계정이 없어요."
+        empty={`${months}개월 넘게 다녀가지 않은 계정이 없어요.`}
         rows={(list ?? []).map((u) => [
           <input key="c" type="checkbox" aria-label={`${u.nickname} 고르기`} checked={pick.has(u.id)} onChange={(e) => setPick((s) => { const n = new Set(s); if (e.target.checked) n.add(u.id); else n.delete(u.id); return n })} />,
           u.nickname, formatDate(u.createdAt), u.lastSeenAt ? formatDate(u.lastSeenAt) : '기록 없음', u.graphCount,
@@ -840,17 +847,22 @@ function ErrorsTab() {
   }, [])
   if (err) return <p className="alert" role="alert">{err}</p>
   if (!rows) return <p className="muted">불러오는 중이에요…</p>
-  if (!rows.length) return <p className="muted">최근 오류가 없어요. 잘 돌아가고 있어요.</p>
+  // 아래 보안 정책 카드와 같은 모양: 제목 + 목록(또는 한 줄)
   return (
-    <ul className="error-list">
-      {rows.map((r, i) => (
-        <li key={i} className="card">
-          <p className="small"><strong>{new Date(r.at).toLocaleString('ko-KR')}</strong> · <code>{r.method} {r.path}</code></p>
-          <p className="error-msg">{r.message}</p>
-          {r.stack && <details><summary className="muted small">자세히</summary><pre>{r.stack}</pre></details>}
-        </li>
-      ))}
-    </ul>
+    <section className="card admin-settings">
+      <h3 className="card-title">서버 오류 <small className="muted">· 최근 500건</small></h3>
+      {!rows.length ? <p className="muted small">최근 오류가 없어요. 잘 돌아가고 있어요.</p> : (
+        <ul className="error-list">
+          {rows.map((r, i) => (
+            <li key={i} className="error-item">
+              <p className="small"><strong>{new Date(r.at).toLocaleString('ko-KR')}</strong> · <code>{r.method} {r.path}</code></p>
+              <p className="error-msg">{r.message}</p>
+              {r.stack && <details><summary className="muted small">자세히</summary><pre>{r.stack}</pre></details>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 
@@ -931,10 +943,10 @@ function OrgsTab({ users }: { users: AdminOverview['users'] }) {
           head={['기관', '등록', '담당자', '모임', '']}
           empty=""
           rows={orgs.map((o) => [
-            <strong key="n">{o.name}</strong>,
+            <strong key="n" title={o.name}>{o.name}</strong>,
             formatDate(o.createdAt),
             o.managers.map((m) => m.nickname).join(', ') || <span key="m" className="muted">없음</span>,
-            <span key="g" title={o.groups.map((g) => `${g.name} ${g.code}`).join('\n')}>{o.groups.length}개</span>,
+            <span key="g" className="num" title={o.groups.map((g) => `${g.name} ${g.code}`).join('\n')}>{o.groups.length}개</span>,
             <span key="a" className="row-actions">
               <button type="button" className="btn btn-text btn-sm" onClick={() => setEdit({ id: o.id, name: o.name, codes: o.groups.map((g) => g.code).join(' '), managers: o.managers.map((m) => m.id) })}>고치기</button>
               <button type="button" className="btn btn-text btn-sm danger" onClick={() => remove(o)}>지우기</button>
@@ -1005,20 +1017,28 @@ function ResetCard({ onDone }: { onDone: () => void }) {
   )
 }
 
+const isEl = (x: ReactNode): x is ReactElement<{ className?: string }> => isValidElement(x)
 function AdminTable({ head, rows, empty }: { head: string[]; rows: ReactNode[][]; empty: string }) {
+  // 숫자 칸(모든 줄이 숫자, 또는 .num 을 단 칸)은 오른쪽 정렬
+  const num = head.map((_, j) => rows.length > 0 && rows.every((r) => typeof r[j] === 'number' || (typeof r[j] === 'string' && /^[\d,.]+ ?(개|번|건|곳|명|KB|MB)?$/.test(r[j] as string)) || (isEl(r[j]) && /\bnum\b/.test(String(r[j].props.className ?? '')))))
   return (
     <section>
       {rows.length === 0 ? (
-        <p className="muted small">{empty}</p>
+        <p className="card admin-empty muted">{empty}</p>
       ) : (
         <div className="table-wrap card">
           <table className="admin-table">
             <thead>
-              <tr>{head.map((h, i) => <th key={i} scope="col">{h}</th>)}</tr>
+              <tr>{head.map((h, i) => <th key={i} scope="col" className={num[i] ? 'num' : undefined}>{h}</th>)}</tr>
             </thead>
             <tbody>
               {rows.map((r, i) => (
-                <tr key={i}>{r.map((cell, j) => <td key={j}>{cell}</td>)}</tr>
+                <tr key={i}>{r.map((cell, j) => (
+                  <td key={j} className={num[j] ? 'num' : undefined}>
+                    {/* 긴 글은 한 줄로 줄이고 전체는 마우스를 올려 봐요 — 표가 본문보다 넓어지지 않게 */}
+                    {typeof cell === 'string' && cell.length > 12 ? <span className="admin-clip" title={cell}>{cell}</span> : cell}
+                  </td>
+                ))}</tr>
               ))}
             </tbody>
           </table>
@@ -1259,6 +1279,7 @@ function LoginsTab() {
 
 /** DB 백업 내려받기 (서버 옮길 때 · 정기 백업) */
 function BackupCard() {
+  const [started, setStarted] = useState(0)
   const [secretInDb, setSecretInDb] = useState(false)
   useEffect(() => {
     api.adminSettings().then((r) => setSecretInDb(r.secretInDb), () => {})
@@ -1273,12 +1294,11 @@ function BackupCard() {
         </p>
       )}
       <p className="muted small">
-        지금 DB 를 파일 하나(<code>.db</code>)로 내려받아요. 모든 계정 · 기록 · 회고가 들어 있으니 안전한 곳에만 보관해 주세요.
-        새 서버로 옮길 때는 이 파일을 새 서버에 넣으면 돼요 (방법은 배포 묶음의 README ‘서버 옮기기’).
+        지금 DB 를 파일 하나(<code>.db</code>)로 내려받아요. 모든 계정과 기록(그때의 마음 포함)이 들어 있으니 안전한 곳에만 보관해 주세요.
+        새 서버로 옮길 때는 이 파일을 넣고, <code>.env</code> 에 <code>AUTH_SECRET</code> 을 정해 두었다면 같은 값도 옮겨요 (README ‘서버 옮기기’).
+        한 시간마다 남는 자동 백업은 ‘서버 상태’ 에서 봐요.
       </p>
-      <a className="btn btn-primary" href="/api/admin/backup" download>DB 백업 내려받기</a>
-      <p className="muted small">서버도 한 시간에 하나씩 그려봄 폴더(docker-compose.yml 옆)의 <code>backups/auto-날짜-시.db</code> 로 자동 백업을 남겨요 (최근 <code>BACKUP_KEEP</code>개, 기본 168 = 7일). 같은 디스크 안이라 디스크가 고장 나면 함께 잃으니, 가끔은 여기서 내려받아 다른 곳에도 보관해 주세요.</p>
-      <p className="muted small">.env 의 <code>AUTH_SECRET</code> 을 정해 두었다면 새 서버에도 같은 값을 넣어야 모두 그대로 로그인할 수 있어요. 비워 두었다면 DB 안에 있어서 함께 옮겨져요.</p>
+      <a className="btn btn-primary" href="/api/admin/backup" download onClick={() => setStarted((n) => n + 1)}>DB 백업 내려받기</a>{started > 0 && <span key={started} className="stamp-done" role="status">내려받기 시작</span>}
     </section>
   )
 }
@@ -1311,27 +1331,28 @@ function Overview({ data, onUser, onReports }: { data: AdminOverview; onUser: (i
   const max = Math.max(1, ...s.daily.flatMap((d) => [d.signups, d.graphs]))
   const recent = data.users.filter((u) => u.lastSeenAt).sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt)).slice(0, 6)
   const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : '–')
-  const kpis: [string, ReactNode, string][] = [
+  const week = s.daily.slice(-7)
+  const kpis: [string, ReactNode, string, number[]?][] = [
     ['지금 (1시간 안)', s.online, '다녀간 사람'],
     ['이번 주 다녀간 사람', s.week.visitors, `가입한 사람의 ${pct(s.week.visitors, c.users)}`],
-    ['이번 주 새로 가입', s.week.signups, `모두 ${c.users}명`],
-    ['이번 주 새 그래프', s.week.graphs, `모두 ${c.graphs}개`],
+    ['이번 주 새로 가입', s.week.signups, `모두 ${c.users}명`, week.map((d) => d.signups)],
+    ['이번 주 새 그래프', s.week.graphs, `모두 ${c.graphs}개`, week.map((d) => d.graphs)],
     ['이번 주 모임에 나눔', s.week.posts, `모두 ${c.posts}개`],
     ['이번 주 응원', s.week.cheers, `모두 ${s.cheers}번`],
   ]
   return (
     <div className="admin-overview">
       {s.openReports > 0 && (
-        <button type="button" className="card admin-alert" onClick={onReports}>
+        <button type="button" className="card admin-alert-card" onClick={onReports}>
           <strong>처리하지 않은 신고 {s.openReports}건</strong>
-          <span className="muted small">신고함에서 살펴봐 주세요 →</span>
+          <span className="muted small">신고함에서 살펴봐 주세요 ›</span>
         </button>
       )}
       <ul className="admin-kpis">
-        {kpis.map(([label, n, sub]) => (
+        {kpis.map(([label, n, sub, series]) => (
           <li key={label} className="card">
             <span className="muted small">{label}</span>
-            <strong>{n}</strong>
+            <strong>{typeof n === 'number' ? <CountUp n={n} /> : n}{series && series.length > 1 && <Spark values={series} />}</strong>
             <small className="muted">{sub}</small>
           </li>
         ))}
@@ -1424,7 +1445,7 @@ function GroupPanel({ group, onClose, onSaved, onUser }: { group: AdminGroup; on
         <details key={p.id} className="admin-graph">
           <summary>
             <strong>{p.graph.title || '이름 없는 이야기'}</strong>
-            <span className="muted small"> · {p.nickname} · {formatDate(p.createdAt)} · 순간 {p.graph.entries.length}개{p.bound ? ' · 모임에서 그린 선' : ''}{p.graph.showTime ? '' : ' · 시점 숨김'}</span>
+            <span className="muted small"> · {p.nickname} · {formatDate(p.createdAt)} · 순간 {p.graph.entries.length}개{p.bound ? ' · 모임에서 그린 선' : ''}{p.graph.showTime ? '' : ' · 때 숨김'}</span>
           </summary>
           <LifeGraph
             tone={lineColorOf(p.graph.tone)}
@@ -1479,9 +1500,6 @@ function NoticeSettings() {
   }
   return (
     <section className="admin-settings-wrap">
-      <p className="muted small">
-        {d.on ? `지금 떠 있어요 · ${formatDate(d.at)} 에 올림` : '지금은 꺼져 있어요.'}
-      </p>
       <form
         className="card form-card admin-settings"
         onSubmit={(e) => {
@@ -1489,6 +1507,7 @@ function NoticeSettings() {
           save({ ...d, on: true }, '올렸어요. 사이트를 여는 사람에게 한 번 떠요.')
         }}
       >
+        <h3 className="card-title">공지 {d.on ? <span className="badge badge-dev">떠 있어요 · {formatDate(d.at)}</span> : <small className="muted">· 지금은 꺼져 있어요</small>}</h3>
         <label className="field">
           <span className="field-label">제목</span>
           <input value={d.title} maxLength={60} placeholder="예) 11월 23일 밤 점검 안내" onChange={(e) => setD({ ...d, title: e.target.value })} />
@@ -1525,14 +1544,14 @@ const EMPTY_SITE: SiteConfig = { publicUrl: null, developer: null, operator: nul
 
 /** 사이트 설정: 공유 주소 · 운영 기관 · 문의처 이메일 · 만든 사람. 저장하면 .env 대신 이 값을 쓴다. */
 function SiteSettings() {
-  const [d, setD] = useState<{ publicUrl: string; opName: string; opContact: string; devName: string; devOrg: string; devContact: string; devUrl: string } | null>(null)
+  const [d, setD] = useState<{ publicUrl: string; opName: string; opContact: string; devName: string; devOrg: string; devContact: string; devUrl: string; footer: string; policyDate: string } | null>(null)
   const [saved, setSaved] = useState(false)
   const [msg, setMsg] = useState('')
   const fill = (s: SiteConfig) =>
     setD({
       publicUrl: s.publicUrl ?? '',
       opName: s.operator?.name ?? '', opContact: s.operator?.contact ?? '',
-      devName: s.developer?.name ?? '', devOrg: s.developer?.org ?? '', devContact: s.developer?.contact ?? '', devUrl: s.developer?.url ?? '',
+      devName: s.developer?.name ?? '', devOrg: s.developer?.org ?? '', devContact: s.developer?.contact ?? '', devUrl: s.developer?.url ?? '', footer: s.footer ?? '', policyDate: s.policyDate ?? '',
     })
   useEffect(() => {
     api.adminSettings().then((r) => {
@@ -1561,7 +1580,6 @@ function SiteSettings() {
   )
   return (
     <section className="admin-settings-wrap">
-      <p className="muted small">{saved ? '지금은 관리자 화면에서 정한 값을 써요.' : '지금은 서버의 .env 값을 써요. 저장하면 이 값으로 바뀌어요.'}</p>
       <form
         className="card form-card admin-settings"
         onSubmit={(e) => {
@@ -1571,17 +1589,23 @@ function SiteSettings() {
             publicUrl: d.publicUrl.trim() || null,
             operator: { name: d.opName, contact: d.opContact },
             developer: { name: d.devName, org: d.devOrg, contact: d.devContact, url: d.devUrl },
+            footer: d.footer,
+            policyDate: d.policyDate,
           }), '저장했어요. 새로 여는 화면부터 바로 보여요.', true)
         }}
       >
-        <p className="field-label">이용약관 · 개인정보 처리방침</p>
+        <p className="muted small">{saved ? '지금은 관리자 화면에서 정한 값을 써요.' : '지금은 서버의 .env 값을 써요. 저장하면 이 값으로 바뀌어요.'}</p>
+        <p className="admin-form-section">이용약관 · 개인정보 처리방침</p>
         <div className="field-row">
           {field('운영 기관', 'opName', { max: 60, placeholder: '예) ○○청소년수련관', hint: '이용약관 · 처리방침에 운영자로 보여요.' })}
           {field('문의처 이메일', 'opContact', { type: 'email', max: 80, placeholder: 'privacy@example.kr', hint: '개인정보 처리방침 ‘11. 문의처’에 보여요.' })}
         </div>
-        <p className="field-label">주소</p>
-        {field('공유 링크 대표 주소', 'publicUrl', { type: 'url', placeholder: 'https://geuryeobom.kr', hint: '비우면 사용자가 접속한 주소를 그대로 써요.' })}
-        <p className="field-label">만든 사람 (/credits?tab=team)</p>
+        {field('시행일', 'policyDate', { type: 'date', hint: `이용약관 · 처리방침 맨 위 ‘시행일’ 과 부칙에 보여요. 비우면 ${POLICY_DATE}. 내용이 바뀌어 회원에게 다시 동의를 받으려면 아래 ‘약관 다시 동의’ 에서 바뀐 점을 올려 주세요. 시행 7일 전부터 알리는 게 원칙이에요.` })}
+        <p className="admin-form-section">사이트 아래</p>
+        {field('푸터 한 줄', 'footer', { max: 80, placeholder: '예) 그려봄은 ○○ 사업의 일환으로 만들었어요.', hint: '모든 화면 맨 아래에 작게 보여요. 비우면 안 보여요.' })}
+        <p className="admin-form-section">공유 링크</p>
+        {field('대표 주소', 'publicUrl', { type: 'url', placeholder: 'https://geuryeobom.kr', hint: '비우면 사용자가 접속한 주소를 그대로 써요.' })}
+        <p className="admin-form-section">만든 사람 <small className="muted">· /credits?tab=team</small></p>
         <div className="field-row">
           {field('이름', 'devName', { max: 40, placeholder: '그려봄 개발팀' })}
           {field('소속', 'devOrg', { max: 60 })}
@@ -1685,7 +1709,7 @@ function BlocksTab() {
   return (
     <>
       <div className="admin-toolbar">
-        <span className="muted small">{rows.length ? `지금 막힌 곳 ${rows.length}곳` : '지금 막힌 곳 없음'}</span>
+        <span className="muted small">{rows.length ? `지금 막힌 곳 ${rows.length}곳` : ''}</span>
         <button type="button" className="btn btn-ghost btn-sm" onClick={load}>새로 보기</button>
       </div>
       {!rows.length ? (
@@ -1763,14 +1787,17 @@ function PrivacyTab() {
   }
   return (
     <>
-      <p>
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => setEdit({ id: 'new', kind: '열람', who: '', detail: '', receivedAt: today, status: '받음', doneAt: '', note: '' })}>+ 요청 적기</button>
-        {rows && rows.length > 0 && <button type="button" className="btn btn-text btn-sm" onClick={() => downloadCsv('그려봄-개인정보-처리요청.csv', [['받은 날', '종류', '요청한 사람', '내용', '상태', '처리한 때', '처리 내용'], ...rows.map((r) => [r.receivedAt, r.kind, r.who, r.detail, r.status, r.doneAt, r.note])])}>CSV 로 내려받기</button>}
-      </p>
+      <div className="admin-toolbar">
+        <span className="muted small">{rows?.length ? `요청 ${rows.length}건` : ''}</span>
+        <span className="admin-actions">
+          {rows && rows.length > 0 && <button type="button" className="btn btn-text btn-sm" onClick={() => downloadCsv('그려봄-개인정보-처리요청.csv', [['받은 날', '종류', '요청한 사람', '내용', '상태', '처리한 때', '처리 내용'], ...rows.map((r) => [r.receivedAt, r.kind, r.who, r.detail, r.status, r.doneAt, r.note])])}>CSV 로 내려받기</button>}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEdit({ id: 'new', kind: '열람', who: '', detail: '', receivedAt: today, status: '받음', doneAt: '', note: '' })}>+ 요청 적기</button>
+        </span>
+      </div>
       {err && <p className="alert" role="alert">{err}</p>}
       <AdminTable
         head={['받은 날', '종류', '요청한 사람', '상태', '기한', '']}
-        empty="적어 둔 요청이 없어요."
+        empty="아직 적어 둔 요청이 없어요."
         rows={(rows ?? []).map((r) => {
           const open = r.status === '받음' || r.status === '처리 중'
           const due = dueOf(r.receivedAt)
@@ -1849,7 +1876,7 @@ function MaintenanceCard() {
   return (
     <form className={`card form-card admin-settings${m.on ? ' is-maint' : ''}`} onSubmit={(e) => { e.preventDefault(); save(true) }}>
       <h3 className="card-title">점검 모드 {m.on && <span className="badge badge-dev">켜져 있어요</span>}</h3>
-      <p className="muted small">서버를 옮기거나 백업을 되돌리기 전에 켜 두세요. 사람들은 보기만 할 수 있고 저장 · 가입 · 나누기가 잠시 멈춰요 (관리자 화면은 그대로). 작성 중인 글은 저장되지 않으니 짧게 써 주세요.</p>
+      <p className="muted small">서버를 옮기거나 백업을 되돌리기 전에 잠깐 켜요. 그동안 저장 · 가입 · 나누기가 멈추고, 쓰던 글은 저장되지 않아요 (관리자 화면은 그대로).</p>
       <label className="field">
         <span className="field-label">안내 한 줄 <em>(선택)</em> <small className="muted">{m.message.length}/200</small></span>
         <input value={m.message} maxLength={200} placeholder="예) 밤 11시 30분까지 서버를 옮겨요" onChange={(e) => setM({ ...m, message: e.target.value })} />
@@ -1972,7 +1999,7 @@ function CspCard() {
   return (
     <section className="card admin-settings">
       <h3 className="card-title">보안 정책(CSP) 위반 보고</h3>
-      <p className="muted small">브라우저가 막은 스크립트 · 글꼴 · 그림이 있으면 여기 쌓여요 (같은 것은 묶어서 횟수만). 확장 프로그램 때문에 생기는 것도 있어요. 주소 속 코드 · 토큰은 가려요.
+      <p className="muted small">브라우저가 막은 스크립트 · 글꼴 · 그림이에요 (같은 것은 묶어 횟수만, 주소 속 코드 · 토큰은 가려요). 확장 프로그램 때문에 생기는 것도 있어요.
         {rows.length > 0 && <> <button type="button" className="btn btn-text btn-sm" onClick={() => window.confirm('보고를 모두 비울까요?') && api.adminClearCsp().then(load, () => {})}>모두 비우기</button></>}
       </p>
       <AdminTable
@@ -2009,7 +2036,7 @@ function FlagsTab() {
           const official = OFFICIAL.includes(f.key)
           const on = official || !!d.flags[f.key]
           return (
-            <li key={f.key} className={`card flag-item${on || d.dev ? ' is-on' : ''}`}>
+            <li key={f.key} className={`card flag-item${on || d.dev ? ' is-on' : ''}${official ? ' is-official' : ''}`}>
               <label className="flag-switch">
                 <input type="checkbox" role="switch" checked={on} disabled={official} onChange={(e) => flip(f.key, e.target.checked)} />
                 <span className="flag-knob" aria-hidden="true" />
@@ -2020,7 +2047,7 @@ function FlagsTab() {
         })}
       </ul>
       {msg && <p className="muted small" role="status">{msg}</p>}
-      <p className="muted small">‘정식’ 묶음은 1.1.0 부터 늘 켜져 있어요. 남은 실험 기능은 켜기 전에 ‘변경 내역’ 과 테스트 체크리스트로 확인하고, 이용약관 · 개인정보 처리방침에 그 묶음의 문장이 함께 보이는지 살펴 주세요.</p>
+      <p className="muted small">실험 기능은 켜기 전에 ‘변경 내역’ 과 테스트 체크리스트로 확인하고, 이용약관 · 개인정보 처리방침에 그 묶음의 문장이 함께 보이는지 살펴 주세요.</p>
     </>
   )
 }
@@ -2036,7 +2063,7 @@ function InquiriesTab({ onChanged }: { onChanged: () => void }) {
   }, [])
   if (err) return <p className="alert" role="alert">{err}</p>
   if (!rows) return <p className="muted">불러오는 중이에요…</p>
-  if (!rows.length) return <p className="muted">아직 들어온 문의가 없어요. 로그인한 사람이 바닥글 ‘문의하기’ (모바일은 ‘나’) 에서 남길 수 있어요.</p>
+  if (!rows.length) return <div className="card admin-empty"><p className="serif">아직 들어온 문의가 없어요.</p><p className="muted small">로그인한 사람이 바닥글 ‘문의하기’ (모바일은 ‘나’) 에서 남길 수 있어요.</p></div>
   return (
     <ul className="inquiry-list">
       {rows.map((q) => (
@@ -2192,7 +2219,8 @@ function UpdateCard() {
   if (!newer(u.tag, __APP_VERSION__)) return <p className="muted small update-ok">최신 버전이에요 · 지금 v{__APP_VERSION__} (깃허브 최신 {u.tag})</p>
   return (
     <section className="card update-card" role="status">
-      <strong>새 버전 {u.tag} 이 나왔어요</strong> <span className="muted small">· 지금 v{__APP_VERSION__} · {formatDate(u.publishedAt)}</span>
+      <strong>새 버전 {u.tag} 이 나왔어요</strong>
+      <span className="muted small">{formatDate(u.publishedAt)} · 지금은 v{__APP_VERSION__}</span>
       <p className="muted small">올리기 전에 꼭 DB 백업을 내려받고, 릴리스 안내를 읽어 주세요.</p>
       <a className="btn btn-ghost btn-sm" href={u.url} target="_blank" rel="noreferrer">릴리스 보기 ↗</a>
     </section>
@@ -2209,11 +2237,23 @@ function PurgesCard() {
   const total = (k: string) => rows.filter((r) => r.kind === k).reduce((n, r) => n + r.count, 0)
   return (
     <section className="card admin-settings">
-      <h3 className="card-title">파기 기록 <small className="muted">· 탈퇴 {total('탈퇴')} · 휴면 정리 {total('휴면 정리')} · 관리자가 지움 {total('관리자가 지움')}</small></h3>
+      <h3 className="card-title">파기 기록 {rows.length > 0 && <small className="muted">· 탈퇴 {total('탈퇴')} · 휴면 정리 {total('휴면 정리')} · 관리자가 지움 {total('관리자가 지움')}</small>}</h3>
       <p className="muted small">계정과 기록을 지운 때와 건수만 남겨요 (누구인지는 남기지 않아요). 개인정보 점검 때 파기했다는 근거로 써요.
         {rows.length > 0 && <> <button type="button" className="btn btn-text btn-sm" onClick={() => downloadCsv('그려봄-파기기록.csv', [['때', '까닭', '건수'], ...rows.map((r) => [r.at, r.kind, r.count])])}>CSV 로 내려받기</button></>}
       </p>
       <AdminTable head={['때', '까닭', '건수']} empty="아직 지운 계정이 없어요." rows={rows.slice(0, 50).map((r) => [new Date(r.at).toLocaleString('ko-KR'), r.kind, r.count])} />
     </section>
+  )
+}
+
+/** 지난 7일 작은 추세선 (오늘이 오른쪽 끝 · 점으로) */
+function Spark({ values }: { values: number[] }) {
+  const max = Math.max(1, ...values), W = 64, H = 20
+  const pts = values.map((v, i) => [(i / (values.length - 1)) * (W - 4) + 2, H - 2 - (v / max) * (H - 4)])
+  return (
+    <svg className="kpi-spark" viewBox={`0 0 ${W} ${H}`} aria-label={`지난 7일 ${values.join(', ')}`} role="img">
+      <path d={pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')} pathLength={1} />
+      <circle cx={pts.at(-1)![0]} cy={pts.at(-1)![1]} r={2.2} />
+    </svg>
   )
 }

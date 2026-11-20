@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import EmptyDoodle from '../components/EmptyDoodle'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { markNewsSeen, useLabs } from '../labs'
 import QrCode from '../components/QrCode'
@@ -7,7 +8,7 @@ import { useAuth } from '../auth'
 import LifeGraph from '../components/LifeGraph'
 import HourRange from '../components/HourRange'
 import { CHEERS, MOMENT_EXAMPLES, NOW_QUESTIONS, PLAYBOOKS, QUESTION_SETS, lineColorOf, monthFull, monthIndex, presetLabel, scoreWord, signed, timeLabel } from '../content'
-import { exportImage, smoothPath, spreadSameTime } from '../graph'
+import { exportGroupCard, exportImage, smoothPath, spreadSameTime } from '../graph'
 import { GROUP_POST } from '../share'
 import { formatDate } from '../store'
 import type { GroupPreset, GroupPrompts, NowKey, ReflectKey } from '../types'
@@ -94,7 +95,7 @@ export default function GroupPage() {
           )}
         </div>
         {group.isManager ? (
-          <div className="code-box">
+          <div className={`code-box${copied === 'code' ? ' is-copied' : ''}`}>
             <span className="muted small">모임 참여 코드</span>
             <strong className="code">{group.code}</strong>
             <span className="code-actions">
@@ -187,9 +188,10 @@ export default function GroupPage() {
 
       {group.posts.length === 0 ? (
         <div className="card empty-state">
+          <EmptyDoodle />
           <p className="serif big">아직 나눈 선이 없어요.</p>
-          <p className="muted">내 그래프의 결과 화면에서 ‘공유하기’를 누르면 이 모임에 나눌 수 있어요.</p>
-          <Link to="/my" className="btn btn-primary">내 그래프 보러 가기</Link>
+          <p className="muted">내 그래프의 결과 화면에서 ‘나누기’를 누르면 이 모임에 나눌 수 있어요.</p>
+          <Link to="/my" className="btn btn-ghost">내 그래프 보러 가기</Link>
         </div>
       ) : (
         <>
@@ -352,8 +354,16 @@ function MembersPanel({ members, onRole, onTransfer }: {
  * 우리의 선: 모임에 나눈 선을 한 그래프에 옅게 겹친다. 기준(나이 · 연도 · 달)이 달라도
  * ‘그때 → 지금’의 상대 위치로 맞춰 그린다. 내 선만 진하게, 누구의 선인지는 이름 없이.
  */
-function TogetherLines({ posts }: { posts: GroupPost[] }) {
+export function TogetherLines({ posts }: { posts: GroupPost[] }) {
   const W = 640, H = 190, pad = 18
+  // 모두의 첫 순간이 한참 오른쪽이면(왼쪽 30% 넘게 비면) 가장 이른 첫 순간부터 펴서 보여요 — ‘지금’ 은 그대로 오른쪽 끝
+  const firstX = Math.min(...posts.map((p) => {
+    const g = p.graph, span = Math.max(1, g.currentPoint - g.startPoint)
+    const t = Math.min(...g.entries.map((e) => e.timePoint))
+    return Number.isFinite(t) ? pad + ((t - g.startPoint) / span) * (W - pad * 2) : pad
+  }))
+  const from = firstX > pad + (W - pad * 2) * 0.3 ? firstX - 24 : pad
+  const stretch = (x: number) => pad + ((x - from) / (W - pad - from)) * (W - pad * 2)
   const lines = posts
     .map((p) => {
       const g = p.graph
@@ -361,7 +371,7 @@ function TogetherLines({ posts }: { posts: GroupPost[] }) {
       const pts = [...g.entries]
         .sort((a, b) => a.timePoint - b.timePoint)
         .map((e) => ({ x: pad + ((e.timePoint - g.startPoint) / span) * (W - pad * 2), y: pad + ((5 - e.emotionScore) / 10) * (H - pad * 2) }))
-      const xy = spreadSameTime(pts, 10, pad, W - pad)
+      const xy = spreadSameTime(pts.map((q) => ({ ...q, x: stretch(q.x) })), 10, pad, W - pad)
       const last = xy[xy.length - 1]
       // 마지막 순간에서 ‘지금’까지는 점선으로 잇는다 (모두 지금에 닿도록)
       const trail = last && last.x < W - pad - 1 ? `M${last.x.toFixed(1)},${last.y.toFixed(1)} L${W - pad},${last.y.toFixed(1)}` : ''
@@ -378,12 +388,14 @@ function TogetherLines({ posts }: { posts: GroupPost[] }) {
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="together-svg" role="img" aria-label={`모임에 나눈 선 ${lines.length}개를 겹친 그림`}>
         <line x1={pad} x2={W - pad} y1={H / 2} y2={H / 2} className="together-base" />
-        {[...lines.filter((l) => !l.mine), ...lines.filter((l) => l.mine)].map((l) => (
-          <g key={l.id} className={`together-line${l.mine ? ' is-mine' : ''}`} stroke={l.color}>
-            <path d={l.d} />
+        {/* 한 사람씩 차례로 그려지고, 내 선은 맨 마지막에 — 모두 ‘지금’ 에 닿으면 지금 줄이 나타나요 */}
+        {[...lines.filter((l) => !l.mine), ...lines.filter((l) => l.mine)].map((l, i) => (
+          <g key={l.id} className={`together-line${l.mine ? ' is-mine' : ''}`} stroke={l.color} style={{ '--i': i } as CSSProperties}>
+            <path d={l.d} pathLength={1} />
             {l.trail && <path d={l.trail} className="together-trail" />}
           </g>
         ))}
+        <line x1={W - pad} x2={W - pad} y1={pad} y2={H - pad} className="together-now" style={{ '--n': lines.length } as CSSProperties} />
         <text x={pad} y={H - 2} className="together-note">그때</text>
         <text x={W - pad} y={H - 2} textAnchor="end" className="together-note">지금</text>
       </svg>
@@ -403,7 +415,7 @@ function Post({ post, open, onToggle, canRemove, onCheer, onRemove }: {
   const times = points.map((p) => p.timePoint)
   const spark: [number, number] = times.length > 1 && Math.max(...times) > Math.min(...times) ? [Math.min(...times), Math.max(...times)] : [g.startPoint, g.currentPoint]
   return (
-    <li className="card post">
+    <li className={`card post${post.createdAt && Date.now() - Date.parse(post.createdAt) < 30 * 60_000 ? ' is-new' : ''}`}>
       <details open={open} onToggle={(e) => e.currentTarget.open !== open && onToggle(e.currentTarget.open)}>
       <summary className="post-summary">
         <span className="post-summary-text">
@@ -465,14 +477,7 @@ function Post({ post, open, onToggle, canRemove, onCheer, onRemove }: {
       ) : (
         <div className="cheer-bar" role="group" aria-label={`${post.nickname}님에게 응원 보내기`}>
           <span className="cheer-bar-label">응원 보내기</span>
-          {CHEERS.map((k) => {
-            const on = post.myCheers.includes(k)
-            return (
-              <button key={k} type="button" className="cheer-btn" aria-pressed={on} onClick={() => onCheer(k)}>
-                {on && <span aria-hidden="true">✓ </span>}{k}
-              </button>
-            )
-          })}
+          {CHEERS.map((k) => <CheerButton key={k} kind={k} on={post.myCheers.includes(k)} onCheer={onCheer} />)}
         </div>
       )}
     </li>
@@ -520,9 +525,12 @@ function EventsCard({ group, onSaved }: { group: GroupDetail; onSaved: () => voi
   const [day, setDay] = useState('')
   const [title, setTitle] = useState('')
   const [err, setErr] = useState('')
+  // 날짜 · 할 일 칸은 ‘+ 더하기’ 를 눌렀을 때만 (비어 있어도 늘 펼쳐져 있던 것)
+  const [adding, setAdding] = useState(false)
   const all = group.events ?? []
   if (!labs || (!all.length && !crew(group))) return null
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
+  const tomorrow = new Date(Date.now() + 33 * 3600_000).toISOString().slice(0, 10)
   const events = all.filter((e) => e.day >= today)
   const past = all.filter((e) => e.day < today).reverse()
   const attend = (e: GroupEvent) => api.attend(group.id, e.id).then(onSaved, (x) => setErr(x.message))
@@ -532,19 +540,29 @@ function EventsCard({ group, onSaved }: { group: GroupDetail; onSaved: () => voi
       await api.addEvent(group.id, day, title.trim())
       setDay('')
       setTitle('')
+      setAdding(false)
       onSaved()
     } catch (e) {
       setErr(e instanceof Error ? e.message : '잠시 문제가 생겼어요.')
     }
   }
+  // 정한 활동이 하나도 없으면: 소식 · 주제와 같은 ‘+ 더하기’ 한 줄 카드
+  if (!all.length && !adding) {
+    return (
+      <button type="button" className="card topic-empty events-empty" onClick={() => setAdding(true)}>
+        <span className="news-label">다가오는 활동</span>
+        <span className="muted">+ 함께 모일 날을 정해 보세요</span>
+      </button>
+    )
+  }
   return (
     <section className="card events-card">
-      <p className="news-label">다가오는 활동{group.isHelper && !group.isManager && <Link to={`/groups/${group.id}/present`} className="btn btn-text btn-sm">큰 화면 진행 모드</Link>}</p>
+      <p className="news-label">다가오는 활동{group.isHelper && !group.isManager && <Link to={`/groups/${group.id}/present`} className="btn btn-text btn-sm">큰 화면으로 진행하기</Link>}</p>
       {events.length ? (
         <ul className="events-list">
           {events.map((e) => (
             <li key={e.id}>
-              <span className="event-day">{dayLabel(e.day)}{e.day === today && <b className="news-new">오늘</b>}</span>
+              <span className="event-day">{dayLabel(e.day)}{e.day === today && <b className="news-new">오늘</b>}{e.day === tomorrow && <b className="news-new is-soon">내일</b>}</span>
               <span className="event-title">{e.title}</span>
               {e.day === today && <AttendButton e={e} onClick={() => attend(e)} />}
               {crew(group) && <button type="button" className="btn btn-text btn-sm danger" onClick={() => api.removeEvent(group.id, e.id).then(onSaved, () => {})} aria-label={`${e.title} 일정 지우기`}>지우기</button>}
@@ -566,11 +584,13 @@ function EventsCard({ group, onSaved }: { group: GroupDetail; onSaved: () => voi
           </ul>
         </>
       )}
-      {crew(group) && (
+      {crew(group) && !adding && <button type="button" className="btn btn-text btn-sm events-add" onClick={() => setAdding(true)}>+ 활동 더하기</button>}
+      {crew(group) && adding && (
         <form className="event-form" onSubmit={(e) => { e.preventDefault(); add() }}>
           <input type="date" value={day} min={today} required aria-label="날짜" onChange={(e) => setDay(e.target.value)} />
           <input value={title} maxLength={40} required placeholder="예) ‘처음 해낸 일’ 함께 그리기" aria-label="무엇을 하나요" onChange={(e) => setTitle(e.target.value)} />
           <button type="submit" className="btn btn-ghost btn-sm">더하기</button>
+          <button type="button" className="btn btn-text btn-sm" onClick={() => setAdding(false)}>그만두기</button>
         </form>
       )}
       {err && <p className="alert" role="alert">{err}</p>}
@@ -666,14 +686,14 @@ function TopicCard({ group, onSaved }: { group: GroupDetail; onSaved: () => void
   if (!group.topic) {
     return (
       <button type="button" className="card topic-card topic-empty" onClick={() => { setText(''); setEdit(true) }}>
-        <span className="eyebrow">함께 그릴 주제</span>
+        <span className="news-label">함께 그릴 주제</span>
         <span className="muted">+ 모임 사람들과 함께 떠올릴 주제를 정해 보세요</span>
       </button>
     )
   }
   return (
     <section className="card topic-card">
-      <p className="eyebrow">함께 그릴 주제 · {formatDate(group.topicAt)}</p>
+      <p className="news-label">함께 그릴 주제 · {formatDate(group.topicAt)}</p>
       <p className="serif topic-text">{group.topic}</p>
       <span className="topic-actions">
         <Link to={`/graph/new?group=${group.id}`} className="btn btn-primary btn-sm">이 주제로 그리기</Link>
@@ -741,7 +761,15 @@ function ReportCard({ groupId, groupName }: { groupId: string; groupName: string
           ) : (
             <p className="muted small">선을 나눈 사람이 3명이 되면 마음의 흐름도 보여 드려요. (누구의 마음인지 짐작되지 않게)</p>
           )}
-          {labs && <button type="button" className="btn btn-ghost btn-sm no-print report-print" onClick={print}>리포트 인쇄 · PDF로 저장</button>}
+          {labs && <button type="button" className="btn btn-ghost btn-sm no-print report-print" onClick={print}>인쇄 · PDF로 저장</button>}
+          {labs && (
+            <button type="button" className="btn btn-ghost btn-sm no-print" onClick={async () => {
+              const blob = await exportGroupCard({ name: groupName, stats: [[`${pct(r.sharers, r.members)}%`, '선을 나눈 사람'], [String(r.done), '다 그린 선'], [String(r.moments), '함께 나눈 순간'], [String(r.cheers), '오간 응원']] })
+              if (!blob) return
+              const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `그려봄-${groupName}-리포트.png`; a.click()
+              setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+            }}>한 장 그림으로</button>
+          )}
         </div>
       )}
     </details>
@@ -1026,7 +1054,7 @@ function InviteExtras({ group, inviteUrl }: { group: GroupDetail; inviteUrl: str
   return (
     <span className="code-actions">
       <button type="button" className="btn btn-text btn-sm" onClick={() => dialog.current?.showModal()}>QR로 크게</button>
-      <Link to={`/groups/${group.id}/present`} className="btn btn-text btn-sm">큰 화면 진행 모드</Link>
+      <Link to={`/groups/${group.id}/present`} className="btn btn-text btn-sm">큰 화면으로 진행하기</Link>
       <dialog ref={dialog} className="dialog qr-dialog" aria-label="모임 참여 QR" onClick={(e) => e.target === e.currentTarget && dialog.current?.close()}>
         <h2 className="card-title qr-title">{group.name}</h2>
         <p className="muted small qr-hint">휴대폰 카메라로 찍으면 바로 들어와요</p>
@@ -1202,8 +1230,19 @@ function OrgLinkCard({ group, onSaved }: { group: GroupDetail; onSaved: () => vo
         <input value={code} maxLength={10} placeholder="기관 연결 코드 6자리" aria-label="기관 연결 코드" onChange={(e) => setCode(e.target.value.toUpperCase())} />
         <button type="submit" className="btn btn-ghost btn-sm" disabled={code.trim().length < 4}>잇기</button>
       </form>
-      <p className="muted small">이으면 기관 담당자가 이 모임의 흐름(나눈 사람 수 · 응원 수 같은 통계)만 봐요. 누가 무엇을 그렸는지 · 회고는 보이지 않아요.</p>
+      <p className="muted small">이으면 기관 담당자가 이 모임의 흐름(나눈 사람 수 · 응원 수 같은 통계)만 봐요. 누가 무엇을 그렸는지, 그때의 마음은 보이지 않아요.</p>
       {msg && <p className="muted small" role="status">{msg}</p>}
     </details>
+  )
+}
+
+/** 응원 버튼: 보낼 때 작은 마음이 버튼 위로 떠올라요 (누른 게 닿았다는 것) */
+function CheerButton({ kind, on, onCheer }: { kind: string; on: boolean; onCheer: (k: string) => void }) {
+  const [burst, setBurst] = useState(0)
+  return (
+    <button type="button" className="cheer-btn" aria-pressed={on} onClick={() => { if (!on) setBurst((n) => n + 1); onCheer(kind) }}>
+      {on && <span aria-hidden="true">✓ </span>}{kind}
+      {burst > 0 && <span key={burst} className="cheer-burst" aria-hidden="true">♥</span>}
+    </button>
   )
 }

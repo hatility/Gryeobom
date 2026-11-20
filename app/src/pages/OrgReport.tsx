@@ -1,4 +1,6 @@
+import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
+import CountUp from '../components/CountUp'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api, shareBase, type GroupSummary, type MyOrg } from '../api'
 import { useAuth } from '../auth'
@@ -36,9 +38,8 @@ export default function OrgHome() {
     <section className="container page org-page">
       <header className="page-head">
         <div>
-          <p className="eyebrow">기관</p>
-          <h1 className="page-title">내가 맡은 기관</h1>
-          <p className="muted">수련관 · 학교 · 복지관처럼 여러 모임을 꾸리는 곳이에요. 기관 담당자는 묶인 모임의 흐름(개인을 알 수 없는 통계)만 모아 봐요.</p>
+          <h1 className="page-title">기관</h1>
+          <p className="muted">수련관 · 학교 · 복지관처럼 여러 모임을 꾸리는 곳이에요.</p>
         </div>
       </header>
       <div className="org-home">
@@ -56,6 +57,10 @@ export default function OrgHome() {
               ))}
             </ul>
           )}
+          {/* 이미 기관이 있으면: 확인 세 줄까지 늘 펼쳐진 등록 양식 대신 접힌 한 줄 */}
+          {orgs?.length ? (
+            <details className="org-more">
+              <summary className="btn btn-text">+ 기관 하나 더 등록하기</summary>
           <form className="card form-card org-register" onSubmit={(e) => { e.preventDefault(); if (name.trim() && agreed) register() }}>
             <h2 className="card-title">{orgs?.length ? '기관 하나 더 등록하기' : '기관 등록하기'}</h2>
             <fieldset className="org-notice">
@@ -67,13 +72,34 @@ export default function OrgHome() {
                 </label>
               ))}
             </fieldset>
-            <p className="org-alt muted small">기관이 아니라 친구 · 동아리끼리라면 → <Link to="/share">모임 만들기 ›</Link></p>
+            <p className="org-alt muted small">기관이 아니라 친구 · 동아리끼리라면 <Link to="/share">모임 만들기 ›</Link></p>
             <div className="inline-form">
               <input value={name} maxLength={40} placeholder="예) ○○시 청소년수련관" aria-label="기관 이름" onChange={(e) => setName(e.target.value)} />
               <button type="submit" className="btn btn-primary btn-sm" disabled={!name.trim() || !agreed}>등록하기</button>
             </div>
             {err && <p className="alert" role="alert">{err}</p>}
           </form>
+            </details>
+          ) : (
+          <form className="card form-card org-register" onSubmit={(e) => { e.preventDefault(); if (name.trim() && agreed) register() }}>
+            <h2 className="card-title">{orgs?.length ? '기관 하나 더 등록하기' : '기관 등록하기'}</h2>
+            <fieldset className="org-notice">
+              <legend>기관 등록 전에 확인해 주세요</legend>
+              {ORG_NOTICE.map((t, i) => (
+                <label key={i} className="check">
+                  <input type="checkbox" checked={checks[i]} onChange={(e) => setChecks((c) => c.map((x, k) => (k === i ? e.target.checked : x)))} />
+                  <span>{t}</span>
+                </label>
+              ))}
+            </fieldset>
+            <p className="org-alt muted small">기관이 아니라 친구 · 동아리끼리라면 <Link to="/share">모임 만들기 ›</Link></p>
+            <div className="inline-form">
+              <input value={name} maxLength={40} placeholder="예) ○○시 청소년수련관" aria-label="기관 이름" onChange={(e) => setName(e.target.value)} />
+              <button type="submit" className="btn btn-primary btn-sm" disabled={!name.trim() || !agreed}>등록하기</button>
+            </div>
+            {err && <p className="alert" role="alert">{err}</p>}
+          </form>
+          )}
         </div>
         <aside className="card org-guide" aria-label="기관 쓰는 법">
           <h2 className="card-title">기관은 이렇게 써요</h2>
@@ -86,7 +112,6 @@ export default function OrgHome() {
             <p><strong>담당자가 볼 수 있는 것</strong><span className="muted small">모임 수 · 참여 인원 · 나눈 순간의 마음 분포 같은 전체 통계</span></p>
             <p><strong>볼 수 없는 것</strong><span className="muted small">누가 무엇을 그렸는지, 그때의 마음 · 지금의 나</span></p>
           </div>
-          <Link to="/share" className="btn btn-text btn-sm">기관이 아니라면 모임 만들기 ›</Link>
         </aside>
       </div>
     </section>
@@ -122,25 +147,25 @@ export function OrgDetail() {
     <section className="container page org-page">
       <header className="page-head">
         <div>
-          <Link to="/org" className="btn btn-text btn-sm no-print back-top">← 내가 맡은 기관</Link>
+          <Link to="/org" className="btn btn-text btn-sm no-print back-top">← 기관</Link>
           <h1 className="page-title">{org.name}</h1>
           <p className="muted">모임 {org.total.groups}개 · 함께하는 사람 {org.total.members}명 · 담당자 {org.managers.map((m) => m.nickname).join(', ')}</p>
         </div>
-        {tab === 'report' && <button type="button" className="btn btn-ghost no-print" onClick={() => window.print()}>인쇄 · PDF</button>}
+        {tab === 'report' && org.groups.length > 0 && <button type="button" className="btn btn-ghost no-print" onClick={() => window.print()}>인쇄 · PDF로 저장</button>}
       </header>
       <div className="org-tabs no-print" role="tablist">
         {([['report', '리포트'], ['groups', `모임 ${org.groups.length}`], ['people', '담당자 · 설정']] as const).map(([k, label]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} className="admin-subtab" onClick={() => setTab(k)}>{label}</button>
         ))}
       </div>
-      {tab === 'report' ? <OrgReportView org={org} range={range} setRange={setRange} />
+      {tab === 'report' ? <OrgReportView org={org} range={range} setRange={setRange} onGroups={() => setTab('groups')} />
         : tab === 'groups' ? <OrgGroups org={org} onChange={load} />
         : <OrgPeople org={org} onChange={load} onGone={() => navigate('/org')} />}
     </section>
   )
 }
 
-function OrgReportView({ org, range, setRange }: { org: MyOrg; range: [string, string] | null; setRange: (r: [string, string] | null) => void }) {
+function OrgReportView({ org, range, setRange, onGroups }: { org: MyOrg; range: [string, string] | null; setRange: (r: [string, string] | null) => void; onGroups: () => void }) {
   const now = new Date()
   const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   const q = Math.floor(now.getMonth() / 3)
@@ -150,7 +175,15 @@ function OrgReportView({ org, range, setRange }: { org: MyOrg; range: [string, s
     ['이번 분기', [ymd(new Date(now.getFullYear(), q * 3, 1)), ymd(now)]],
     ['올해', [`${now.getFullYear()}-01-01`, ymd(now)]],
   ]
-  if (!org.groups.length) return <p className="card muted">아직 묶인 모임이 없어요. ‘모임’ 탭에서 내 모임을 더하거나, 연결 코드를 모임장에게 알려 주세요.</p>
+  // 빈 화면: 지금 상태 + 첫 동작 버튼 (인쇄 버튼보다 이것이 먼저 눈에 들게)
+  if (!org.groups.length) {
+    return (
+      <div className="card empty-state org-empty">
+        <p className="muted">아직 묶인 모임이 없어요. ‘모임’ 탭에서 내 모임을 더하거나, 연결 코드를 모임장에게 알려 주세요.</p>
+        <button type="button" className="btn btn-primary" onClick={onGroups}>모임 잇기</button>
+      </div>
+    )
+  }
   return (
     <>
       <div className="stats-range org-range no-print">
@@ -165,10 +198,10 @@ function OrgReportView({ org, range, setRange }: { org: MyOrg; range: [string, s
       <article className="card org-card">
         <h2 className="card-title org-report-title">{org.name} <small className="muted"><span>{new Date().toLocaleDateString('ko-KR')} 기준</span> · <span>누가 무엇을 그렸는지는 보이지 않아요</span></small></h2>
         <ul className="stats-total">
-          <li><strong>{org.total.groups}</strong><span className="muted small">모임</span></li>
-          <li><strong>{org.total.members}</strong><span className="muted small">함께하는 사람</span></li>
+          <li><strong><CountUp n={org.total.groups} /></strong><span className="muted small">모임</span></li>
+          <li><strong><CountUp n={org.total.members} /></strong><span className="muted small">함께하는 사람</span></li>
           <li><strong>{pct(org.total.sharers, org.total.members)}%</strong><span className="muted small">선을 나눈 사람</span></li>
-          <li><strong>{org.total.done}</strong><span className="muted small">다 그린 선</span></li>
+          <li><strong><CountUp n={org.total.done} /></strong><span className="muted small">다 그린 선</span></li>
           <li><strong>{org.total.moments}</strong><span className="muted small">나눈 순간</span></li>
           <li><strong>{org.total.cheers}</strong><span className="muted small">오간 응원</span></li>
         </ul>
@@ -176,8 +209,8 @@ function OrgReportView({ org, range, setRange }: { org: MyOrg; range: [string, s
           <table className="stats-table">
             <thead><tr><th>모임</th><th>사람</th><th>나눈 사람</th><th>다 그린 선</th><th>그리는 중</th><th>나눈 순간</th><th>응원</th><th>이번 주 새 글</th></tr></thead>
             <tbody>
-              {org.groups.map((g) => (
-                <tr key={g.id}><td>{g.name}</td><td>{g.report.members}</td><td>{g.report.sharers} ({pct(g.report.sharers, g.report.members)}%)</td><td>{g.report.done}</td><td>{g.report.drawing}</td><td>{g.report.moments}</td><td>{g.report.cheers}</td><td>{g.report.newPosts}</td></tr>
+              {org.groups.map((g, i) => (
+                <tr key={g.id} style={{ '--i': i } as CSSProperties}><td>{g.name}</td><td>{g.report.members}</td><td>{g.report.sharers} ({pct(g.report.sharers, g.report.members)}%)<span className="org-bar" aria-hidden="true"><i style={{ width: `${pct(g.report.sharers, g.report.members)}%` }} /></span></td><td>{g.report.done}</td><td>{g.report.drawing}</td><td>{g.report.moments}</td><td>{g.report.cheers}</td><td>{g.report.newPosts}</td></tr>
               ))}
             </tbody>
           </table>
@@ -239,7 +272,7 @@ function OrgGroups({ org, onChange }: { org: MyOrg; onChange: () => void }) {
       </section>
       <section className="card">
         <h2 className="card-title">다른 모임장의 모임 잇기</h2>
-        <p className="muted small">아래 연결 코드를 모임장에게 알려 주세요. 모임장이 자기 모임 화면의 ‘기관에 잇기’ 에 적으면 이 기관에 묶여요. 모임 회원들에게는 기관이 보이지 않아요.</p>
+        <p className="muted small">이 연결 코드를 모임장에게 알려 주세요. 모임 화면의 ‘기관에 잇기’ 에 적으면 묶여요. 모임 회원에게는 기관이 보이지 않아요.</p>
         <p className="org-code"><span className="muted small">연결 코드</span><strong>{org.code}</strong>
           <button type="button" className="btn btn-text btn-sm" onClick={() => navigator.clipboard?.writeText(org.code).then(() => setMsg('연결 코드를 복사했어요.'), () => {})}>복사</button>
           <button type="button" className="btn btn-text btn-sm" onClick={() => window.confirm('연결 코드를 새로 만들까요? 예전 코드는 더 쓸 수 없어요 (이미 묶인 모임은 그대로).') && act(api.newOrgCode(org.id), '새 연결 코드를 만들었어요.')}>새로 만들기</button>
@@ -298,11 +331,13 @@ function OrgPeople({ org, onChange, onGone }: { org: MyOrg; onChange: () => void
 function OrgNews({ org }: { org: MyOrg }) {
   const [text, setText] = useState('')
   const [msg, setMsg] = useState('')
+  const [lit, setLit] = useState(0)
   const send = async (news: string) => {
     if (!news && !window.confirm(`${org.groups.length}개 모임의 소식을 모두 내릴까요?`)) return
     try {
       const r = await api.orgNews(org.id, news)
       setMsg(news ? `${r.groups}개 모임에 소식을 올렸어요.` : '모든 모임의 소식을 내렸어요.')
+      setLit(news ? r.groups : 0)
       setText('')
     } catch (e) {
       setMsg(e instanceof Error ? e.message : '잠시 문제가 생겼어요.')
@@ -319,6 +354,7 @@ function OrgNews({ org }: { org: MyOrg }) {
           <button type="button" className="btn btn-text btn-sm danger" onClick={() => send('')}>모두 내리기</button>
         </div>
         {msg && <p className="muted small" role="status">{msg}</p>}
+        {lit > 0 && <span className="org-news-dots" aria-hidden="true">{Array.from({ length: Math.min(lit, 12) }, (_, n) => <i key={n} style={{ '--i': n } as CSSProperties} />)}</span>}
       </form>
     </details>
   )
@@ -342,7 +378,7 @@ export function OrgInvite() {
       <div className="card form-card auth-card">
         <p className="eyebrow">기관 담당자 초대</p>
         <h1 className="card-title">‘{info.name}’ 의 담당자가 되어 주세요</h1>
-        <p className="muted">모임 {info.groups}개의 리포트를 모아 볼 수 있어요. 누가 무엇을 그렸는지 · 회고는 보이지 않아요.</p>
+        <p className="muted">모임 {info.groups}개의 리포트를 모아 볼 수 있어요. 누가 무엇을 그렸는지, 그때의 마음은 보이지 않아요.</p>
         {info.already ? (
           <Link to="/org" className="btn btn-primary btn-block">이미 담당자예요 · 기관 보기</Link>
         ) : user ? (

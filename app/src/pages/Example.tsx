@@ -10,7 +10,7 @@ const moment = (id: string, timePoint: number, emotionScore: number, title: stri
   id, title, timePoint, emotionScore, emotionLabel, description, showOnGraph: true,
   reflection: { feeling: '', why: '', now: '', toPast, fromPast: '' },
 })
-const SAMPLE: Graph = {
+export const SAMPLE: Graph = {
   ...newGraph(),
   id: 'example',
   title: '봄이의 열여섯 해',
@@ -37,7 +37,7 @@ export default function Example() {
         <p className="muted">0살부터 지금까지 · 다섯 개의 순간</p>
       </header>
 
-      <section className="card graph-card">
+      <section className="card graph-card is-done">{/* 완성 장면과 같이: 선 → 점 → 지금의 나 (한 번) */}
         <LifeGraph points={graphPoints(g)} timeScale={g.timeScale} start={g.startPoint} end={g.currentPoint} />
         <p className="hint center">점을 눌러 보세요. 그때의 이야기가 나와요.</p>
       </section>
@@ -71,6 +71,7 @@ export default function Example() {
         <p className="serif big">이제 나의 선을 그려볼까요?</p>
         <p className="muted small">정답은 없어요. 떠오르는 순간 하나면 시작할 수 있어요.</p>
         <Link to="/graph/new" className="btn btn-primary">나의 그래프 그리기</Link>
+        <Link to="/graph/new?ghost=example" className="btn btn-ghost">이 선 위에 내 선 그려 보기</Link>
       </aside>
     </article>
   )

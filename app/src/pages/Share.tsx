@@ -1,7 +1,8 @@
+import EmptyDoodle from '../components/EmptyDoodle'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { api, shareBase, type GroupSummary } from '../api'
-import { downloadCsv, useLabs } from '../labs'
+import { downloadCsv, newsSeen, useLabs } from '../labs'
 import { useAuth } from '../auth'
 import LifeGraph from '../components/LifeGraph'
 import { GroupInfoForm } from './GroupPage'
@@ -11,7 +12,7 @@ import { decodeShared, sanitizeShared, type SharedGraph } from '../share'
 const PRINCIPLES = [
   ['기본은 나만 보기', '나누기는 내가 고를 때만 열려요.'],
   ['내가 고른 것만', '나눌 순간을 하나씩 직접 골라요.'],
-  ['마음 기록은 나만', '회고는 공유 링크 · 모임에 나가지 않아요.'],
+  ['마음 기록은 나만', '그때의 마음 · 지금의 나는 공유 링크 · 모임에 나가지 않아요.'],
   ['평가하지 않아요', '점수도 순위도 없어요.'],
 ]
 
@@ -46,7 +47,8 @@ function SharedView({ shared }: { shared: SharedGraph }) {
         <h1 className="page-title">{shared.title || '누군가의 작은 인생 이야기'}</h1>
         <p className="muted">누군가 용기 내어 나눠 준 선이에요. 판단하기보다 천천히 바라봐 주세요.</p>
       </header>
-      <section className="card graph-card">
+      {/* 처음 보는 사람에게: 선이 그려지고 → 순간이 하나씩 놓이고 → 지금의 나 (완성 장면과 같은 한 번) */}
+      <section className="card graph-card is-done">
         <LifeGraph tone={lineColorOf(shared.tone)}
           points={shared.entries.map((e, i) => ({ ...e, id: `s${i}` }))}
           timeScale={shared.timeScale}
@@ -70,10 +72,13 @@ function SharedView({ shared }: { shared: SharedGraph }) {
           ))}
         </ol>
       )}
-      <aside className="card soft-card center">
-        <p className="serif big">다른 사람과 달라도 괜찮아요.</p>
-        <p className="muted small">이 페이지는 나눠 준 사람이 고른 내용만 보여줘요. 그때의 마음 기록은 담기지 않아요.</p>
-        <Link to="/graph/new" className="btn btn-primary">나도 나의 선 그려보기</Link>
+      {/* 끝맺음: 첫 화면 마무리와 같은 계절빛 판 — 보고 난 사람이 바로 자기 선을 그리러 */}
+      <aside className="closing section-tight">
+        <div className="closing-band">
+          <p className="closing-text serif">다른 사람과 달라도 괜찮아요.<br />나의 선도 그려 볼까요?</p>
+          <Link to="/graph/new" className="btn btn-primary btn-lg">나의 그래프 그리기</Link>
+          <p className="muted small">나눠 준 사람이 고른 순간만 보여요. 그때의 마음 기록은 담기지 않아요.</p>
+        </div>
       </aside>
     </article>
   )
@@ -90,7 +95,7 @@ export default function Share() {
   if (shared) return <SharedView shared={shared} />
 
   return (
-    <section className="container page">
+    <section className="container page share-page">
       <header className="page-head">
         <div>
           <p className="eyebrow en">TOGETHER, GENTLY</p>
@@ -160,7 +165,7 @@ function GroupsHub() {
             return (
               <li key={g.id}>
                 <Link to={`/groups/${g.id}`} className="group-row">
-                  <span className="group-row-name">{g.name}</span>
+                  <span className="group-row-name">{g.name}{g.news && !newsSeen(g.id, g.newsAt ?? '') && <i className="row-new" title="새 소식" aria-label="새 소식" />}</span>
                   {org && <span className="badge badge-soft group-row-org">{org.name}</span>}
                   <small className="muted">{g.memberCount}명{roleText(g)}</small>
                   <span className="group-row-go" aria-hidden="true">›</span>
@@ -170,7 +175,7 @@ function GroupsHub() {
           })}
         </ul>
       ) : (
-        <p className="muted">아직 들어간 모임이 없어요. 선생님께 받은 코드로 들어가거나, 새 모임을 만들어 봐요.</p>
+        <div className="empty-inline"><EmptyDoodle /><p className="muted">아직 들어간 모임이 없어요. 선생님께 받은 코드로 들어가거나, 새 모임을 만들어 봐요.</p></div>
       )}
       {/* 끝난 모임은 접어서 보관 */}
       {closed.length > 0 && (
@@ -277,7 +282,7 @@ function BulkGroups({ onDone }: { onDone: () => void }) {
             </tbody>
           </table>
           <div className="form-actions no-print">
-            <button type="button" className="btn btn-ghost" onClick={print}>인쇄 · PDF</button>
+            <button type="button" className="btn btn-ghost" onClick={print}>인쇄 · PDF로 저장</button>
             <button type="button" className="btn btn-text" onClick={() => downloadCsv('그려봄-모임-참여코드.csv', [['모임', '참여 코드', '초대 링크'], ...made.map((g) => [g.name, g.code, `${base}/join/${g.code}`])])}>표로 내려받기 (CSV)</button>
           </div>
         </div>
