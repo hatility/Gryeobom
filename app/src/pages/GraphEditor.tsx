@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { confirmDialog } from '../components/confirm'
 import { smoothPath, spreadSameTime, sx, sy, type Frame } from '../graph'
 import { SAMPLE } from './Example'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
+import { useNavigate } from '../nav'
 import LifeGraph from '../components/LifeGraph'
 import HourRange from '../components/HourRange'
 import { EASY_Q, STARTERS, EMOTIONS, QUESTION_SETS, setOf, setByAge, WORD_CARDS, questionsOf, NOW_QUESTIONS, STEPS, HELPLINE, EMOTION_NOTES, LINE_COLORS, WEEKS, eul, lineColorOf, iga, monthFull, monthIndex, rangeLabel, scoreWord, signed, timeLabel, timeParts, fromParts, presetLabel, presetRange, hourInput, hourOf, monthInput, monthOf, rangeValid, todayAt, withPrompts, momentExamples } from '../content'
@@ -19,6 +21,14 @@ const THIS_MONTH = monthIndex()
 const LIMITS: Record<'age' | 'year', [number, number]> = { age: [0, 120], year: [1900, THIS_YEAR] }
 /** 1단계에서 고르는 시간 기준. 달로: 시작 달 ~ 끝 달 (예전의 ‘최근 12개월’ · ‘올해’ 를 하나로). 시간으로(실험): 하루 · 며칠의 시각 */
 const CHOICES: [TimeScale, string][] = [['age', '나이로'], ['year', '연도로'], ['month', '달로'], ['hour', '시간으로']]
+/** 틀 (1.3.0): 선 하나 활동 · 1단계 ‘틀 고르기’ — 기간과 이름만 미리 (새 그래프에만) */
+export const TEMPLATES: { key: string; label: string; make: () => Partial<Graph> }[] = [
+  { key: 'today', label: '오늘 하루', make: () => ({ timeScale: 'hour', startPoint: todayAt(7), currentPoint: todayAt(Math.max(8, new Date().getHours())), title: '오늘 하루의 선' }) },
+  { key: 'week', label: '이번 주', make: () => { const d = new Date(); const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return { timeScale: 'hour', startPoint: todayAt(8, mon), currentPoint: todayAt(Math.max(9, d.getHours())), title: '이번 주의 선' } } },
+  { key: 'year', label: '올해', make: () => ({ timeScale: 'month', startPoint: THIS_YEAR * 12, currentPoint: THIS_MONTH, title: `${THIS_YEAR}년의 선` }) },
+  { key: 'term', label: '이번 학기', make: () => { const m = new Date().getMonth(); const start = m >= 8 ? 8 : m >= 2 ? 2 : 8; const y = m < 2 ? THIS_YEAR - 1 : THIS_YEAR; return { timeScale: 'month', startPoint: y * 12 + start, currentPoint: THIS_MONTH, title: '이번 학기의 선' } } },
+  { key: 'firsts', label: '처음 해낸 일', make: () => ({ timeScale: 'age', startPoint: 0, currentPoint: 17, title: '처음 해낸 일들' }) },
+]
 const defaultRange = (c: TimeScale): [number, number] =>
   c === 'age' ? [0, 17] : c === 'year' ? [THIS_YEAR - 17, THIS_YEAR] : c === 'month' ? [THIS_MONTH - 11, THIS_MONTH] : [todayAt(9), todayAt(18)]
 /** 그래프 기간 안에서의 시점 이름 (시각이면 하루 안은 시각만) */
@@ -40,6 +50,7 @@ export default function GraphEditor() {
   // undefined = 불러오는 중, null = 없음
   const [graph, setGraph] = useState<Graph | null | undefined>(() => (id ? undefined : newGraph()))
   const [save, setSave] = useState<'idle' | 'saving' | 'saved' | 'error'>(id ? 'saved' : 'idle')
+  const [savedAt, setSavedAt] = useState('') // 마지막으로 저장된 시각 (HH:MM)
   const dirty = useRef(false)
   const persisted = useRef(!!id)
   const queue = useRef<Promise<unknown>>(Promise.resolve())
@@ -74,6 +85,13 @@ export default function GraphEditor() {
   const [past, setPast] = useState<Graph | null>(null)
   // 예시 위에 내 선 그려 보기(?ghost=example): 예시 선을 흐리게 깔아 두기만 (기간 · 제목은 내 것)
   const exampleGhost = !id && params.get('ghost') === 'example'
+  // 틀(?tpl=): 선 하나 활동에서 왔을 때 — 새 그래프에, 쓰기 시작 전에만
+  const tpl = !id ? params.get('tpl') : null
+  useEffect(() => {
+    const t = TEMPLATES.find((x) => x.key === tpl)
+    if (!t || persisted.current || dirty.current) return
+    setGraph((g) => g && { ...g, ...t.make() })
+  }, [tpl])
   useEffect(() => {
     if (exampleGhost) return setPast(SAMPLE)
     if (!pastId) return setPast(null)
@@ -139,6 +157,7 @@ export default function GraphEditor() {
         if (removed.current || finishing.current) return
         const ok = await repo.save(graph)
         setSave(ok ? 'saved' : 'error')
+        if (ok) setSavedAt(new Date().toTimeString().slice(0, 5))
         if (ok && !persisted.current) {
           persisted.current = true
           navigate(`/graph/${graph.id}/edit${location.search}`, { replace: true })
@@ -257,7 +276,7 @@ export default function GraphEditor() {
           )}
           <p key={save} className={`save-badge is-${save}`} role="status">
             {save === 'saved'
-              ? `✓ ${where}에 저장`
+              ? `✓ ${where}에 저장${savedAt ? ` · ${savedAt}` : ''}`
               : save === 'saving'
                 ? '저장하는 중…'
                 : save === 'error'
@@ -323,7 +342,7 @@ export default function GraphEditor() {
             type="button"
             className="btn btn-ghost danger"
             onClick={async () => {
-              if (!window.confirm('이 그래프를 지울까요? 적은 순간과 마음이 모두 지워지고 되돌릴 수 없어요.')) return
+              if (!await confirmDialog('이 그래프를 지울까요? 적은 순간과 마음이 모두 지워지고 되돌릴 수 없어요.')) return
               removed.current = true
               await queue.current
               await repo.remove(graph.id)
@@ -363,11 +382,11 @@ function StepTime({ graph, update, group, onDone }: { graph: Graph; update: Upda
   const choice = graph.timeScale
   const lim = LIMITS[graph.timeScale === 'year' ? 'year' : 'age']
   // 기준을 바꿔도 이미 적은 순간은 새 범위 안의 같은 비율 위치로 옮긴다 (구간 띠는 단위가 달라 비운다)
-  const setChoice = (next: TimeScale) => {
+  const setChoice = async (next: TimeScale) => {
     if (next === choice) return
     // 잘못 눌러도 이미 적은 순간들이 조용히 옮겨져 저장되지 않게 (되돌리려면 ‘고치기 전 모습’ 뿐이다)
     const label = CHOICES.find(([c]) => c === next)?.[1] ?? ''
-    if (graph.entries.length && !window.confirm(`기준을 ‘${label}’ 로 바꾸면 적어 둔 순간 ${graph.entries.length}개의 때가 새 기간 안으로 옮겨져요${graph.stages?.length ? ' (인생 구간 띠는 비워져요)' : ''}. 바꿀까요?`)) return
+    if (graph.entries.length && !await confirmDialog(`기준을 ‘${label}’ 로 바꾸면 적어 둔 순간 ${graph.entries.length}개의 때가 새 기간 안으로 옮겨져요${graph.stages?.length ? ' (인생 구간 띠는 비워져요)' : ''}. 바꿀까요?`)) return
     const [start, end] = defaultRange(next)
     const span = Math.max(1, graph.currentPoint - graph.startPoint)
     update({
@@ -410,6 +429,9 @@ function StepTime({ graph, update, group, onDone }: { graph: Graph; update: Upda
         </div>
       ) : (
         <>
+        {!graph.entries.length && (
+          <p className="tpl-row"><span className="muted small">틀 고르기 ·</span>{TEMPLATES.map((t) => <button key={t.key} type="button" className="chip" onClick={() => update({ ...t.make(), monthRange: undefined, stages: undefined })}>{t.label}</button>)}</p>
+        )}
         <fieldset className="field">
           <legend className="field-label">어떤 기준으로 시간을 셀까요?</legend>
           <div className="segmented">
@@ -735,8 +757,11 @@ function StepMoments({ graph, update, removeEntry, onPlaced, past }: {
   useEffect(() => {
     const d = dialog.current
     if (!d) return
-    if (openId && !d.open) d.showModal()
-    else if (!openId && d.open) d.close()
+    if (openId && !d.open) {
+      d.showModal()
+      // 창이 열리면 제목(h2)이 아니라 이름 칸부터 — 점을 찍자마자 이름을 붙일 수 있게 (휴대폰에서 다시 열 때는 자판이 가리지 않게 그대로)
+      d.querySelector<HTMLElement>('[data-autofocus]')?.focus()
+    } else if (!openId && d.open) d.close()
   }, [openId])
 
   const add = (timePoint: number, score = 0, title = '', dropIfBlank = false) => {
@@ -782,7 +807,7 @@ function StepMoments({ graph, update, removeEntry, onPlaced, past }: {
             {isMobile()
               ? '빈 곳을 누르면 더해지고, 점을 누르면 고칠 수 있어요.'
               : '빈 곳을 눌러 더하고, 점을 끌어 옮겨요.'}
-            <span className="kbd-hint"> · 키보드: Tab 으로 고르고 화살표로 옮겨요</span>
+            <span className="kbd-hint"> · 키보드: 그래프 판에서 Enter 로 더하고, Tab 으로 골라 화살표로 옮겨요</span>
           </p>
         )}
         <LifeGraph tone={lineColorOf(graph.lineColor)}
@@ -926,6 +951,7 @@ function EntryForm({ entry: d, graph, isNew, onChange, onClose, onDismiss, onDel
           maxLength={40}
           // 이미 적은 순간을 다시 열 때는 폰 자판이 화면을 가리지 않게 바로 입력칸으로 가지 않는다
           autoFocus={isNew || !paged}
+          data-autofocus={isNew || !paged ? '' : undefined}
           placeholder="예) 새로운 친구를 만났던 날"
           onChange={(e) => set({ title: e.target.value })}
         />
@@ -1031,7 +1057,7 @@ function EntryForm({ entry: d, graph, isNew, onChange, onClose, onDismiss, onDel
     >
       <div className="entry-form-head">
         {/* 폰에서 이미 적은 순간을 열 때는 제목에 머문다 (자판 · ✕ 테두리가 먼저 뜨지 않게) */}
-        <h2 id="entry-dialog-title" className="card-title" tabIndex={-1} autoFocus={paged && !isNew}>{isNew ? '새로운 순간' : '이 순간 다시 보기'}</h2>
+        <h2 id="entry-dialog-title" className="card-title" tabIndex={-1} autoFocus={paged && !isNew}>{isNew ? '이 순간에 이름을 붙여요' : '이 순간 다시 보기'}</h2>
         <small className="muted">적는 대로 저장돼요</small>
         {/* 모바일 · 태블릿: 이미 적은 순간은 위쪽에서 지운다 (아래는 이전 · 다음만) */}
         {paged && !isNew && <button type="button" className="btn btn-text btn-sm danger entry-delete" onClick={onDelete}>지우기</button>}

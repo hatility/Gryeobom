@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import QrCode from '../components/QrCode'
+import { shareBase } from '../api'
 import { Link } from 'react-router'
 import { NOW_QUESTIONS, QUESTION_SETS } from '../content'
 import { useLabs } from '../labs'
@@ -13,6 +15,8 @@ export default function Worksheet() {
   const [rows, setRows] = useState(6)
   const [title, setTitle] = useState('나의 인생 그래프')
   const [scale, setScale] = useState<'age' | 'year'>('age')
+  const [base, setBase] = useState('')
+  useEffect(() => { shareBase().then(setBase) }, [])
   if (!labs) {
     return (
       <section className="container page empty-state">
@@ -24,9 +28,14 @@ export default function Worksheet() {
   const qs = QUESTION_SETS[set].questions
   return (
     <section className="container page worksheet-page">
+      <header className="page-head no-print">
+        <div>
+          <p className="eyebrow en">PAPER FIRST</p>
+          <h1 className="page-title">종이 활동지</h1>
+          <p className="muted">기기 없이 교실에서 먼저 그려 보고, 나중에 그려봄에 옮겨 적을 수 있어요. A4 한두 장으로 인쇄돼요.</p>
+        </div>
+      </header>
       <div className="worksheet-options no-print card">
-        <h1 className="page-title">종이 활동지</h1>
-        <p className="muted">기기 없이 교실에서 먼저 그려 보고, 나중에 그려봄에 옮겨 적을 수 있어요. A4 한두 장으로 인쇄돼요.</p>
         <div className="field-row">
           <label className="field">
             <span className="field-label">활동지 제목</span>
@@ -61,6 +70,7 @@ export default function Worksheet() {
           <p className="ws-brand"><span className="ws-logo">그려봄</span>활동지</p>
           <h2>{title}</h2>
           <p className="ws-meta"><span>이름(별명) ______________</span><span>날짜 ______________</span></p>
+          {base && <div className="ws-qr"><QrCode text={`${base}/graph/new`} size={64} label="그려봄에서 그리기" pad={1} /><small>다 적으면 QR 로<br />그려봄에 옮겨요</small></div>}
         </header>
 
         <h3>1. 나의 선 그리기</h3>

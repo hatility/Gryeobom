@@ -1,3 +1,4 @@
+import './boardFrame' // 실험(사이트 지도 보드): 보드 노드 안이면 시계 · 저장소 · 서버 응답을 먼저 바꿔 둔다
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'

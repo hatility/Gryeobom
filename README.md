@@ -10,7 +10,7 @@
 
 <br>
 
-![version](https://img.shields.io/badge/version-1.2.0-E6A79A?style=flat-square)
+![version](https://img.shields.io/badge/version-1.3.0-E6A79A?style=flat-square)
 ![license](https://img.shields.io/badge/license-AGPL--3.0-A9C7B8?style=flat-square)
 ![React](https://img.shields.io/badge/React-19-D8C9E9?style=flat-square&logo=react&logoColor=514943)
 ![Node](https://img.shields.io/badge/Node-24-F3D7A5?style=flat-square&logo=nodedotjs&logoColor=514943)
@@ -18,7 +18,7 @@
 ![Docker](https://img.shields.io/badge/Docker-ready-94BEDF?style=flat-square&logo=docker&logoColor=white)
 ![mobile](https://img.shields.io/badge/PC%20%C2%B7%20Mobile-ready-E6A79A?style=flat-square)
 
-[**📦 내려받기**](https://github.com/hatility/Gryeobom/releases/latest) · [**📖 사용 설명서**](docs/GUIDE.md) · [**🆕 1.2.0 에서 달라진 것**](#-120-에서-달라진-것) · [**🚀 우리 기관에서 열기**](#-우리-기관에서-열기)
+[**📦 내려받기**](https://github.com/hatility/Gryeobom/releases/latest) · [**📖 사용 설명서**](docs/GUIDE.md) · [**🆕 1.3.0 에서 달라진 것**](#-130-에서-달라진-것) · [**🚀 우리 기관에서 열기**](#-우리-기관에서-열기)
 
 </div>
 
@@ -69,7 +69,26 @@
 
 <p align="center"><img src="docs/divider.svg" alt="" width="60%"></p>
 
-## 🆕 1.2.0 에서 달라진 것
+## 🆕 1.3.0 에서 달라진 것
+
+> 더 많은 화면과 더 매끄러운 흐름, 그리고 검색에도 나오게 — 처음 온 사람부터 진행자 · 운영자까지 한 번에 다듬었어요.
+
+| | 무엇이 | 어떻게 |
+|:---:|---|---|
+| 🧭 | **새 화면 열 곳** | 1분 투어 · 오늘의 한 줄 모아보기 · 마음 서랍 · 편지함 · 내 흐름 · 소식함 · 진행자 안내서 · 선 하나 활동 · 모임 앨범 · 함께 그리기(큰 화면) · 내 기록 한 권(PDF) |
+| ✏️ | **그리기 흐름** | 틀 고르기(오늘 하루 · 이번 주 · 올해 · 이번 학기 · 처음 해낸 일), 저장 시각 표시, 점을 찍으면 바로 이름 칸, 완성 직후 ‘다음에 할 일’, 멈춘 단계 기억 |
+| 🤝 | **모임 · 기관** | 모임장 첫 체크리스트, 모임장이 정한 오늘의 질문, 모임별 소식 · 주제 · 활동 켜고 끄기, 기관 ‘이번 주 할 일’ · 이번 달 리포트 PDF, 활동지 QR |
+| 🎁 | **간직하고 나누기** | 선물 링크(봉투를 열어 보는 공유 링크), 기록 찾기, 별 표시, 종이 결(보기 설정) |
+| ♿ | **반응 · 접근성** | 브라우저 확인 창을 그려봄 모양 물음 창으로, 키보드로 점 찍기, 낭독기 요약 문장, 계절빛 포커스 링, 누르기 영역 40px, 조용한 시간 안내 |
+| 🎨 | **바탕 통일 · 푸터** | 반경 · 그림자 · 버튼 · 탭 · 제목 단계를 하나로, 푸터는 종이 카드 한 장(로고 · 그리기 · 함께 · 정보 · 만든 곳) |
+| 🔍 | **검색에 나오게** | 공개 화면마다 제목 · 설명 · 대표 주소, `/sitemap.xml` · `/robots.txt` 자동 생성, 미리 그린 HTML(네이버 · 다음용), 구조화 데이터 |
+| 🛡️ | **운영** | 신고 처리 메모 템플릿, 백업을 외부 폴더에도 한 벌, 보안 점검 고침. 실험: 로그인 하나로(관리자도 그려봄 계정으로) · 사이트 지도 보드 |
+
+전체는 [CHANGELOG.md](CHANGELOG.md) 에, 화면마다 어디에 있는지는 관리자 → **변경 내역** 에 있어요.
+
+<details>
+<summary><b>🆕 1.2.0 에서 달라진 것</b></summary>
+<br>
 
 > 종이 일기장처럼, 새 옷을 입었어요 — 손글씨 로고 · 종이 결 · 계절빛 하늘, 그리고 무슨 일이 일어나는지 보이는 작은 장면들.
 
@@ -92,6 +111,8 @@
 | ⚖️ | **약관 시행일 · 푸터** | 관리자 ‘사이트 설정’ 에서 시행일을 고르면 약관 날짜와 ‘최근에 바뀐 점’ 이, 운영 기관 소개 한 줄은 모든 화면 아래에 |
 
 전체는 [CHANGELOG.md](CHANGELOG.md) 에 있어요.
+
+</details>
 
 <details>
 <summary><b>🆕 1.1.0 에서 달라진 것</b></summary>
@@ -244,16 +265,34 @@
 
 ## 🚀 우리 기관에서 열기
 
-[**Releases**](https://github.com/hatility/Gryeobom/releases/latest) 에서 `geuryeobom-v1.2.0.zip` 을 받아 서버에 풀고:
+[**Releases**](https://github.com/hatility/Gryeobom/releases/latest) 에서 `geuryeobom-v1.3.0.zip` 을 받아 서버에 풀고:
 
 ```bash
-cd v1.2.0
+cd v1.3.0
 cp .env.example .env     # 관리자 계정 · AUTH_SECRET · 운영 기관 · 문의처 이메일
 docker compose up -d --build
 ```
 
 > [!TIP]
 > 이 저장소 맨 위의 `docker-compose.yml` · `api/` · `web/` 도 같은 배포 묶음이라, 저장소를 받아 바로 `docker compose up -d --build` 해도 돼요.
+
+<details>
+<summary><b>⬆️ 1.2.0 에서 올리기</b></summary>
+<br>
+
+1.3.0 은 서버가 처음 뜰 때 DB 에 칸 몇 개(신고 처리 메모 · 관리자 접속 기록의 계정 · 별 표시)를 스스로 더해요. 되돌리려면 백업이 필요하니 **백업 내려받기** 를 먼저 해 두고, 새 폴더에 풀어 쓰던 `.env` 를 옮긴 뒤:
+
+```bash
+cd v1.3.0
+cp ../v1.2.0/.env .env
+docker compose up -d --build
+```
+
+올린 뒤:
+- 관리자 **설정 → 약관 다시 동의** 에 바뀐 점 한 줄을 올리면 회원이 다음에 들어올 때 다시 동의해요 (시행일은 2026-11-24 로 들어 있어요)
+- 검색에 나오게 하려면 `공개주소/sitemap.xml` 이 열리는지 보고, 네이버 서치어드바이저 · 구글 서치 콘솔에 제출해요 (묶음 README ‘검색에 나오게 하기’)
+
+</details>
 
 <details>
 <summary><b>⬆️ 1.1.x 에서 올리기</b></summary>

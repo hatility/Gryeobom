@@ -1,9 +1,11 @@
 import EmptyDoodle from '../components/EmptyDoodle'
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { confirmDialog } from '../components/confirm'
+import { type ReactNode, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { Link, useParams } from 'react-router'
+import { useNavigate } from '../nav'
 import { markNewsSeen, useLabs } from '../labs'
 import QrCode from '../components/QrCode'
-import { api, ApiError, REPORT_REASONS, shareBase, type GroupDetail, type GroupMember, type GroupReport, type GroupPost, type ReportReason, type GroupEvent } from '../api'
+import { api, ApiError, REPORT_REASONS, shareBase, type GroupDetail, type GroupHideable, type GroupMember, type GroupReport, type GroupPost, type ReportReason, type GroupEvent } from '../api'
 import { useAuth } from '../auth'
 import LifeGraph from '../components/LifeGraph'
 import HourRange from '../components/HourRange'
@@ -71,7 +73,7 @@ export default function GroupPage() {
   }
 
   const act = async (fn: () => Promise<unknown>, confirmText?: string) => {
-    if (confirmText && !window.confirm(confirmText)) return
+    if (confirmText && !await confirmDialog(confirmText)) return
     setErr('')
     try {
       await fn()
@@ -141,12 +143,14 @@ export default function GroupPage() {
       )}
 
       {!group.closedAt && <GroupStart group={group} onSaved={load} />}
+      {group.isManager && !group.closedAt && <LeaderChecklist group={group} inviteUrl={inviteUrl} />}
 
       <div className="group-now">
         <NewsCard group={group} onSaved={load} />
         <TopicCard group={group} onSaved={load} />
         <EventsCard group={group} onSaved={load} />
       </div>
+      {group.isManager && !group.closedAt && <GroupSwitches group={group} onSaved={load} />}
       {!group.isManager && <QuestionSetCard group={group} onSaved={load} />}
 
       <MembersCard
@@ -196,7 +200,7 @@ export default function GroupPage() {
       ) : (
         <>
         <div className="post-tools">
-          <span className="muted small">나눈 선 {group.posts.length}개 · 눌러서 펼쳐 봐요</span>
+          <span className="muted small">나눈 선 {group.posts.length}개 · 눌러서 펼쳐 봐요 · <Link to={`/groups/${group.id}/album`}>앨범으로 보기</Link>{crew(group) && <> · <Link to={`/groups/${group.id}/live`}>함께 그리기 (큰 화면)</Link></>}</span>
           <button
             type="button"
             className="btn btn-text btn-sm"
@@ -528,7 +532,7 @@ function EventsCard({ group, onSaved }: { group: GroupDetail; onSaved: () => voi
   // 날짜 · 할 일 칸은 ‘+ 더하기’ 를 눌렀을 때만 (비어 있어도 늘 펼쳐져 있던 것)
   const [adding, setAdding] = useState(false)
   const all = group.events ?? []
-  if (!labs || (!all.length && !crew(group))) return null
+  if (!labs || group.hidden?.includes('events') || (!all.length && !crew(group))) return null
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
   const tomorrow = new Date(Date.now() + 33 * 3600_000).toISOString().slice(0, 10)
   const events = all.filter((e) => e.day >= today)
@@ -598,6 +602,28 @@ function EventsCard({ group, onSaved }: { group: GroupDetail; onSaved: () => voi
   )
 }
 
+/** 1.3.0: 이 모임에서 안 쓰는 것 끄기 — 모임 소식 · 함께 그릴 주제 · 다가오는 활동 (모임장 · 공동 모임장). 끄면 모임 화면 · 첫 화면에서 사라지고, 켜면 그대로 돌아온다 */
+function GroupSwitches({ group, onSaved }: { group: GroupDetail; onSaved: () => void }) {
+  const labs = useLabs('group')
+  const [err, setErr] = useState('')
+  if (!labs) return null
+  const hidden = group.hidden ?? []
+  const toggle = (k: GroupHideable) => api.setHidden(group.id, hidden.includes(k) ? hidden.filter((x) => x !== k) : [...hidden, k]).then(onSaved, (e) => setErr(e.message))
+  return (
+    <div className="group-switches">
+      <span className="muted small">이 모임에서 쓰기</span>
+      {([['news', '모임 소식'], ['topic', '함께 그릴 주제'], ['events', '다가오는 활동']] as const).map(([k, label]) => (
+        <label key={k} className={hidden.includes(k) ? 'is-off' : ''}>
+          <input type="checkbox" checked={!hidden.includes(k)} onChange={() => toggle(k)} />
+          {label}
+        </label>
+      ))}
+      <span className="muted small">끄면 모임 사람들에게도 안 보여요 · 다시 켜면 그대로 돌아와요</span>
+      {err && <span className="alert" role="alert">{err}</span>}
+    </div>
+  )
+}
+
 /** 모임 소식 — 모임장 · 공동 모임장이 모임 사람들에게 (첫 화면에도 ‘새 소식’ 으로) */
 function NewsCard({ group, onSaved }: { group: GroupDetail; onSaved: () => void }) {
   const labs = useLabs('group')
@@ -607,7 +633,7 @@ function NewsCard({ group, onSaved }: { group: GroupDetail; onSaved: () => void 
   useEffect(() => {
     if (group.news && group.newsAt) markNewsSeen(group.id, group.newsAt)
   }, [group.id, group.news, group.newsAt])
-  if (!labs || (!group.news && !crew(group))) return null
+  if (!labs || group.hidden?.includes('news') || (!group.news && !crew(group))) return null
   const save = async (news: string) => {
     setErr('')
     try {
@@ -656,7 +682,7 @@ function TopicCard({ group, onSaved }: { group: GroupDetail; onSaved: () => void
   const [edit, setEdit] = useState(false)
   const [text, setText] = useState(group.topic)
   const [err, setErr] = useState('')
-  if (!group.topic && !group.isManager) return null
+  if (group.hidden?.includes('topic') || (!group.topic && !group.isManager)) return null
   const save = async (topic: string) => {
     setErr('')
     try {
@@ -726,7 +752,7 @@ function ReportCard({ groupId, groupName }: { groupId: string; groupName: string
         <span className="muted small">누가 무엇을 그렸는지는 보이지 않아요. 모임 전체의 흐름만 담았어요.</span>
       </summary>
       {!r ? (
-        <p className="muted small">불러오는 중이에요…</p>
+        <p className="muted small is-loading">불러오는 중이에요…</p>
       ) : (
         <div className="report-body">
           <div className="report-print-head print-show">
@@ -965,6 +991,44 @@ function GroupStart({ group, onSaved }: { group: GroupDetail; onSaved: () => voi
   )
 }
 
+/** 모임장의 첫 체크리스트 (1.3.0): 모임을 막 만들었을 때 할 일 다섯 가지 — 된 것은 저절로 ✓, 다 되거나 접으면 사라진다 */
+function LeaderChecklist({ group, inviteUrl }: { group: GroupDetail; inviteUrl: string }) {
+  const key = `geuryeobom:gchk:${group.id}`
+  const [hidden, setHidden] = useState(() => { try { return !!localStorage.getItem(key) } catch { return false } })
+  const [copied, setCopied] = useState(false)
+  const hide = () => { setHidden(true); try { localStorage.setItem(key, '1') } catch { /* 기억 못 하면 다음에 또 보일 뿐 */ } }
+  const off = (k: GroupHideable) => group.hidden?.includes(k)
+  const items: [string, boolean, ReactNode][] = [
+    ['함께 그릴 시간 정하기', !!group.preset, '위 ‘시간 정하기’ 에서'],
+    ['초대 링크 보내기', group.members.length > 1, inviteUrl ? <button type="button" className="btn btn-text btn-sm" onClick={() => navigator.clipboard?.writeText(inviteUrl).then(() => setCopied(true), () => {})}>{copied ? '복사했어요' : '초대 링크 복사'}</button> : null],
+    ...(off('topic') ? [] : [['함께 그릴 주제 한 줄', !!group.topic, '아래 ‘함께 그릴 주제’ 에서'] as [string, boolean, ReactNode]]),
+    ...(off('events') ? [] : [['첫 활동 날짜 적기', !!group.events?.length, '아래 ‘다가오는 활동’ 에서'] as [string, boolean, ReactNode]]),
+    ['내 선 먼저 그려 보기', group.posts.some((p) => p.mine), <Link to={`/graph/new?group=${group.id}`} className="btn btn-text btn-sm">이 모임에서 그리기</Link>],
+  ]
+  const done = items.filter((i) => i[1]).length
+  if (hidden || done === items.length) return null
+  return (
+    <section className="card leader-check" aria-label="모임장 첫 체크리스트">
+      <div className="leader-check-head">
+        <div>
+          <p className="eyebrow en">FIRST THINGS</p>
+          <h2 className="card-title">모임을 시작하는 다섯 가지 <small className="muted">{done} / {items.length}</small></h2>
+        </div>
+        <button type="button" className="btn btn-text btn-sm" onClick={hide}>접기</button>
+      </div>
+      <ol className="leader-check-list">
+        {items.map(([t, ok, aside]) => (
+          <li key={t} className={ok ? 'is-done' : undefined}>
+            <span className="leader-check-mark" aria-hidden="true">{ok ? '✓' : ''}</span>
+            <span className="leader-check-text">{t}{ok && <span className="sr-only"> (했어요)</span>}</span>
+            {!ok && <span className="leader-check-aside muted small">{aside}</span>}
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
 function PresetForm({ groupId, preset, onDone }: { groupId: string; preset: GroupPreset | null; onDone: () => void }) {
   const hourLab = useLabs('graph')
   const [d, setD] = useState<GroupPreset>(preset ? asMonth(preset) : { choice: 'age', start: 0, end: 17, title: '' })
@@ -1075,7 +1139,7 @@ function CloseGroupButton({ group, onSaved }: { group: GroupDetail; onSaved: () 
   if (!labs || !group.isManager) return null
   const go = async () => {
     const closing = !group.closedAt
-    if (closing && !window.confirm('모임을 끝낼까요? 나눈 그래프와 기록은 그대로 남고, 새로 들어오기 · 나누기 · 일정 더하기만 멈춰요. 언제든 다시 열 수 있어요.')) return
+    if (closing && !await confirmDialog('모임을 끝낼까요? 나눈 그래프와 기록은 그대로 남고, 새로 들어오기 · 나누기 · 일정 더하기만 멈춰요. 언제든 다시 열 수 있어요.')) return
     await api.setGroupClosed(group.id, closing).then(onSaved, (e) => window.alert(e.message))
   }
   return <button type="button" className="btn btn-text" onClick={go}>{group.closedAt ? '모임 다시 열기' : '모임 끝내기 (보관)'}</button>
@@ -1157,8 +1221,8 @@ function PromptsCard({ group, onSaved }: { group: GroupDetail; onSaved: () => vo
   const [msg, setMsg] = useState('')
   if (!labs || !group.isManager || group.closedAt) return null
   const save = (next: GroupPrompts) => api.setPrompts(group.id, next).then(() => { setMsg('저장했어요. 이제 이 모임에서 그리면 이 질문으로 시작해요.'); onSaved() }, (e) => setMsg(e.message))
-  const reset = () => {
-    if (!window.confirm('질문을 모두 기본으로 되돌릴까요?')) return
+  const reset = async () => {
+    if (!await confirmDialog('질문을 모두 기본으로 되돌릴까요?')) return
     setMoments(''); setPresent('')
     setReflect(rowsOf(reflectQs.map((q) => q.key as ReflectKey))); setNow(rowsOf(NOW_QUESTIONS.map((q) => q.key as NowKey)))
     save({})
@@ -1218,7 +1282,7 @@ function OrgLinkCard({ group, onSaved }: { group: GroupDetail; onSaved: () => vo
     return (
       <p className="org-linked muted small">
         <span className="badge badge-soft">기관</span> {group.orgs.map((o) => o.name).join(', ')} 에 이어져 있어요 (기관 담당자가 이 모임의 흐름 — 개인을 알 수 없는 통계 — 를 봐요).{' '}
-        <button type="button" className="btn btn-text btn-sm" onClick={() => window.confirm('기관과의 연결을 끊을까요?') && api.unlinkGroupOrg(group.id).then(onSaved, (e) => setMsg(e.message))}>끊기</button>
+        <button type="button" className="btn btn-text btn-sm" onClick={async () => await confirmDialog('기관과의 연결을 끊을까요?') && api.unlinkGroupOrg(group.id).then(onSaved, (e) => setMsg(e.message))}>끊기</button>
         {msg && <span role="status"> {msg}</span>}
       </p>
     )
@@ -1243,6 +1307,8 @@ function CheerButton({ kind, on, onCheer }: { kind: string; on: boolean; onCheer
     <button type="button" className="cheer-btn" aria-pressed={on} onClick={() => { if (!on) setBurst((n) => n + 1); onCheer(kind) }}>
       {on && <span aria-hidden="true">✓ </span>}{kind}
       {burst > 0 && <span key={burst} className="cheer-burst" aria-hidden="true">♥</span>}
+      {burst > 0 && <span key={`t${burst}`} className="cheer-thanks" aria-hidden="true">보냈어요</span>}
+      <span className="sr-only" role="status">{burst > 0 ? '응원을 보냈어요. 선 주인만 볼 수 있어요.' : ''}</span>
     </button>
   )
 }

@@ -101,7 +101,7 @@ export default function Contact() {
 
       <section className="section-tight">
         <h2 className="section-title">내 문의 {mine && mine.length > 0 && <small className="muted">{mine.length}</small>}</h2>
-        {mine === null ? <p className="muted">불러오는 중이에요…</p> : !mine.length ? <p className="muted">아직 남긴 문의가 없어요.</p> : (
+        {mine === null ? <p className="muted is-loading">불러오는 중이에요…</p> : !mine.length ? <p className="muted">아직 남긴 문의가 없어요.</p> : (
           <ul className="my-inquiries">
             {mine.map((q) => (
               <li key={q.id} className="card">

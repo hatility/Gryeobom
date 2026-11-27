@@ -1,6 +1,7 @@
 import EmptyDoodle from '../components/EmptyDoodle'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useParams, useSearchParams } from 'react-router'
+import { useNavigate } from '../nav'
 import { api, shareBase, type GroupSummary } from '../api'
 import { downloadCsv, newsSeen, useLabs } from '../labs'
 import { useAuth } from '../auth'
@@ -19,12 +20,26 @@ const PRINCIPLES = [
 /** 짧은 공유 링크 (/s/:code): 서버에 둔 공개용 내용을 받아 보여준다 */
 export function SharedLink() {
   const { code = '' } = useParams()
+  const gift = useSearchParams()[0].get('gift') === '1'
+  const [opened, setOpened] = useState(false)
   const [shared, setShared] = useState<SharedGraph | null | undefined>(undefined)
   useEffect(() => {
     api.link(code).then((r) => setShared(sanitizeShared(r.shared)), () => setShared(null))
   }, [code])
   if (shared === undefined) return <p className="container page loading serif">선을 펼치는 중이에요…</p>
   if (!shared) return <TangledLink text="링크가 꺼졌거나 없는 링크예요. 나눠 준 사람에게 다시 한 번 받아 볼까요?" />
+  // 선물 링크(?gift=1): 봉투를 먼저 — 열어 보기를 누르면 선이 그려진다
+  if (gift && !opened) {
+    return (
+      <section className="container page empty-state gift-wrap">
+        <p className="eyebrow en">A GIFT FOR YOU</p>
+        <svg className="gift-env" viewBox="0 0 160 110" aria-hidden="true"><rect x="8" y="20" width="144" height="82" rx="8" /><path d="M8 28l72 48 72-48" /><path className="gift-line" d="M40 70c12-18 24-10 34-2s20 6 46-14" pathLength={1} /></svg>
+        <h1>누군가 선물로 보낸 선이에요</h1>
+        <p className="muted">{shared.title ? `‘${shared.title}’` : '작은 인생 이야기'} · 천천히 열어 봐 주세요.</p>
+        <button type="button" className="btn btn-primary btn-lg" onClick={() => setOpened(true)}>열어 보기</button>
+      </section>
+    )
+  }
   return <SharedView shared={shared} />
 }
 
@@ -157,7 +172,7 @@ function GroupsHub() {
       <h2 className="section-title">나의 모임 {active.length > 0 && <small className="muted">{active.length}</small>}</h2>
       {err && <p className="alert" role="alert">{err}</p>}
       {groups === null ? (
-        <p className="muted serif">불러오는 중이에요…</p>
+        <p className="muted serif is-loading">불러오는 중이에요…</p>
       ) : active.length ? (
         <ul className="group-rows">
           {active.map((g) => {
@@ -200,7 +215,7 @@ function GroupsHub() {
           <h3 className="card-title">코드로 들어가기</h3>
           <label className="field">
             <span className="field-label">모임 참여 코드</span>
-            <input value={code} maxLength={6} autoCapitalize="characters" placeholder="예) K7M2QX" onChange={(e) => setCode(e.target.value)} required />
+            <input className="code-input" value={code} maxLength={6} autoCapitalize="characters" autoComplete="off" spellCheck={false} placeholder="예) K7M2QX" onChange={(e) => setCode(e.target.value.toUpperCase().replace(/^.*\/JOIN\//, '').replace(/[^A-Z0-9]/g, '').slice(0, 6))} required />
           </label>
           <button type="submit" className="btn btn-primary">들어가기</button>
           <p className="join-tip muted small">초대 링크를 받았다면 링크를 누르기만 해도 돼요. 모임장이 큰 화면에 띄운 QR 을 휴대폰 카메라로 찍어도 들어와요.</p>

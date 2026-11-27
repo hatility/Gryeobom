@@ -1,4 +1,5 @@
 import StepArt from '../components/StepArt'
+import { confirmDialog } from '../components/confirm'
 import { firstTime, seasonChanged } from '../components/once'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
@@ -8,7 +9,7 @@ import { MOOD_COLORS, greeting, isQuietHour, lineColorOf, moodOf, todayQuestion 
 import { dayKey, useJournal } from '../journal'
 import { formatDate, graphPoints, graphTitle } from '../store'
 import LifeGraphView from '../components/LifeGraph'
-import { newsSeen, useLabs } from '../labs'
+import { markNewsSeen, newsSeen, useLabs } from '../labs'
 import GuardianNotice from '../components/GuardianNotice'
 import { dayLabel } from './GroupPage'
 import type { LifeGraph } from '../types'
@@ -86,7 +87,7 @@ export default function Home() {
             <Link to="/graph/new" className="btn btn-primary btn-lg">나의 그래프 그리기</Link>
             <Link to="/#intro" className="btn btn-ghost btn-lg">프로그램 알아보기</Link>
           </div>
-          <Link to="/example" className="hero-example">예시 그래프 먼저 둘러보기 ›</Link>
+          <p className="hero-example-row"><Link to="/welcome" className="hero-example">처음이라면 1분 투어</Link><span className="hero-example-dot" aria-hidden="true">·</span><Link to="/example" className="hero-example">예시 그래프 먼저 보기</Link></p>
         </div>
         <HeroArt />
       </section>
@@ -270,7 +271,7 @@ export function Resume() {
   if (!g) return null
   // 끝까지 그리지 않아도 괜찮다: 그리던 그래프를 여기서 바로 지울 수 있다 (다음 것이 있으면 그게 보인다)
   const remove = async () => {
-    if (!window.confirm(`그리던 ‘${graphTitle(g)}’를 지울까요? 지운 뒤에는 되돌릴 수 없어요.`)) return
+    if (!await confirmDialog(`그리던 ‘${graphTitle(g)}’를 지울까요? 지운 뒤에는 되돌릴 수 없어요.`)) return
     if (await repo.remove(g.id)) load()
   }
   let step = g.entries.length ? 2 : 1
@@ -320,8 +321,13 @@ export function TodayQuestion() {
       () => setSaved(null),
     )
   }, [journal, day])
-  // 이미 남긴 날은 그때의 질문을 그대로 (밤 질문으로 남겼다면 그 질문)
-  const question = saved?.question || todayQuestion(d)
+  // 모임장이 오늘 정한 ‘함께 그릴 주제’ 가 있으면 그것이 오늘의 질문 (1.3.0) — 이미 남긴 날은 그때의 질문 그대로
+  const [gq, setGq] = useState<{ name: string; topic: string } | null>(null)
+  useEffect(() => {
+    if (!user) return setGq(null)
+    api.groups().then((gs) => { const g = gs.find((x) => x.topic && x.topicAt?.slice(0, 10) === day); setGq(g ? { name: g.name, topic: g.topic } : null) }, () => setGq(null))
+  }, [user, day])
+  const question = saved?.question || gq?.topic || todayQuestion(d)
   const [popped, setPopped] = useState(0)
   const save = async () => {
     setState('saving')
@@ -346,7 +352,7 @@ export function TodayQuestion() {
   return (
     <section className="container today-wrap">
       <div className={`today${quiet ? ' is-quiet' : ''}`}>
-        <p className="eyebrow">{quiet ? '잠들기 전 질문' : '오늘의 질문'} · {d.getMonth() + 1}월 {d.getDate()}일</p>
+        <p className="eyebrow">{quiet ? '잠들기 전 질문' : gq && question === gq.topic ? `‘${gq.name}’ 모임의 오늘 질문` : '오늘의 질문'} · {d.getMonth() + 1}월 {d.getDate()}일</p>
         {streak >= 2 && <p className={`today-streak${streak >= 7 ? ' is-7' : streak >= 3 ? ' is-3' : ''}`}><i aria-hidden="true" />{streak}일째 이어서 남기고 있어요</p>}
         <p className="serif today-q">{question}</p>
         {!user ? (
@@ -456,13 +462,16 @@ export function GroupNews() {
   const { user } = useAuth()
   const labs = useLabs('group')
   const [groups, setGroups] = useState<GroupSummary[]>([])
+  const [, setTick] = useState(0) // 읽음 표시를 바꾸면 다시 그리기
   useEffect(() => {
     if (user && labs) api.groups().then((gs) => setGroups(gs.filter((g) => g.news || g.nextEvent)), () => setGroups([]))
     else setGroups([])
   }, [user, labs])
   if (!groups.length) return null
+  const unread = groups.filter((g) => g.news && !newsSeen(g.id, g.newsAt ?? ''))
   return (
     <section className="container news-wrap">
+      {unread.length > 1 && <p className="news-readall"><button type="button" className="btn btn-text btn-sm" onClick={() => { unread.forEach((g) => markNewsSeen(g.id, g.newsAt ?? '')); setTick((t) => t + 1) }}>새 소식 {unread.length}개 모두 읽음으로</button></p>}
       <ul className="news-list">
         {groups.map((g) => (
           <li key={g.id}>

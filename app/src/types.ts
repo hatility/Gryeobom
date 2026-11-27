@@ -70,6 +70,8 @@ export interface LifeGraph {
   myQuestions?: string[]
   /** 모임장이 정한 질문 (실험): 모임에서 그리기 시작할 때 모임의 것을 그대로 옮겨 둔다 (나중에 모임이 바꿔도 이 그래프는 그대로) */
   prompts?: Pick<GroupPrompts, 'moments' | 'reflect' | 'now'>
+  /** 별 표시 (1.3.0): 기록 모아보기에서 먼저 보인다 */
+  starred?: boolean
   completed: boolean
   createdAt: string
   updatedAt: string

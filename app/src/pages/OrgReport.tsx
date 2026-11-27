@@ -1,7 +1,9 @@
 import type { CSSProperties } from 'react'
+import { confirmDialog } from '../components/confirm'
 import { useEffect, useState } from 'react'
 import CountUp from '../components/CountUp'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
+import { useNavigate } from '../nav'
 import { api, shareBase, type GroupSummary, type MyOrg } from '../api'
 import { useAuth } from '../auth'
 import { useLabs } from '../labs'
@@ -189,12 +191,14 @@ function OrgReportView({ org, range, setRange, onGroups }: { org: MyOrg; range: 
       <div className="stats-range org-range no-print">
         <span className="stats-presets">
           <button type="button" className="chip" aria-pressed={!range} onClick={() => setRange(null)}>누적만</button>
+          <button type="button" className="btn btn-ghost btn-sm org-month-pdf" onClick={() => { setRange(presets[0][1]); setTimeout(() => window.print(), 700) }}>이번 달 리포트 PDF</button>
           {presets.map(([label, r]) => <button key={label} type="button" className="chip" aria-pressed={range?.[0] === r[0] && range?.[1] === r[1]} onClick={() => setRange(r)}>{label}</button>)}
         </span>
         <input type="date" value={range?.[0] ?? ''} aria-label="시작 날짜" onChange={(e) => e.target.value && setRange([e.target.value, range?.[1] ?? ymd(now)])} />
         <span className="muted">~</span>
         <input type="date" value={range?.[1] ?? ''} aria-label="끝 날짜" onChange={(e) => e.target.value && setRange([range?.[0] ?? e.target.value, e.target.value])} />
       </div>
+      <OrgWeek org={org} onGroups={onGroups} />
       <article className="card org-card">
         <h2 className="card-title org-report-title">{org.name} <small className="muted"><span>{new Date().toLocaleDateString('ko-KR')} 기준</span> · <span>누가 무엇을 그렸는지는 보이지 않아요</span></small></h2>
         <ul className="stats-total">
@@ -210,7 +214,7 @@ function OrgReportView({ org, range, setRange, onGroups }: { org: MyOrg; range: 
             <thead><tr><th>모임</th><th>사람</th><th>나눈 사람</th><th>다 그린 선</th><th>그리는 중</th><th>나눈 순간</th><th>응원</th><th>이번 주 새 글</th></tr></thead>
             <tbody>
               {org.groups.map((g, i) => (
-                <tr key={g.id} style={{ '--i': i } as CSSProperties}><td>{g.name}</td><td>{g.report.members}</td><td>{g.report.sharers} ({pct(g.report.sharers, g.report.members)}%)<span className="org-bar" aria-hidden="true"><i style={{ width: `${pct(g.report.sharers, g.report.members)}%` }} /></span></td><td>{g.report.done}</td><td>{g.report.drawing}</td><td>{g.report.moments}</td><td>{g.report.cheers}</td><td>{g.report.newPosts}</td></tr>
+                <tr key={g.id} style={{ '--i': i } as CSSProperties}><td>{g.name}{g.newsOff && <span className="org-off" title="모임장이 모임 소식을 꺼 두었어요. 기관 소식이 가지 않아요">소식 꺼짐</span>}</td><td>{g.report.members}</td><td>{g.report.sharers} ({pct(g.report.sharers, g.report.members)}%)<span className="org-bar" aria-hidden="true"><i style={{ width: `${pct(g.report.sharers, g.report.members)}%` }} /></span></td><td>{g.report.done}</td><td>{g.report.drawing}</td><td>{g.report.moments}</td><td>{g.report.cheers}</td><td>{g.report.newPosts}</td></tr>
               ))}
             </tbody>
           </table>
@@ -223,7 +227,7 @@ function OrgReportView({ org, range, setRange, onGroups }: { org: MyOrg; range: 
                 <thead><tr><th>모임</th><th>새로 들어온 사람</th><th>모임에서 그린 그래프</th><th>나눈 글</th><th>응원</th><th>활동</th><th>참여(연인원)</th></tr></thead>
                 <tbody>
                   {org.groups.map((g) => g.period && (
-                    <tr key={g.id}><td>{g.name}</td><td>{g.period.joined}</td><td>{g.period.graphs}</td><td>{g.period.posts}</td><td>{g.period.cheers}</td><td>{g.period.events}</td><td>{g.period.attended}</td></tr>
+                    <tr key={g.id}><td>{g.name}{g.newsOff && <span className="org-off" title="모임장이 모임 소식을 꺼 두었어요. 기관 소식이 가지 않아요">소식 꺼짐</span>}</td><td>{g.period.joined}</td><td>{g.period.graphs}</td><td>{g.period.posts}</td><td>{g.period.cheers}</td><td>{g.period.events}</td><td>{g.period.attended}</td></tr>
                   ))}
                 </tbody>
               </table>
@@ -237,6 +241,40 @@ function OrgReportView({ org, range, setRange, onGroups }: { org: MyOrg; range: 
 }
 
 /** 기관의 모임: 내 모임 더하기 · 빼기, 다른 모임은 연결 코드로 */
+/** 기관 담당자의 이번 주 할 일 (1.3.0): 리포트 숫자에서 바로 읽어 낸 세 가지 안팎 — 없으면 ‘안부 한 줄’ */
+function OrgWeek({ org, onGroups }: { org: MyOrg; onGroups: () => void }) {
+  const sum = (k: 'newPosts' | 'drawing') => org.groups.reduce((n, g) => n + (g.report[k] ?? 0), 0)
+  const quiet = org.groups.filter((g) => g.report.posts === 0)
+  const off = org.groups.filter((g) => g.newsOff)
+  const items: [string, string, (() => void) | null][] = [
+    ...(sum('newPosts') > 0 ? [[`새로 나눈 그래프 ${sum('newPosts')}개 살펴보기`, '아래 리포트의 ‘새로 나눔’ 줄', null] as [string, string, (() => void) | null]] : []),
+    ...(sum('drawing') > 0 ? [[`그리는 중인 사람 ${sum('drawing')}명`, '다음 모임 때 마무리할 시간을 10분쯤', null] as [string, string, (() => void) | null]] : []),
+    ...(quiet.length ? [[`아직 아무도 그리지 않은 모임 ${quiet.length}곳`, quiet.map((g) => g.name).join(' · ') + ' — 모임장에게 안부 한 줄', onGroups] as [string, string, (() => void) | null]] : []),
+    ...(off.length ? [[`모임 소식을 꺼 둔 모임 ${off.length}곳`, '소식 한 번에 올리기에서 건너뛰어요', onGroups] as [string, string, (() => void) | null]] : []),
+  ]
+  return (
+    <section className="card leader-check org-week no-print" aria-label="이번 주 할 일">
+      <div className="leader-check-head">
+        <div>
+          <p className="eyebrow en">THIS WEEK</p>
+          <h2 className="card-title">이번 주 할 일 <small className="muted">{items.length ? `${items.length}가지` : '없음'}</small></h2>
+        </div>
+      </div>
+      {items.length ? (
+        <ol className="leader-check-list">
+          {items.map(([t, aside, go]) => (
+            <li key={t}>
+              <span className="leader-check-mark" aria-hidden="true" />
+              <span className="leader-check-text">{t}</span>
+              <span className="leader-check-aside muted small">{aside}{go && <button type="button" className="btn btn-text btn-sm" onClick={go}>모임 탭 ›</button>}</span>
+            </li>
+          ))}
+        </ol>
+      ) : <p className="muted small">이번 주는 특별히 할 일이 없어요. 모임장들에게 안부 한 줄은 어떨까요.</p>}
+    </section>
+  )
+}
+
 function OrgGroups({ org, onChange }: { org: MyOrg; onChange: () => void }) {
   const [mine, setMine] = useState<GroupSummary[]>([])
   const [msg, setMsg] = useState('')
@@ -257,7 +295,7 @@ function OrgGroups({ org, onChange }: { org: MyOrg; onChange: () => void }) {
                 <span className="entry-body"><strong>{g.name}</strong><small>{g.report.members}명 · 참여 코드 {g.code}</small></span>
                 <span className="entry-actions">
                   {mine.some((m) => m.id === g.id) && <Link to={`/groups/${g.id}`} className="btn btn-text btn-sm">들어가기</Link>}
-                  <button type="button" className="btn btn-text btn-sm danger" onClick={() => window.confirm(`‘${g.name}’ 을 기관에서 뺄까요? 모임은 그대로예요.`) && act(api.orgRemoveGroup(org.id, g.id), '뺐어요.')}>빼기</button>
+                  <button type="button" className="btn btn-text btn-sm danger" onClick={async () => await confirmDialog(`‘${g.name}’ 을 기관에서 뺄까요? 모임은 그대로예요.`) && act(api.orgRemoveGroup(org.id, g.id), '뺐어요.')}>빼기</button>
                 </span>
               </li>
             ))}
@@ -275,7 +313,7 @@ function OrgGroups({ org, onChange }: { org: MyOrg; onChange: () => void }) {
         <p className="muted small">이 연결 코드를 모임장에게 알려 주세요. 모임 화면의 ‘기관에 잇기’ 에 적으면 묶여요. 모임 회원에게는 기관이 보이지 않아요.</p>
         <p className="org-code"><span className="muted small">연결 코드</span><strong>{org.code}</strong>
           <button type="button" className="btn btn-text btn-sm" onClick={() => navigator.clipboard?.writeText(org.code).then(() => setMsg('연결 코드를 복사했어요.'), () => {})}>복사</button>
-          <button type="button" className="btn btn-text btn-sm" onClick={() => window.confirm('연결 코드를 새로 만들까요? 예전 코드는 더 쓸 수 없어요 (이미 묶인 모임은 그대로).') && act(api.newOrgCode(org.id), '새 연결 코드를 만들었어요.')}>새로 만들기</button>
+          <button type="button" className="btn btn-text btn-sm" onClick={async () => await confirmDialog('연결 코드를 새로 만들까요? 예전 코드는 더 쓸 수 없어요 (이미 묶인 모임은 그대로).') && act(api.newOrgCode(org.id), '새 연결 코드를 만들었어요.')}>새로 만들기</button>
         </p>
       </section>
       {msg && <p className="muted small" role="status">{msg}</p>}
@@ -318,8 +356,8 @@ function OrgPeople({ org, onChange, onGone }: { org: MyOrg; onChange: () => void
         <h2 className="card-title">기관 그만두기</h2>
         <p className="muted small">기관을 지워도 묶인 모임과 회원 · 기록은 그대로 남아요.</p>
         <div className="form-actions">
-          {org.managers.length > 1 && <button type="button" className="btn btn-text danger" onClick={() => window.confirm('이 기관의 담당자를 그만둘까요? 다른 담당자는 그대로예요.') && api.leaveOrg(org.id).then(onGone, (e) => setMsg(e.message))}>담당자 그만두기</button>}
-          <button type="button" className="btn btn-text danger" onClick={() => window.confirm(`‘${org.name}’ 기관을 지울까요? 묶인 모임과 회원 · 기록은 그대로예요.`) && api.deleteOrg(org.id).then(onGone, (e) => setMsg(e.message))}>기관 지우기</button>
+          {org.managers.length > 1 && <button type="button" className="btn btn-text danger" onClick={async () => await confirmDialog('이 기관의 담당자를 그만둘까요? 다른 담당자는 그대로예요.') && api.leaveOrg(org.id).then(onGone, (e) => setMsg(e.message))}>담당자 그만두기</button>}
+          <button type="button" className="btn btn-text danger" onClick={async () => await confirmDialog(`‘${org.name}’ 기관을 지울까요? 묶인 모임과 회원 · 기록은 그대로예요.`) && api.deleteOrg(org.id).then(onGone, (e) => setMsg(e.message))}>기관 지우기</button>
         </div>
       </section>
       {msg && <p className="muted small" role="status">{msg}</p>}
@@ -332,11 +370,13 @@ function OrgNews({ org }: { org: MyOrg }) {
   const [text, setText] = useState('')
   const [msg, setMsg] = useState('')
   const [lit, setLit] = useState(0)
+  const off = org.groups.filter((g) => g.newsOff)
   const send = async (news: string) => {
-    if (!news && !window.confirm(`${org.groups.length}개 모임의 소식을 모두 내릴까요?`)) return
+    if (!news && !await confirmDialog(`${org.groups.length}개 모임의 소식을 모두 내릴까요?`)) return
     try {
       const r = await api.orgNews(org.id, news)
-      setMsg(news ? `${r.groups}개 모임에 소식을 올렸어요.` : '모든 모임의 소식을 내렸어요.')
+      const skip = r.skipped ? ` 모임 소식을 끈 ${r.skipped}개 모임은 건너뛰었어요.` : ''
+      setMsg((news ? `${r.groups}개 모임에 소식을 올렸어요.` : '모든 모임의 소식을 내렸어요.') + skip)
       setLit(news ? r.groups : 0)
       setText('')
     } catch (e) {
@@ -349,8 +389,9 @@ function OrgNews({ org }: { org: MyOrg }) {
       <form onSubmit={(e) => { e.preventDefault(); if (text.trim()) send(text.trim()) }}>
         <textarea rows={3} maxLength={300} value={text} placeholder="예) 다음 주는 기관 휴관이라 모임을 쉬어요." aria-label="모든 모임에 보낼 소식" onChange={(e) => setText(e.target.value)} />
         <p className="muted small">각 모임의 ‘모임 소식’ 을 이 글로 바꿔요 (모임장이 쓴 소식 대신). 끝난 모임에는 가지 않아요. {text.length}/300</p>
+        {off.length > 0 && <p className="muted small">모임 소식을 꺼 둔 <b>{off.map((g) => g.name).join(' · ')}</b> ({off.length}개)는 건너뛰어요.</p>}
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary btn-sm" disabled={!text.trim()}>{org.groups.length}개 모임에 올리기</button>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={!text.trim()}>{org.groups.length - off.length}개 모임에 올리기</button>
           <button type="button" className="btn btn-text btn-sm danger" onClick={() => send('')}>모두 내리기</button>
         </div>
         {msg && <p className="muted small" role="status">{msg}</p>}

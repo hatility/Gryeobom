@@ -14,7 +14,6 @@ import type { LifeGraph as Graph } from '../types'
 export default function GraphBook() {
   const { id = '' } = useParams()
   const repo = useRepo()
-  const { user } = useAuth()
   const [graph, setGraph] = useState<Graph | null | undefined>(undefined)
   useEffect(() => {
     repo.get(id).then(setGraph, () => setGraph(null))
@@ -29,12 +28,6 @@ export default function GraphBook() {
       </section>
     )
   }
-  const entries = sortEntries(graph.entries)
-  const r = graph.currentReflection
-  const nowAnswers = NOW_QUESTIONS.filter((q) => q.key !== 'oneLine' && r[q.key].trim())
-  const letter = graph.futureLetter
-  const letterOpen = letter && Date.parse(letter.openAt) <= Date.now()
-
   return (
     <article className="container page book">
       <div className="book-bar no-print">
@@ -42,7 +35,21 @@ export default function GraphBook() {
         <p className="muted small">인쇄 창에서 ‘대상’을 <strong>PDF로 저장</strong>으로 고르면 파일 하나로 남아요.</p>
         <button type="button" className="btn btn-primary" onClick={() => window.print()}>인쇄 · PDF로 저장</button>
       </div>
+      <BookBody graph={graph} />
+    </article>
+  )
+}
 
+/** 한 권의 몸통 (표지 · 순간마다 한 장 · 지금의 나) — 내 기록 한 권(/my/book)에서는 그래프마다 이어 붙인다 */
+export function BookBody({ graph }: { graph: Graph }) {
+  const { user } = useAuth()
+  const entries = sortEntries(graph.entries)
+  const r = graph.currentReflection
+  const nowAnswers = NOW_QUESTIONS.filter((q) => q.key !== 'oneLine' && r[q.key].trim())
+  const letter = graph.futureLetter
+  const letterOpen = letter && Date.parse(letter.openAt) <= Date.now()
+  return (
+    <>
       <header className="book-cover">
         <p className="eyebrow en">MY LIFE, MY LINE</p>
         <h1 className="book-title serif">{graphTitle(graph)}</h1>
@@ -105,7 +112,7 @@ export default function GraphBook() {
           ))}
         </section>
       )}
-    </article>
+    </>
   )
 }
 

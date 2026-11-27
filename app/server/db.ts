@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { basename, join } from 'node:path'
 
 // Node 24 내장 SQLite. import 대신 getBuiltinModule을 쓰는 건 번들러(vite)가 node:sqlite를 몰라서다.
 const { DatabaseSync } = process.getBuiltinModule('node:sqlite') as typeof import('node:sqlite')
@@ -208,6 +208,7 @@ export function openDb(file: string): Db {
   const reportCols = db.prepare("SELECT name FROM pragma_table_info('reports')").all() as { name: string }[]
   if (!reportCols.some((c) => c.name === 'deleted_at')) db.exec("ALTER TABLE reports ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''")
   if (!reportCols.some((c) => c.name === 'delete_reason')) db.exec("ALTER TABLE reports ADD COLUMN delete_reason TEXT NOT NULL DEFAULT ''")
+  if (!reportCols.some((c) => c.name === 'note')) db.exec("ALTER TABLE reports ADD COLUMN note TEXT NOT NULL DEFAULT ''") // 1.3.0 처리 메모
   db.exec(`
     CREATE TABLE IF NOT EXISTS takedowns (
       circle_id TEXT NOT NULL REFERENCES circles(id) ON DELETE CASCADE,
@@ -245,11 +246,20 @@ export function openDb(file: string): Db {
   if (!circleCols3.some((c) => c.name === 'question_set')) db.exec("ALTER TABLE circles ADD COLUMN question_set TEXT NOT NULL DEFAULT ''")
   // 실험(11차): 모임장이 정한 질문 (GroupPrompts JSON, 비면 기본)
   if (!circleCols3.some((c) => c.name === 'prompts')) db.exec("ALTER TABLE circles ADD COLUMN prompts TEXT NOT NULL DEFAULT ''")
+  // 1.3.0: 이 모임에서 안 쓰기로 끈 것 (JSON 배열: 'news' 모임 소식 · 'events' 다가오는 활동)
+  if (!circleCols3.some((c) => c.name === 'hidden')) db.exec("ALTER TABLE circles ADD COLUMN hidden TEXT NOT NULL DEFAULT ''")
   const colsOf = (t: string) => (db.prepare(`SELECT name FROM pragma_table_info('${t}')`).all() as { name: string }[]).map((c) => c.name)
   if (!colsOf('admin_sessions').includes('who')) db.exec("ALTER TABLE admin_sessions ADD COLUMN who TEXT NOT NULL DEFAULT ''")
   if (!colsOf('admin_sessions').includes('role')) db.exec("ALTER TABLE admin_sessions ADD COLUMN role TEXT NOT NULL DEFAULT 'owner'")
   if (!colsOf('admin_logins').includes('who')) db.exec("ALTER TABLE admin_logins ADD COLUMN who TEXT NOT NULL DEFAULT ''")
+  // 1.3.0 로그인 하나로: 어느 그려봄 계정으로 관리자 확인을 했는지 (별명 · 계정 id)
+  if (!colsOf('admin_logins').includes('user_nick')) db.exec("ALTER TABLE admin_logins ADD COLUMN user_nick TEXT NOT NULL DEFAULT ''")
+  if (!colsOf('admin_logins').includes('user_id')) db.exec("ALTER TABLE admin_logins ADD COLUMN user_id TEXT NOT NULL DEFAULT ''")
   if (!colsOf('admin_audit').includes('who')) db.exec("ALTER TABLE admin_audit ADD COLUMN who TEXT NOT NULL DEFAULT ''")
+  // 실험(1.3.0 로그인 하나로): 관리자로 연결된 사람 계정 · 관리자 확인을 한 사람 계정
+  if (!colsOf('users').includes('admin_role')) db.exec("ALTER TABLE users ADD COLUMN admin_role TEXT NOT NULL DEFAULT ''")
+  if (!colsOf('admin_sessions').includes('user_id')) db.exec("ALTER TABLE admin_sessions ADD COLUMN user_id TEXT NOT NULL DEFAULT ''")
+  if (!colsOf('admin_sessions').includes('created_at')) db.exec("ALTER TABLE admin_sessions ADD COLUMN created_at TEXT NOT NULL DEFAULT ''")
   db.exec(`
     -- 고칠 때마다 남는 그래프의 지난 모습 (10분에 하나, 그래프마다 최근 20개)
     CREATE TABLE IF NOT EXISTS graph_versions (
@@ -326,6 +336,8 @@ export function openDb(file: string): Db {
     CREATE INDEX IF NOT EXISTS links_user ON links(user_id);
     CREATE INDEX IF NOT EXISTS reports_reporter ON reports(reporter_id);
   `)
+  // 1.3.0 로그인 하나로: 더 둔 관리자 계정은 처음 그 아이디로 확인한 그려봄 계정에 묶인다
+  if (!colsOf('admin_accounts').includes('user_id')) db.exec("ALTER TABLE admin_accounts ADD COLUMN user_id TEXT NOT NULL DEFAULT ''")
   return db
 }
 
@@ -337,7 +349,7 @@ const whenOf = (f: string) => f.replace(/^auto-(\d{4}-\d{2}-\d{2})(?:-(\d{2}))?\
  * 서비스를 멈추지 않는다. folder 가 없거나 keep = 0 이면 자동 백업은 하지 않는다.
  * 파일 이름은 한국 시간: auto-2026-11-06-09.db (예전 하루 백업 auto-2026-11-06.db 도 함께 센다)
  */
-export function maintain(db: Db, folder: string | null, keep: number, now = new Date()): string | null {
+export function maintain(db: Db, folder: string | null, keep: number, now = new Date(), copyTo: string | null = null): string | null {
   const iso = now.toISOString()
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(iso)
   db.prepare('DELETE FROM admin_sessions WHERE expires_at < ?').run(iso)
@@ -348,6 +360,10 @@ export function maintain(db: Db, folder: string | null, keep: number, now = new 
   const k = new Date(now.getTime() + 9 * 3600_000).toISOString()
   const file = join(folder, `auto-${k.slice(0, 10)}-${k.slice(11, 13)}.db`)
   if (!existsSync(file)) db.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`)
+  // 1.3.0: 다른 폴더(외장 디스크 · 동기화 폴더)에도 한 벌 — 복사가 안 돼도 본 백업은 그대로
+  if (copyTo) {
+    try { mkdirSync(copyTo, { recursive: true }); if (!existsSync(join(copyTo, basename(file)))) copyFileSync(file, join(copyTo, basename(file))) } catch (e) { console.error('[손질] 외부 폴더 복사 실패', copyTo, e) }
+  }
   // 새것부터 keep 개만 (같은 날의 하루 백업 · 시간 백업이 섞여도 만든 때 순서로)
   readdirSync(folder).filter((f) => AUTO.test(f)).sort((a, b) => whenOf(b).localeCompare(whenOf(a)))
     .slice(keep).forEach((f) => rmSync(join(folder, f), { force: true }))
@@ -358,6 +374,11 @@ export function maintain(db: Db, folder: string | null, keep: number, now = new 
 export function backupKeepOf(db: Db, fallback: number): number {
   const v = (db.prepare("SELECT value FROM meta WHERE key = 'backup_keep'").get() as { value: string } | undefined)?.value
   return v === undefined ? fallback : Math.max(0, Math.min(2000, Math.floor(Number(v)) || 0))
+}
+
+/** 1.3.0: 백업을 한 벌 더 둘 외부 폴더 (관리자 화면에서 정함 · 비우면 없음) */
+export function backupDir2Of(db: Db): string {
+  return (db.prepare("SELECT value FROM meta WHERE key = 'backup_dir2'").get() as { value: string } | undefined)?.value ?? ''
 }
 
 /** 자동 백업 파일들 (새것 먼저) */

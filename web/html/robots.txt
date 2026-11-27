@@ -1,6 +1,6 @@
 User-agent: *
 Allow: /
-# 개인 · 운영 화면은 검색에 나오지 않게
+# 개인 · 운영 화면은 검색에 나오지 않게 (운영 서버에서는 api 가 공개 주소의 Sitemap 줄까지 붙여 준다)
 Disallow: /admin
 Disallow: /api/
 Disallow: /s/
@@ -8,3 +8,13 @@ Disallow: /join/
 Disallow: /guardian/
 Disallow: /groups/
 Disallow: /org
+Disallow: /my
+Disallow: /me
+Disallow: /graph/
+Disallow: /lines
+Disallow: /words
+Disallow: /letters
+Disallow: /inbox
+Disallow: /login
+Disallow: /board
+Disallow: /review

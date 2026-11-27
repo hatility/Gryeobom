@@ -1,9 +1,11 @@
 // 모바일 · 태블릿 전용 화면(/m)의 틀과 화면. 기능 · 저장은 PC판 화면 코드를 그대로 쓴다.
 import { firstTime, seasonChanged } from './components/once'
 import PageLink from './components/PageLink'
+import { editHref } from './pages/MyGraphs'
 import { useNewAnswers } from './pages/Contact'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, useLocation } from 'react-router'
+import { useNavigate } from './nav'
 import { api, siteConfig } from './api'
 import { useAuth, useRepo } from './auth'
 import LifeGraph from './components/LifeGraph'
@@ -104,6 +106,7 @@ export function MobileHome() {
         <h1 className="m-hello-title">
           {user ? <>{user.nickname}님,<br />오늘은 어떤 선을 그려 볼까요?</> : <>지나온 나를 그리고,<br />지금의 나를 만나다.</>}
         </h1>
+        {!user && <Link to="/welcome" className="m-tour">처음이라면 1분 투어 ›</Link>}
       </section>
 
       <section className="container">
@@ -133,7 +136,7 @@ export function MobileHome() {
           <ul className="m-scroller">
             {graphs.slice(0, 8).map((g) => (
               <li key={g.id}>
-                <Link to={g.completed ? `/graph/${g.id}` : `/graph/${g.id}/edit`} className="m-graph-card" style={{ '--line': lineColorOf(g.lineColor) } as CSSProperties}>
+                <Link to={g.completed ? `/graph/${g.id}` : editHref(g.id)} className="m-graph-card" style={{ '--line': lineColorOf(g.lineColor) } as CSSProperties}>
                   <LifeGraph compact tone={lineColorOf(g.lineColor)} points={graphPoints(g)} timeScale={g.timeScale} start={g.startPoint} end={g.currentPoint} />
                   <strong>{graphTitle(g)}</strong>
                   <small className="muted">{g.completed ? '완성' : '그리는 중'} · {formatDate(g.updatedAt)}</small>
@@ -156,7 +159,7 @@ export function MobileHome() {
             <li><b>2</b>기억에 남는 순간을 점으로 남겨요</li>
             <li><b>3</b>이어진 선에서 지금의 나를 만나요</li>
           </ol>
-          <Link to="/example" className="m-row">예시 그래프 먼저 둘러보기<Chevron /></Link>
+          <Link to="/example" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M3 16c3 0 4-8 7-8s3 6 6 6 3-5 5-5')}</span>예시 그래프 먼저 둘러보기<Chevron /></Link>
         </section>
       )}
     </div>
@@ -182,7 +185,14 @@ export function Me() {
   }
   return (
     <section className="container page m-me">
-      <h1 className="sr-only">나</h1>
+      {/* PC 에서는 다른 화면과 같은 머리말 (휴대폰에서는 위 막대 제목이 대신해서 읽기용으로만) */}
+      <header className="page-head">
+        <div>
+          <p className="eyebrow en">ME</p>
+          <h1 className="page-title">나</h1>
+          <p className="muted">내 기록과 보기 설정을 한곳에서 봐요.</p>
+        </div>
+      </header>
       <div className="m-profile">
         <span className="m-avatar" aria-hidden="true">{user ? user.nickname.slice(0, 1) : I('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6')}</span>
         <div>
@@ -194,23 +204,35 @@ export function Me() {
 
       <h2 className="m-group-title">기록</h2>
       <nav className="m-list">
-        <Link to="/my" className="m-row">기록 모아보기<Chevron /></Link>
-        <Link to={`/review/${new Date().getFullYear()}`} className="m-row">한 해 돌아보기<Chevron /></Link>
-        <Link to="/example" className="m-row">예시 그래프<Chevron /></Link>
-        {labs && <Link to="/worksheet" className="m-row">종이 활동지 인쇄<Chevron /></Link>}
-        {labsOrg && user && <Link to="/org" className="m-row">기관<Chevron /></Link>}
+        <Link to="/my" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M4 4h12a2 2 0 0 1 2 2v14H6a2 2 0 0 0-2 2zM4 4v18M8 8h6')}</span>기록 모아보기<Chevron /></Link>
+        {user && <Link to="/me/overview" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M3 17l5-6 4 4 5-7 4 5M3 21h18')}</span>내 흐름<Chevron /></Link>}
+        {user && <Link to="/lines" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M4 7h16M4 12h10M4 17h13')}</span>오늘의 한 줄 모아보기<Chevron /></Link>}
+        <Link to="/words" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M4 5h16v6H4zM4 13h16v6H4zM10 8h4M10 16h4')}</span>마음 서랍<Chevron /></Link>
+        <Link to="/letters" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M3 6h18v12H3zM3 7l9 6 9-6')}</span>편지함<Chevron /></Link>
+        {user && <Link to="/inbox" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M4 4h16v12H4zM4 16l3-4h10l3 4M4 16v4h16v-4')}</span>소식함<Chevron /></Link>}
+        <Link to={`/review/${new Date().getFullYear()}`} className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M4 6h16v14H4zM4 10h16M8 3v4M16 3v4')}</span>한 해 돌아보기<Chevron /></Link>
+        <Link to="/example" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M3 16c3 0 4-8 7-8s3 6 6 6 3-5 5-5')}</span>예시 그래프<Chevron /></Link>
+        {labs && <Link to="/worksheet" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M6 9V3h12v6M6 18H4v-7h16v7h-2M6 15h12v6H6z')}</span>종이 활동지 인쇄<Chevron /></Link>}
+        {labsOrg && user && <Link to="/org" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M3 21h18M5 21V7l7-4 7 4v14M9 12h.01M15 12h.01M9 16h.01M15 16h.01')}</span>기관<Chevron /></Link>}
       </nav>
 
       <h2 className="m-group-title">보기</h2>
       <div className="m-list m-view"><ViewPanel /></div>
 
+      <h2 className="m-group-title">둘러보기</h2>
+      <nav className="m-list">
+        <Link to="/welcome" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M5 12h14M13 6l6 6-6 6')}</span>1분 투어<Chevron /></Link>
+        <Link to="/activities" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M3 17c4 0 5-10 9-10s5 8 9 2')}</span>선 하나 활동<Chevron /></Link>
+        <Link to="/guide" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M4 4h12l4 4v12H4zM8 12h8M8 16h5')}</span>진행자 안내서<Chevron /></Link>
+      </nav>
+
       <h2 className="m-group-title">정보</h2>
       <nav className="m-list">
-        <Link to="/terms" className="m-row">이용약관<Chevron /></Link>
-        {labsMe && <Link to="/contact" className="m-row">문의하기 · 내 문의{newAnswers > 0 && <span className="m-dot">새 답 {newAnswers}</span>}<Chevron /></Link>}
-        <Link to="/privacy" className="m-row"><b>개인정보 처리방침</b><Chevron /></Link>
-        <Link to="/credits" className="m-row">오픈소스<Chevron /></Link>
-        <Link to="/credits?tab=team" className="m-row">만든 사람<Chevron /></Link>
+        <Link to="/terms" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M6 3h9l4 4v14H6zM9 12h6M9 16h6')}</span>이용약관<Chevron /></Link>
+        {labsMe && <Link to="/contact" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M3 6h18v12H3zM3 7l9 6 9-6')}</span>문의하기 · 내 문의{newAnswers > 0 && <span className="m-dot">새 답 {newAnswers}</span>}<Chevron /></Link>}
+        <Link to="/privacy" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z')}</span><b>개인정보 처리방침</b><Chevron /></Link>
+        <Link to="/credits" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14')}</span>오픈소스<Chevron /></Link>
+        <Link to="/credits?tab=team" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20c0-3 3-5 6-5s6 2 6 5M16 11a2.5 2.5 0 1 0 0-5M21 20c0-2.5-2-4.2-4.5-4.6')}</span>만든 사람<Chevron /></Link>
         <button type="button" className="m-row" onClick={() => switchLayout('pc')}>PC 화면으로 보기<Chevron /></button>
         {labs && (
           <details className="m-install">

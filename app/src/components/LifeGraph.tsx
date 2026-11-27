@@ -191,7 +191,13 @@ export default function LifeGraph({
   const dragText = di >= 0 ? `${showTimeLabels ? tl(sorted[di].timePoint) + ' · ' : ''}마음 ${signed(sorted[di].emotionScore)}` : ''
   const bubbleW = dragText.length * 8.5 + 28
 
+  // 화면 낭독기용 요약: 기간 · 순간 수 · 가장 환했던 때와 무거웠던 때 · (고칠 수 있으면) 키보드 안내
+  const hi = sorted.reduce((a, p) => (p.emotionScore > a.emotionScore ? p : a), sorted[0])
+  const lo = sorted.reduce((a, p) => (p.emotionScore < a.emotionScore ? p : a), sorted[0])
+  const nm = (p: GraphPoint) => `‘${p.title || '이름 없는 순간'}’${showTimeLabels ? ` (${tl(p.timePoint)})` : ''} ${signed(p.emotionScore)}`
   const desc = `${showTimeLabels ? rangeLabel(timeScale, start, end).replace(/, \d+개월$/, '') : '과거부터 지금까지'}의 인생 그래프. 순간 ${sorted.length}개.`
+    + (sorted.length > 1 ? ` 가장 환했던 때 ${nm(hi)}, 가장 무거웠던 때 ${nm(lo)}.` : sorted.length === 1 ? ` ${nm(hi)}.` : '')
+    + (editable && !compact ? ' Enter 를 누르면 가운데에 순간을 더하고, 점은 Tab 으로 골라 화살표로 옮겨요.' : '')
 
   return (
     <div className={`life-graph${compact ? ' is-compact' : ''}`} ref={wrap} style={tone ? ({ '--line': tone } as CSSProperties) : undefined}>
@@ -204,6 +210,12 @@ export default function LifeGraph({
         aria-label={compact ? undefined : desc}
         aria-hidden={compact || undefined}
         className={editable ? `is-editable${noDrag ? ' no-drag' : ''}` : undefined}
+        tabIndex={editable && !compact ? 0 : undefined}
+        onKeyDown={(e) => {
+          // 그래프 판 자체에 초점이 있을 때 Enter · Space · + : 가운데에 순간 하나 (창이 열려 때와 마음을 정한다)
+          if (!editable || e.target !== e.currentTarget) return
+          if (e.key === 'Enter' || e.key === ' ' || e.key === '+') { e.preventDefault(); onAdd?.(Math.round((start + end) / 2), 0) }
+        }}
       >
         <defs>
           {/* 영역을 그래프 크기로: % 로 두면 완전히 수평인 선(모든 순간 마음 0)은 높이 0 이라 사라진다 */}

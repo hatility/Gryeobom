@@ -1,7 +1,9 @@
 import EmptyDoodle from '../components/EmptyDoodle'
+import { confirmDialog } from '../components/confirm'
 import { useNewAnswers } from './Contact'
 import { useEffect, useState, type CSSProperties } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link } from 'react-router'
+import { useNavigate } from '../nav'
 import { api, remoteRepo, type Answer, type ReceivedCheer } from '../api'
 import { useAuth, useRepo } from '../auth'
 import LifeGraph from '../components/LifeGraph'
@@ -14,12 +16,23 @@ import { downloadMyData, useLabs } from '../labs'
 import MoodWords from '../components/MoodWords'
 import GuardianNotice from '../components/GuardianNotice'
 
+/** 멈춘 단계를 기억해 두었으면 그 단계로 (편집기가 이 기기에 남긴 것) */
+export const editHref = (id: string) => { let step = 0; try { step = Number(localStorage.getItem(`geuryeobom:step:${id}`)) } catch { /* 기억 못 하면 1단계부터 */ } return `/graph/${id}/edit${step > 1 ? `?step=${step}` : ''}` }
+
 export default function MyGraphs() {
   const repo = useRepo()
   const { user } = useAuth()
   const [graphs, setGraphs] = useState<Graph[] | null>(null)
   const [localCount, setLocalCount] = useState(0)
   const [err, setErr] = useState('')
+  const [q, setQ] = useState('') // 검색 (1.3.0): 이름 · 순간 · 마음 단어 · 한 줄
+  const star = async (g: Graph) => {
+    const n = { ...g, starred: !g.starred }
+    if (await repo.save(n)) setGraphs((gs) => gs && gs.map((x) => (x.id === g.id ? n : x)))
+  }
+  const hit = (g: Graph, k: string) => [g.title, g.currentReflection.word, g.currentReflection.oneLine, ...g.entries.flatMap((e) => [e.title, e.description, e.emotionLabel])].some((t) => t.toLowerCase().includes(k))
+  const key = q.trim().toLowerCase()
+  const shown = (graphs ?? []).filter((g) => !key || hit(g, key)).sort((a, b) => Number(!!b.starred) - Number(!!a.starred))
 
   const load = () =>
     repo.list().then(setGraphs, () => {
@@ -33,7 +46,7 @@ export default function MyGraphs() {
   }, [repo, user])
 
   const remove = async (g: Graph) => {
-    if (!window.confirm(`‘${graphTitle(g)}’ 기록을 지울까요? 지운 뒤에는 되돌릴 수 없어요.`)) return
+    if (!await confirmDialog(`‘${graphTitle(g)}’ 기록을 지울까요? 지운 뒤에는 되돌릴 수 없어요.`)) return
     if (await repo.remove(g.id)) setGraphs((gs) => gs?.filter((x) => x.id !== g.id) ?? null)
     else setErr('지우지 못했어요. 잠시 뒤에 다시 해볼까요?')
   }
@@ -81,7 +94,7 @@ export default function MyGraphs() {
       {err && <p className="alert" role="alert">{err}</p>}
 
       {graphs === null ? (
-        <p className="muted serif">불러오는 중이에요…</p>
+        <p className="muted serif is-loading">불러오는 중이에요…</p>
       ) : graphs.length === 0 ? (
         <div className="card empty-state my-empty">
           {/* 빈 폴라로이드 틀: 첫 장이 붙을 자리 */}
@@ -90,11 +103,18 @@ export default function MyGraphs() {
           <p className="muted">첫 번째 나의 그래프를 그려볼까요?</p>
           <Link to="/graph/new" className="btn btn-primary">나의 그래프 그리기</Link>
         </div>
-      ) : (
+      ) : (<>
+        {graphs.length > 3 && (
+          <p className="my-search no-print">
+            <input type="search" value={q} placeholder="이름 · 순간 · 마음 단어로 찾기" aria-label="기록 찾기" onChange={(e) => setQ(e.target.value)} />
+            {key && <small className="muted">{shown.length}개</small>}
+          </p>
+        )}
+        {key && !shown.length && <p className="list-empty">‘{q}’ 가 들어간 기록이 없어요.</p>}
         <ul className="tile-grid">
-          {graphs.map((g) => (
+          {shown.map((g) => (
             <li key={g.id} className="card tile">
-              <Link to={g.completed ? `/graph/${g.id}` : `/graph/${g.id}/edit`} className="tile-link">
+              <Link to={g.completed ? `/graph/${g.id}` : editHref(g.id)} className="tile-link">
                 <LifeGraph compact tone={lineColorOf(g.lineColor)} points={graphPoints(g)} timeScale={g.timeScale} start={g.startPoint} end={g.currentPoint} />
                 <h2>{graphTitle(g)}</h2>
               </Link>
@@ -106,14 +126,16 @@ export default function MyGraphs() {
                 <span className="badge">{g.completed ? '완성' : '그리는 중'}</span>
                 <span className="badge badge-soft">{g.visibility === 'link' ? '함께 나누기' : '나만 보기'}</span>
                 <span className="spacer" />
-                <Link to={`/graph/${g.id}/edit`} className="btn btn-text">고치기</Link>
+                <button type="button" className={`btn btn-text star${g.starred ? ' is-on' : ''}`} aria-pressed={!!g.starred} aria-label={g.starred ? '별 표시 지우기' : '별 표시'} onClick={() => star(g)}>{g.starred ? '★' : '☆'}</button>
+                <Link to={editHref(g.id)} className="btn btn-text">고치기</Link>
                 <button type="button" className="btn btn-text danger" onClick={() => remove(g)}>지우기</button>
               </div>
             </li>
           ))}
         </ul>
-      )}
+      </>)}
 
+      <p className="my-more no-print">{(graphs?.length ?? 0) > 0 && <Link to="/my/book" className="chip">내 기록 한 권 (PDF)</Link>}<Link to="/me/overview" className="chip">내 흐름</Link>{user && <Link to="/lines" className="chip">오늘의 한 줄 모아보기</Link>}<Link to="/words" className="chip">마음 서랍</Link><Link to="/letters" className="chip">편지함</Link>{user && <Link to="/inbox" className="chip">소식함</Link>}</p>
       <MoodWords graphs={graphs ?? []} />
       <MyAnswers graphs={graphs ?? []} />
 
@@ -148,7 +170,7 @@ function MyAnswers({ graphs }: { graphs: Graph[] }) {
   if (!list?.length) return null
   const byDay = new Map(list.map((a) => [a.day, a]))
   const remove = async (a: Answer) => {
-    if (!window.confirm('이 한 줄을 지울까요?')) return
+    if (!await confirmDialog('이 한 줄을 지울까요?')) return
     if (await journal.save({ ...a, text: '' })) setList((l) => l?.filter((x) => x.day !== a.day) ?? null)
   }
   const move = (a: Answer, g: Graph) =>
@@ -265,7 +287,7 @@ function DeleteAccount() {
   const [birth, setBirth] = useState('')
   const [err, setErr] = useState('')
   const submit = async () => {
-    if (!window.confirm('계정과 모든 기록, 모임에 나눈 그래프가 모두 지워져요. 되돌릴 수 없어요. 정말 지울까요?')) return
+    if (!await confirmDialog('계정과 모든 기록, 모임에 나눈 그래프가 모두 지워져요. 되돌릴 수 없어요. 정말 지울까요?')) return
     try {
       await api.deleteMe(name, birth)
       setUser(null)

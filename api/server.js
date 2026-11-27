@@ -1,6 +1,6 @@
-import { chownSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, statfsSync, writeFileSync } from "node:fs";
+import { chownSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, statfsSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { createHash, createHmac, randomBytes, randomInt, scryptSync, timingSafeEqual } from "node:crypto";
 import { tmpdir } from "node:os";
 // src/content.ts
@@ -262,6 +262,16 @@ var FLAGS = [
 		official: true,
 		name: "운영 도구",
 		desc: "관리자: 오류 · CSP · 휴면 · 통계 · 흐름 · 서버 상태 · 자동 백업 · 차단 · 요청 대장 · 파기 기록 · 계정 · 점검 · 공지 예약 · 진단 · 문의함 · 접속 표 · 새 버전 · DB 점검"
+	},
+	{
+		key: "onelogin",
+		name: "로그인 하나로",
+		desc: "그려봄 로그인으로 들어온 뒤 관리자 화면은 비밀번호로 한 번 더 확인 (30분 · 쓰는 동안 이어짐) · 첫 관리자 비밀번호는 어느 계정이든 쓸 수 있고 어느 계정으로 들어왔는지 접속 기록에 남음 · 더 둔 관리자 계정은 처음 확인한 그려봄 계정에 묶임"
+	},
+	{
+		key: "board",
+		name: "사이트 지도 보드",
+		desc: "관리자: 화면들을 살아 있는 노드로 띄워 한눈에 확인 · 자동 배치 · 자동 선 · 노드 상태 표시"
 	}
 ];
 /** 1.1.0 에서 정식이 된 묶음: 스위치와 상관없이 늘 켜진다 (보호자 동의만 아직 스위치) */
@@ -453,6 +463,7 @@ function openDb(file) {
 	const reportCols = db.prepare("SELECT name FROM pragma_table_info('reports')").all();
 	if (!reportCols.some((c) => c.name === "deleted_at")) db.exec("ALTER TABLE reports ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''");
 	if (!reportCols.some((c) => c.name === "delete_reason")) db.exec("ALTER TABLE reports ADD COLUMN delete_reason TEXT NOT NULL DEFAULT ''");
+	if (!reportCols.some((c) => c.name === "note")) db.exec("ALTER TABLE reports ADD COLUMN note TEXT NOT NULL DEFAULT ''");
 	db.exec(`
     CREATE TABLE IF NOT EXISTS takedowns (
       circle_id TEXT NOT NULL REFERENCES circles(id) ON DELETE CASCADE,
@@ -483,11 +494,17 @@ function openDb(file) {
 	const circleCols3 = db.prepare("SELECT name FROM pragma_table_info('circles')").all();
 	if (!circleCols3.some((c) => c.name === "question_set")) db.exec("ALTER TABLE circles ADD COLUMN question_set TEXT NOT NULL DEFAULT ''");
 	if (!circleCols3.some((c) => c.name === "prompts")) db.exec("ALTER TABLE circles ADD COLUMN prompts TEXT NOT NULL DEFAULT ''");
+	if (!circleCols3.some((c) => c.name === "hidden")) db.exec("ALTER TABLE circles ADD COLUMN hidden TEXT NOT NULL DEFAULT ''");
 	const colsOf = (t) => db.prepare(`SELECT name FROM pragma_table_info('${t}')`).all().map((c) => c.name);
 	if (!colsOf("admin_sessions").includes("who")) db.exec("ALTER TABLE admin_sessions ADD COLUMN who TEXT NOT NULL DEFAULT ''");
 	if (!colsOf("admin_sessions").includes("role")) db.exec("ALTER TABLE admin_sessions ADD COLUMN role TEXT NOT NULL DEFAULT 'owner'");
 	if (!colsOf("admin_logins").includes("who")) db.exec("ALTER TABLE admin_logins ADD COLUMN who TEXT NOT NULL DEFAULT ''");
+	if (!colsOf("admin_logins").includes("user_nick")) db.exec("ALTER TABLE admin_logins ADD COLUMN user_nick TEXT NOT NULL DEFAULT ''");
+	if (!colsOf("admin_logins").includes("user_id")) db.exec("ALTER TABLE admin_logins ADD COLUMN user_id TEXT NOT NULL DEFAULT ''");
 	if (!colsOf("admin_audit").includes("who")) db.exec("ALTER TABLE admin_audit ADD COLUMN who TEXT NOT NULL DEFAULT ''");
+	if (!colsOf("users").includes("admin_role")) db.exec("ALTER TABLE users ADD COLUMN admin_role TEXT NOT NULL DEFAULT ''");
+	if (!colsOf("admin_sessions").includes("user_id")) db.exec("ALTER TABLE admin_sessions ADD COLUMN user_id TEXT NOT NULL DEFAULT ''");
+	if (!colsOf("admin_sessions").includes("created_at")) db.exec("ALTER TABLE admin_sessions ADD COLUMN created_at TEXT NOT NULL DEFAULT ''");
 	db.exec(`
     -- 고칠 때마다 남는 그래프의 지난 모습 (10분에 하나, 그래프마다 최근 20개)
     CREATE TABLE IF NOT EXISTS graph_versions (
@@ -560,6 +577,7 @@ function openDb(file) {
     CREATE INDEX IF NOT EXISTS links_user ON links(user_id);
     CREATE INDEX IF NOT EXISTS reports_reporter ON reports(reporter_id);
   `);
+	if (!colsOf("admin_accounts").includes("user_id")) db.exec("ALTER TABLE admin_accounts ADD COLUMN user_id TEXT NOT NULL DEFAULT ''");
 	return db;
 }
 var AUTO = /^auto-\d{4}-\d{2}-\d{2}(-\d{2})?\.db$/;
@@ -570,7 +588,7 @@ var whenOf = (f) => f.replace(/^auto-(\d{4}-\d{2}-\d{2})(?:-(\d{2}))?\.db$/, (_,
 * 서비스를 멈추지 않는다. folder 가 없거나 keep = 0 이면 자동 백업은 하지 않는다.
 * 파일 이름은 한국 시간: auto-2026-11-06-09.db (예전 하루 백업 auto-2026-11-06.db 도 함께 센다)
 */
-function maintain(db, folder, keep, now = /* @__PURE__ */ new Date()) {
+function maintain(db, folder, keep, now = /* @__PURE__ */ new Date(), copyTo = null) {
 	const iso = now.toISOString();
 	db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(iso);
 	db.prepare("DELETE FROM admin_sessions WHERE expires_at < ?").run(iso);
@@ -581,6 +599,12 @@ function maintain(db, folder, keep, now = /* @__PURE__ */ new Date()) {
 	const k = new Date(now.getTime() + 324e5).toISOString();
 	const file = join(folder, `auto-${k.slice(0, 10)}-${k.slice(11, 13)}.db`);
 	if (!existsSync(file)) db.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`);
+	if (copyTo) try {
+		mkdirSync(copyTo, { recursive: true });
+		if (!existsSync(join(copyTo, basename(file)))) copyFileSync(file, join(copyTo, basename(file)));
+	} catch (e) {
+		console.error("[손질] 외부 폴더 복사 실패", copyTo, e);
+	}
 	readdirSync(folder).filter((f) => AUTO.test(f)).sort((a, b) => whenOf(b).localeCompare(whenOf(a))).slice(keep).forEach((f) => rmSync(join(folder, f), { force: true }));
 	return file;
 }
@@ -588,6 +612,10 @@ function maintain(db, folder, keep, now = /* @__PURE__ */ new Date()) {
 function backupKeepOf(db, fallback) {
 	const v = db.prepare("SELECT value FROM meta WHERE key = 'backup_keep'").get()?.value;
 	return v === void 0 ? fallback : Math.max(0, Math.min(2e3, Math.floor(Number(v)) || 0));
+}
+/** 1.3.0: 백업을 한 벌 더 둘 외부 폴더 (관리자 화면에서 정함 · 비우면 없음) */
+function backupDir2Of(db) {
+	return db.prepare("SELECT value FROM meta WHERE key = 'backup_dir2'").get()?.value ?? "";
 }
 /** 자동 백업 파일들 (새것 먼저) */
 function listBackups(folder) {
@@ -751,6 +779,7 @@ function sanitizeGraph(raw, id) {
 		startPoint: raw.timeScale === "hour" ? Math.round(num(raw.startPoint) * 1e3) / 1e3 : int(raw.startPoint),
 		currentPoint: raw.timeScale === "hour" ? Math.round(num(raw.currentPoint) * 1e3) / 1e3 : int(raw.currentPoint),
 		visibility: raw.visibility === "link" ? "link" : "private",
+		...raw.starred === true ? { starred: true } : {},
 		...str(raw.groupId, 64) ? { groupId: str(raw.groupId, 64) } : {},
 		entries: entries.map((e) => ({
 			id: str(e?.id, 64) || newId(),
@@ -861,6 +890,20 @@ function sanitizePrompts(raw) {
 	return out;
 }
 var readPrompts = (s) => s ? JSON.parse(s) : null;
+/** 모임에서 끈 것: 'news' 모임 소식 · 'topic' 함께 그릴 주제 · 'events' 다가오는 활동 (모르는 값은 버린다) */
+var HIDEABLE = [
+	"news",
+	"topic",
+	"events"
+];
+var readHidden = (s) => {
+	try {
+		const a = JSON.parse(s || "[]");
+		return Array.isArray(a) ? HIDEABLE.filter((k) => a.includes(k)) : [];
+	} catch {
+		return [];
+	}
+};
 /** 실패 횟수 제한 (로그인 · 가입 · 모임 코드 맞히기 방지). ponytail: 메모리 기반이라 서버 1대 기준. */
 function limiter(max, windowMs) {
 	const hits = /* @__PURE__ */ new Map();
@@ -1169,7 +1212,10 @@ function createApp(db, opts) {
 		new RegExp(`^${path.replace(/:(\w+)/g, "(?<$1>[\\w-]{1,64})")}$`),
 		h
 	]);
-	on("GET", "/me", (c) => ({ user: c.user }));
+	on("GET", "/me", (c) => ({
+		user: c.user,
+		adminRole: lab("onelogin") && c.user ? one("SELECT admin_role AS r FROM users WHERE id = ?", c.user.id)?.r ?? "" : ""
+	}));
 	on("GET", "/me/cheers", (c) => {
 		const u = me(c);
 		const since = new URL(c.req.url ?? "/", "http://x").searchParams.get("since") ?? "";
@@ -1239,12 +1285,14 @@ function createApp(db, opts) {
 	on("POST", "/auth/logout", (c) => {
 		const token = cookieOf(c.req);
 		if (token) run("DELETE FROM sessions WHERE token_hash = ?", sha(token));
+		if (c.user) run("DELETE FROM admin_sessions WHERE user_id = ?", c.user.id);
 		setCookie(c.res, "", 0);
 	});
 	on("POST", "/me/delete", (c) => {
 		const u = me(c);
 		if (!one("SELECT 1 FROM users WHERE id = ? AND login_key = ?", u.id, loginKey(c.body).key)) throw new HttpError(401, "이름이나 생년월일이 맞지 않아요.");
 		run("DELETE FROM users WHERE id = ?", u.id);
+		run("DELETE FROM admin_sessions WHERE user_id = ?", u.id);
 		logPurge("탈퇴", 1);
 		setCookie(c.res, "", 0);
 	});
@@ -1307,14 +1355,21 @@ function createApp(db, opts) {
 	});
 	on("GET", "/groups", (c) => {
 		const u = me(c);
-		return all(`SELECT c.id, c.name, c.owner_id = ? AS isOwner, m.role, c.topic, c.topic_at AS topicAt, c.news, c.news_at AS newsAt, c.closed_at AS closedAt,
+		return all(`SELECT c.id, c.name, c.owner_id = ? AS isOwner, m.role, c.topic, c.topic_at AS topicAt, c.news, c.news_at AS newsAt, c.closed_at AS closedAt, c.hidden,
               (SELECT COUNT(*) FROM members WHERE circle_id = c.id) AS memberCount
          FROM circles c JOIN members m ON m.circle_id = c.id
-        WHERE m.user_id = ? ORDER BY m.joined_at DESC`, u.id, u.id).map(({ isOwner, role, ...g }) => ({
-			...g,
-			role: isOwner === 1 ? "owner" : role === "co" ? "co" : role === "helper" ? "helper" : "member",
-			nextEvent: lab("group") ? nextEventOf(g.id) : null
-		}));
+        WHERE m.user_id = ? ORDER BY m.joined_at DESC`, u.id, u.id).map(({ isOwner, role, hidden, ...g }) => {
+			const off = readHidden(hidden);
+			return {
+				...g,
+				news: off.includes("news") ? "" : g.news,
+				newsAt: off.includes("news") ? "" : g.newsAt,
+				topic: off.includes("topic") ? "" : g.topic,
+				topicAt: off.includes("topic") ? "" : g.topicAt,
+				role: isOwner === 1 ? "owner" : role === "co" ? "co" : role === "helper" ? "helper" : "member",
+				nextEvent: lab("group") && !off.includes("events") ? nextEventOf(g.id) : null
+			};
+		});
 	});
 	on("POST", "/groups", (c) => {
 		const u = me(c);
@@ -1446,28 +1501,31 @@ function createApp(db, opts) {
 			nickname: m.nickname,
 			role: m.role
 		});
-		return {
-			myUnposted: all(`SELECT g.id, g.data FROM graphs g
+		const myUnposted = all(`SELECT g.id, g.data FROM graphs g
         WHERE g.user_id = ? AND NOT EXISTS (SELECT 1 FROM posts p WHERE p.graph_id = g.id AND p.circle_id = ?)
           AND ((json_extract(g.data, '$.groupId') = ? AND json_extract(g.data, '$.completed') = 1)
                OR EXISTS (SELECT 1 FROM takedowns t WHERE t.graph_id = g.id AND t.circle_id = ?))`, u.id, circle.id, circle.id, circle.id).map((r) => ({
-				graphId: r.id,
-				title: JSON.parse(r.data).title
-			})),
+			graphId: r.id,
+			title: JSON.parse(r.data).title
+		}));
+		const hidden = readHidden(circle.hidden);
+		return {
+			myUnposted,
+			hidden,
 			id: circle.id,
 			name: circle.name,
 			intro: circle.intro,
-			topic: circle.topic,
-			topicAt: circle.topic_at,
-			news: circle.news,
-			newsAt: circle.news_at,
+			topic: hidden.includes("topic") ? "" : circle.topic,
+			topicAt: hidden.includes("topic") ? "" : circle.topic_at,
+			news: hidden.includes("news") ? "" : circle.news,
+			newsAt: hidden.includes("news") ? "" : circle.news_at,
 			isOwner,
 			isManager: circle.manager,
 			closedAt: circle.closed_at,
 			questionSet: lab("group") ? circle.question_set : "",
 			prompts: lab("group") ? readPrompts(circle.prompts) : null,
 			isHelper: circle.helper,
-			events: lab("group") ? eventsOf(circle.id, u.id) : [],
+			events: lab("group") && !hidden.includes("events") ? eventsOf(circle.id, u.id) : [],
 			orgs: circle.manager && lab("org") ? all("SELECT id, name FROM orgs WHERE EXISTS (SELECT 1 FROM json_each(circle_ids) WHERE value = ?)", circle.id) : void 0,
 			code: circle.manager ? circle.code : void 0,
 			preset: readPreset(circle.preset),
@@ -1711,7 +1769,8 @@ function createApp(db, opts) {
 				name: g.name,
 				code: g.code,
 				report: reportOf(g.id),
-				period: periodOf(g.id)
+				period: periodOf(g.id),
+				newsOff: readHidden(one("SELECT hidden FROM circles WHERE id = ?", g.id)?.hidden ?? "").includes("news")
 			}));
 			const sum = (k) => groups.reduce((t, g) => t + g.report[k], 0);
 			return {
@@ -1849,11 +1908,21 @@ function createApp(db, opts) {
 		const news = cleanText(c.body.news, 300);
 		const at = news ? now() : "";
 		const ids = JSON.parse(o.circle_ids);
-		for (const id of ids) run("UPDATE circles SET news = ?, news_at = ? WHERE id = ? AND closed_at = ''", news, at, id);
+		let skipped = 0;
+		for (const id of ids) {
+			const row = one("SELECT hidden, closed_at FROM circles WHERE id = ?", id);
+			if (!row || row.closed_at) continue;
+			if (readHidden(row.hidden).includes("news")) {
+				skipped++;
+				continue;
+			}
+			run("UPDATE circles SET news = ?, news_at = ? WHERE id = ?", news, at, id);
+		}
 		return {
 			news,
 			newsAt: at,
-			groups: ids.length
+			groups: ids.length - skipped,
+			skipped
 		};
 	});
 	const orgByInvite = (token) => str(token, 64).length >= 16 ? one("SELECT * FROM orgs WHERE invite <> '' AND invite = ?", str(token, 64)) : void 0;
@@ -1898,6 +1967,14 @@ function createApp(db, opts) {
 			news,
 			newsAt: at
 		};
+	});
+	on("PUT", "/groups/:id/hidden", (c) => {
+		labs("group");
+		const u = me(c);
+		if (!memberOf(c.params.id, u.id).manager) throw new HttpError(403, "모임장 · 공동 모임장만 켜고 끌 수 있어요.");
+		const hidden = readHidden(JSON.stringify(Array.isArray(c.body.hidden) ? c.body.hidden : []));
+		run("UPDATE circles SET hidden = ? WHERE id = ?", hidden.length ? JSON.stringify(hidden) : "", c.params.id);
+		return { hidden };
 	});
 	on("PUT", "/groups/:id/topic", (c) => {
 		const u = me(c);
@@ -2142,6 +2219,39 @@ function createApp(db, opts) {
 			...t ? { termsChange: t } : {}
 		};
 	});
+	const PUBLIC_PAGES = [
+		"/",
+		"/welcome",
+		"/activities",
+		"/guide",
+		"/example",
+		"/share",
+		"/credits",
+		"/terms",
+		"/privacy",
+		"/contact",
+		"/worksheet"
+	];
+	const startedDay = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+	const siteBase = (c) => (site().publicUrl || `${str(c.req.headers["x-forwarded-proto"], 10) || "http"}://${str(c.req.headers.host, 200) || "localhost"}`).replace(/\/+$/, "");
+	on("GET", "/sitemap.xml", (c) => {
+		const base = siteBase(c);
+		const urls = PUBLIC_PAGES.map((p) => `  <url><loc>${base}${p}</loc><lastmod>${startedDay}</lastmod><changefreq>${p === "/" ? "weekly" : "monthly"}</changefreq><priority>${p === "/" ? "1.0" : "0.6"}</priority></url>`).join("\n");
+		c.res.writeHead(200, {
+			"Content-Type": "application/xml; charset=utf-8",
+			"Cache-Control": "public, max-age=3600"
+		});
+		c.res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
+		return RAW;
+	});
+	on("GET", "/robots.txt", (c) => {
+		c.res.writeHead(200, {
+			"Content-Type": "text/plain; charset=utf-8",
+			"Cache-Control": "public, max-age=3600"
+		});
+		c.res.end(`User-agent: *\nAllow: /\n# 개인 · 운영 화면은 검색에 나오지 않게\nDisallow: /admin\nDisallow: /api/\nDisallow: /s/\nDisallow: /join/\nDisallow: /guardian/\nDisallow: /groups/\nDisallow: /org\nDisallow: /my\nDisallow: /me\nDisallow: /graph/\nDisallow: /lines\nDisallow: /words\nDisallow: /letters\nDisallow: /inbox\nDisallow: /login\nDisallow: /board\nDisallow: /review\n\nSitemap: ${siteBase(c)}/sitemap.xml\n`);
+		return RAW;
+	});
 	on("GET", "/admin/maintenance", (c) => {
 		labs("ops");
 		admin(c);
@@ -2233,12 +2343,22 @@ function createApp(db, opts) {
 		} : null };
 	});
 	const ADMIN_COOKIE = "gb_admin";
+	const ADMIN_STEP = 18e5;
+	/** 실험(로그인 하나로): 첫 관리자(.env)로 연결된 사람 계정 */
+	const ownerUser = () => one("SELECT id FROM users WHERE admin_role = 'owner'")?.id ?? "";
 	const same = (a, b) => timingSafeEqual(Buffer.from(sha(a)), Buffer.from(sha(b)));
 	const adminOf = (req) => {
 		const token = cookieOf(req, ADMIN_COOKIE);
 		if (!opts.admin || !token) return null;
-		const row = one("SELECT expires_at, who, role FROM admin_sessions WHERE token_hash = ?", sha(token));
+		const row = one("SELECT expires_at, who, role, user_id, created_at FROM admin_sessions WHERE token_hash = ?", sha(token));
 		if (!row || row.expires_at <= now()) return null;
+		if (lab("onelogin") && row.user_id) {
+			if (currentUser(req)?.id !== row.user_id) return null;
+			const polling = /\/admin\/me(\?|$)/.test(req.url ?? "");
+			const cap = Date.parse(row.created_at || now()) + 8 * HOUR;
+			const next = Math.min(Date.now() + ADMIN_STEP, cap);
+			if (!polling && next - Date.parse(row.expires_at) > 6e4) run("UPDATE admin_sessions SET expires_at = ? WHERE token_hash = ?", new Date(next).toISOString(), sha(token));
+		}
 		if (row.role === "owner") return {
 			who: opts.admin.id,
 			role: "owner"
@@ -2347,18 +2467,24 @@ function createApp(db, opts) {
 			reports: one("SELECT COUNT(*) AS n FROM reports WHERE resolved_at = '' AND deleted_at = ''").n,
 			inquiries: lab("ops") ? one("SELECT COUNT(*) AS n FROM inquiries WHERE status = '새 문의'").n : 0
 		} : void 0;
+		const oneLogin = lab("onelogin") ? {
+			user: c.user?.nickname ?? "",
+			linked: !!c.user && ownerUser() === c.user.id,
+			hasOwner: !!ownerUser()
+		} : void 0;
 		return {
 			enabled: !!opts.admin,
 			admin: !!a,
 			who: a?.who ?? "",
 			role: a?.role ?? "",
-			alerts
+			alerts,
+			oneLogin
 		};
 	});
 	on("GET", "/admin/accounts", (c) => {
 		labs("ops");
 		owner(c);
-		return all("SELECT a.id, a.role, a.created_at AS createdAt, (SELECT MAX(at) FROM admin_logins l WHERE l.who = a.id AND l.ok = 1) AS lastLogin FROM admin_accounts a ORDER BY a.created_at");
+		return all("SELECT a.id, a.role, a.created_at AS createdAt, (SELECT MAX(at) FROM admin_logins l WHERE l.who = a.id AND l.ok = 1) AS lastLogin, a.user_id AS userId, (SELECT nickname FROM users WHERE id = a.user_id) AS userNick FROM admin_accounts a ORDER BY a.created_at");
 	});
 	on("PUT", "/admin/accounts/:id", (c) => {
 		labs("ops");
@@ -2366,9 +2492,18 @@ function createApp(db, opts) {
 		const id = c.params.id.toLowerCase();
 		if (!/^[a-z0-9_-]{3,20}$/.test(id)) throw new HttpError(400, "아이디는 영어 소문자 · 숫자 · - · _ 로 3~20자예요.");
 		if (id === opts.admin.id.toLowerCase()) throw new HttpError(400, "처음 관리자와 같은 아이디는 쓸 수 없어요.");
+		const has = one("SELECT 1 FROM admin_accounts WHERE id = ?", id);
+		if (c.body.unlink === true) {
+			if (!has) throw new HttpError(404, "그 관리자 계정이 없어요.");
+			run("UPDATE admin_accounts SET user_id = '' WHERE id = ?", id);
+			run("DELETE FROM admin_sessions WHERE who = ? AND role <> 'owner'", id);
+			return {
+				id,
+				unlinked: true
+			};
+		}
 		const role = c.body.role === "full" ? "full" : "viewer";
 		const pw = str(c.body.password, 200);
-		const has = one("SELECT 1 FROM admin_accounts WHERE id = ?", id);
 		if (pw && pw.length < 12) throw new HttpError(400, "비밀번호는 12자 이상이어야 해요.");
 		if (!has && !pw) throw new HttpError(400, "새 계정은 비밀번호(12자 이상)를 정해 주세요.");
 		if (has && pw) run("UPDATE admin_accounts SET role = ?, pw_hash = ? WHERE id = ?", role, hashPw(pw), id);
@@ -2507,23 +2642,41 @@ function createApp(db, opts) {
 			keep: keepNow(),
 			dir: !!autoDir,
 			folder: opts.autoBackupDir ? "그려봄 폴더의 backups" : "볼륨 안 backups",
-			files: listBackups(autoDir)
+			files: listBackups(autoDir),
+			dir2: backupDir2Of(db)
 		};
 	});
 	on("PUT", "/admin/backups", (c) => {
 		labs("ops");
 		admin(c);
+		if (c.body.dir2 !== void 0) {
+			const dir2 = str(c.body.dir2, 300).trim();
+			if (dir2 && !isAbsolute(dir2)) throw new HttpError(400, "서버 안 절대 경로로 적어 주세요. 예) /mnt/usb/geuryeobom");
+			if (dir2) try {
+				mkdirSync(dir2, { recursive: true });
+			} catch {
+				throw new HttpError(400, "그 폴더를 만들거나 열 수 없어요. 경로와 권한을 확인해 주세요.");
+			}
+			run("INSERT INTO meta (key, value) VALUES ('backup_dir2', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", dir2);
+			if (c.body.keep === void 0) return {
+				keep: keepNow(),
+				dir2
+			};
+		}
 		const keep = Math.max(0, Math.min(2e3, Math.floor(Number(c.body.keep))));
 		if (!Number.isFinite(keep)) throw new HttpError(400, "남길 개수를 숫자로 적어 주세요.");
 		run("INSERT INTO meta (key, value) VALUES ('backup_keep', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", String(keep));
-		return { keep };
+		return {
+			keep,
+			dir2: backupDir2Of(db)
+		};
 	});
 	on("POST", "/admin/backups/run", (c) => {
 		labs("ops");
 		admin(c);
 		if (!autoDir) throw new HttpError(400, "백업 폴더가 정해지지 않은 서버예요.");
 		const before = listBackups(autoDir).length;
-		const f = maintain(db, autoDir, Math.max(1, keepNow()));
+		const f = maintain(db, autoDir, Math.max(1, keepNow()), /* @__PURE__ */ new Date(), backupDir2Of(db) || null);
 		return {
 			file: f ? basename(f) : null,
 			made: listBackups(autoDir).length > before
@@ -2623,7 +2776,13 @@ function createApp(db, opts) {
 		if (!opts.admin) throw new HttpError(404, "관리자 기능이 꺼져 있어요. 서버의 .env 에 ADMIN_ID · ADMIN_PASSWORD 를 정해 주세요.");
 		adminLimit.check(c.ip);
 		adminAll.check("all");
-		const id = str(c.body.id, 100), pw = str(c.body.password, 200);
+		const one1 = lab("onelogin");
+		const u = one1 ? currentUser(c.req) : null;
+		if (one1 && !u) throw new HttpError(401, "먼저 그려봄에 로그인해 주세요. 로그인한 뒤 관리자 비밀번호로 한 번 더 확인해요.");
+		const linked = one1 ? ownerUser() : "";
+		let id = str(c.body.id, 100);
+		const pw = str(c.body.password, 200);
+		if (u && !id) id = opts.admin.id;
 		const idOk = same(id, opts.admin.id);
 		const pwOk = same(pw, opts.admin.password);
 		let who = idOk && pwOk ? {
@@ -2631,23 +2790,26 @@ function createApp(db, opts) {
 			role: "owner"
 		} : null;
 		if (!who && lab("ops")) {
-			const acc = one("SELECT id, pw_hash, role FROM admin_accounts WHERE id = ?", id.toLowerCase());
-			if (acc && checkPw(pw, acc.pw_hash)) who = {
+			const acc = one("SELECT id, pw_hash, role, user_id FROM admin_accounts WHERE id = ?", id.toLowerCase());
+			const bound = !!(u && acc?.user_id && acc.user_id !== u.id);
+			if (acc && !bound && checkPw(pw, acc.pw_hash)) who = {
 				who: acc.id,
 				role: acc.role === "full" ? "full" : "viewer"
 			};
 		}
-		run("INSERT INTO admin_logins (ip, ok, agent, at, who) VALUES (?, ?, ?, ?, ?)", c.ip, who ? 1 : 0, str(c.req.headers["user-agent"], 300), now(), who?.who ?? "");
+		run("INSERT INTO admin_logins (ip, ok, agent, at, who, user_nick, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)", c.ip, who ? 1 : 0, str(c.req.headers["user-agent"], 300), now(), who?.who ?? "", u?.nickname ?? "", u?.id ?? "");
 		run("DELETE FROM admin_logins WHERE id <= (SELECT MAX(id) - 2000 FROM admin_logins)");
 		if (!who) {
 			adminLimit.hit(c.ip);
 			adminAll.hit("all");
 			throw new HttpError(401, "관리자 아이디나 비밀번호가 맞지 않아요.");
 		}
-		adminLimit.reset(c.ip);
+		if (who.role === "owner") adminLimit.reset(c.ip);
+		if (u && who.role === "owner" && !linked) run("UPDATE users SET admin_role = 'owner' WHERE id = ?", u.id);
+		if (u && who.role !== "owner") run("UPDATE admin_accounts SET user_id = ? WHERE id = ? AND user_id = ''", u.id, who.who);
 		const token = randomBytes(32).toString("base64url");
 		run("DELETE FROM admin_sessions WHERE expires_at < ?", now());
-		run("INSERT INTO admin_sessions (token_hash, expires_at, who, role) VALUES (?, ?, ?, ?)", sha(token), new Date(Date.now() + 8 * HOUR).toISOString(), who.who, who.role);
+		run("INSERT INTO admin_sessions (token_hash, expires_at, who, role, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)", sha(token), new Date(Date.now() + (u ? ADMIN_STEP : 8 * HOUR)).toISOString(), who.who, who.role, u?.id ?? "", now());
 		setCookie(c.res, token, null, ADMIN_COOKIE);
 	});
 	on("POST", "/admin/logout", (c) => {
@@ -2763,6 +2925,7 @@ function createApp(db, opts) {
 	on("DELETE", "/admin/users/:id", (c) => {
 		admin(c);
 		if (run("DELETE FROM users WHERE id = ?", c.params.id).changes) logPurge("관리자가 지움", 1);
+		run("DELETE FROM admin_sessions WHERE user_id = ?", c.params.id);
 	});
 	on("DELETE", "/admin/posts/:id", (c) => {
 		admin(c);
@@ -2798,7 +2961,7 @@ function createApp(db, opts) {
 		const deleted = new URL(c.req.url ?? "/", "http://x").searchParams.get("deleted") === "1";
 		return all(`SELECT r.id, r.post_id AS postId, r.circle_id AS groupId, r.reason, r.detail, r.post_title AS postTitle, r.post_owner AS postOwner,
               r.group_name AS groupName, r.created_at AS createdAt, r.resolved_at AS resolvedAt, u.nickname AS reporter,
-              r.deleted_at AS deletedAt, r.delete_reason AS deleteReason
+              r.deleted_at AS deletedAt, r.delete_reason AS deleteReason, r.note
          FROM reports r LEFT JOIN users u ON u.id = r.reporter_id
         WHERE ${deleted ? "r.deleted_at != ''" : "r.deleted_at = ''"}
         ORDER BY r.resolved_at != '', r.created_at DESC LIMIT 300`);
@@ -2811,7 +2974,8 @@ function createApp(db, opts) {
 	});
 	on("POST", "/admin/reports/:id/resolve", (c) => {
 		admin(c);
-		run("UPDATE reports SET resolved_at = ? WHERE id = ?", c.body.undo === true ? "" : now(), c.params.id);
+		const undo = c.body.undo === true;
+		run("UPDATE reports SET resolved_at = ?, note = ? WHERE id = ?", undo ? "" : now(), undo ? "" : cleanText(c.body.note, 200), c.params.id);
 	});
 	on("GET", "/admin/links", (c) => {
 		admin(c);
@@ -2823,7 +2987,7 @@ function createApp(db, opts) {
 	});
 	on("GET", "/admin/logins", (c) => {
 		admin(c);
-		return all(`SELECT l.id, l.ip, l.ok, l.agent, l.at, l.who, COALESCE(a.alias, '') AS alias
+		return all(`SELECT l.id, l.ip, l.ok, l.agent, l.at, l.who, l.user_nick AS user, COALESCE(a.alias, '') AS alias
          FROM admin_logins l LEFT JOIN ip_aliases a ON a.ip = l.ip ORDER BY l.id DESC LIMIT 300`).map((r) => ({
 			...r,
 			ok: r.ok === 1
@@ -2844,7 +3008,7 @@ function createApp(db, opts) {
 	on("GET", "/admin/backup", (c) => {
 		admin(c);
 		const tmp = join(tmpdir(), `geuryeobom-backup-${randomBytes(6).toString("hex")}.db`);
-		db.exec(`VACUUM INTO '${tmp}'`);
+		db.exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`);
 		const file = readFileSync(tmp);
 		rmSync(tmp, { force: true });
 		const day = now().slice(0, 10);
@@ -2857,7 +3021,7 @@ function createApp(db, opts) {
 		return RAW;
 	});
 	on("POST", "/admin/restore", async (c) => {
-		admin(c);
+		owner(c);
 		adminLimit.check(c.ip);
 		let pw = "";
 		try {
@@ -2900,6 +3064,7 @@ function createApp(db, opts) {
 						db.exec(`DELETE FROM main.${t}`);
 						if (cols) db.exec(`INSERT INTO main.${t} (${cols}) SELECT ${cols} FROM up.${t}`);
 					}
+					db.exec("DELETE FROM admin_sessions WHERE user_id <> '' AND user_id NOT IN (SELECT id FROM users)");
 					db.exec("COMMIT");
 				} catch (e) {
 					db.exec("ROLLBACK");
@@ -2945,7 +3110,10 @@ function createApp(db, opts) {
 		try {
 			db.exec("BEGIN");
 			try {
-				for (const t of RESET_TABLES) db.exec(`DELETE FROM ${t}`);
+				const keep = lab("onelogin") ? "admin_role <> ''" : "";
+				for (const t of RESET_TABLES) if (keep && t === "users") db.exec(`DELETE FROM users WHERE NOT (${keep})`);
+				else if (keep && t === "sessions") db.exec(`DELETE FROM sessions WHERE user_id NOT IN (SELECT id FROM users WHERE ${keep})`);
+				else db.exec(`DELETE FROM ${t}`);
 				db.exec("COMMIT");
 			} catch (e) {
 				db.exec("ROLLBACK");
@@ -3047,6 +3215,58 @@ function createApp(db, opts) {
 		for (const [k, v] of Object.entries(c.body.flags ?? {})) if (isFlag(k)) next[k] = v === true;
 		run("INSERT INTO meta (key, value) VALUES ('flags', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", JSON.stringify(next));
 		return { flags: next };
+	});
+	on("GET", "/admin/board", (c) => {
+		labs("board");
+		admin(c);
+		const v = one("SELECT value FROM meta WHERE key = 'board'")?.value;
+		try {
+			return v ? JSON.parse(v) : {
+				notes: {},
+				pos: {}
+			};
+		} catch {
+			return {
+				notes: {},
+				pos: {}
+			};
+		}
+	});
+	on("PUT", "/admin/board", (c) => {
+		labs("board");
+		admin(c);
+		const notes = {};
+		const pos = {};
+		for (const [k, v] of Object.entries(c.body.notes ?? {}).slice(0, 200)) {
+			const t = str(v, 500).trim();
+			if (t) notes[str(k, 120)] = t;
+		}
+		for (const [k, v] of Object.entries(c.body.pos ?? {}).slice(0, 200)) {
+			const p = v;
+			const clamp = (v) => Math.max(-1e5, Math.min(1e5, Math.round(Number(v))));
+			if (Number.isFinite(p?.x) && Number.isFinite(p?.y)) pos[str(k, 120)] = {
+				x: clamp(p.x),
+				y: clamp(p.y)
+			};
+		}
+		const prints = {};
+		for (const [k, v] of Object.entries(c.body.prints ?? {}).slice(0, 400)) {
+			const t = str(v, 40);
+			if (t) prints[str(k, 160)] = t;
+		}
+		const checks = {};
+		for (const [k, v] of Object.entries(c.body.checks ?? {}).slice(0, 200)) if (v === true) checks[str(k, 120)] = true;
+		const next = {
+			notes,
+			pos,
+			prints,
+			checks
+		};
+		run("INSERT INTO meta (key, value) VALUES ('board', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", JSON.stringify(next));
+		const a = adminOf(c.req);
+		run("INSERT INTO admin_audit (at, ip, action, target, who) VALUES (?, ?, ?, ?, ?)", now(), c.ip, "board", `메모 ${Object.keys(notes).length} · 자리 ${Object.keys(pos).length} · 기준 ${Object.keys(prints).length} · 점검 ${Object.keys(checks).length}`, a?.who ?? "");
+		run("DELETE FROM admin_audit WHERE id <= (SELECT MAX(id) - 5000 FROM admin_audit)");
+		return next;
 	});
 	const INQUIRY_KINDS = [
 		"궁금해요",
@@ -3311,7 +3531,7 @@ for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => {
 });
 var tidy = () => {
 	try {
-		const f = maintain(db, autoDir, backupKeepOf(db, config.backupKeep));
+		const f = maintain(db, autoDir, backupKeepOf(db, config.backupKeep), /* @__PURE__ */ new Date(), backupDir2Of(db) || null);
 		if (f) console.log(`[손질] 자동 백업 ${f}`);
 	} catch (e) {
 		console.error("[손질] 실패", e);

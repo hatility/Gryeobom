@@ -1,4 +1,5 @@
 import { POLICY_DATE } from './Legal'
+import { confirmDialog } from '../components/confirm'
 import CountUp from '../components/CountUp'
 import { isValidElement, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactElement, type ReactNode } from 'react'
 import { downloadCsv, labOn, useLabs } from '../labs'
@@ -71,6 +72,7 @@ const has = (q: string, ...xs: (string | null | undefined)[]) => {
 export default function AdminPage() {
   const labs = useLabs('ops')
   const labsOrg = useLabs('org')
+  const labsBoard = useLabs('board')
   const [dev, setDev] = useState(false)
   useEffect(() => {
     siteConfig().then((c) => setDev(!!c.dev))
@@ -78,7 +80,7 @@ export default function AdminPage() {
   /** 이 탭이 보이는지: 실험 탭은 그 묶음이 켜졌을 때 (변경 내역은 개발 서버만) */
   const shown = (k: Tab) => (k === 'admins' ? labs && me.role === 'owner' : !LABS_TABS.includes(k) || (k === 'devlog' ? dev : k === 'orgs' ? labsOrg : labs))
   const [state, setState] = useState<State>('loading')
-  const [me, setMe] = useState<{ who?: string; role?: string }>({})
+  const [me, setMe] = useState<{ who?: string; role?: string; oneLogin?: { user: string; linked: boolean; hasOwner: boolean } }>({})
   // 신고 · 문의 알림: 30초마다 확인, 늘어나면 위에 알림 · 탭 제목에 숫자
   const [alerts, setAlerts] = useState({ reports: 0, inquiries: 0 })
   const [fresh, setFresh] = useState('')
@@ -168,7 +170,7 @@ export default function AdminPage() {
     setState('login')
   }
   const remove = async (kind: 'groups' | 'users' | 'posts', id: string, text: string) => {
-    if (!window.confirm(text)) return
+    if (!await confirmDialog(text)) return
     setErr('')
     try {
       await api.adminDelete(kind, id)
@@ -186,6 +188,50 @@ export default function AdminPage() {
         <p className="eyebrow en">ADMIN</p>
         <h1 className="page-title">관리자 기능이 꺼져 있어요</h1>
         <p className="muted">서버의 <code>.env</code> 에 <code>ADMIN_ID</code> · <code>ADMIN_PASSWORD</code>(12자 이상)를 정하고 다시 시작해 주세요.</p>
+      </section>
+    )
+  }
+  // 실험(로그인 하나로): 그려봄 로그인 → 관리자 비밀번호로 한 번 더 확인
+  const ol = me.oneLogin
+  if (state === 'login' && ol && !ol.user) {
+    return (
+      <section className="container page auth-page">
+        <header className="page-head">
+          <div>
+            <p className="eyebrow en">ADMIN</p>
+            <h1 className="page-title">먼저 로그인해 주세요</h1>
+            <p className="muted">관리자도 그려봄 계정으로 들어와요. 로그인한 뒤 관리자 비밀번호로 한 번 더 확인해요.</p>
+          </div>
+        </header>
+        <div className="card form-card auth-card">
+          <a className="btn btn-primary btn-block" href="/login?next=%2Fadmin">그려봄 로그인하러 가기</a>
+        </div>
+      </section>
+    )
+  }
+  if (state === 'login' && ol) {
+    return (
+      <section className="container page auth-page">
+        <header className="page-head">
+          <div>
+            <p className="eyebrow en">ADMIN</p>
+            <h1 className="page-title">관리자 확인</h1>
+            <p className="muted"><b>{ol.user}</b> 계정으로 로그인해 있어요. 관리자 비밀번호로 한 번 더 확인해요. 확인은 30분 동안, 쓰는 동안에는 이어져요. 어느 계정으로 들어왔는지는 접속 기록에 남아요.</p>
+          </div>
+        </header>
+        <form className="card form-card auth-card" onSubmit={login}>
+          <label className="field">
+            <span className="field-label">관리자 아이디 <small className="muted">· 비워 두면 첫 관리자</small></span>
+            <input name="admin-id" autoComplete="username" value={form.id} placeholder="첫 관리자는 비워 두세요" onChange={(e) => setForm({ ...form, id: e.target.value })} />
+          </label>
+          <label className="field">
+            <span className="field-label">관리자 비밀번호</span>
+            <input name="admin-password" type="password" autoComplete="current-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+          </label>
+          <p className="muted small">첫 관리자 비밀번호는 어느 그려봄 계정으로 로그인해 있어도 쓸 수 있어요 (기관에서 여럿이 관리할 때). 더 둔 관리자 계정은 아이디까지 적어요.</p>
+          {err && <p className="alert" role="alert">{err}</p>}
+          <button type="submit" className="btn btn-primary btn-block">확인</button>
+        </form>
       </section>
     )
   }
@@ -275,6 +321,16 @@ export default function AdminPage() {
               })}
             </div>
           ))}
+          {/* 실험(1.3.0): 사이트 지도 보드 — 보드는 화면을 가득 채워서 새 화면으로 연다 */}
+          {labsBoard && (
+            <div className="admin-nav-group">
+              <p className="admin-nav-title">도구</p>
+              <a className="admin-nav-item" href="/board">
+                <span>사이트 지도 보드</span>
+                <span className="admin-badge">실험</span>
+              </a>
+            </div>
+          )}
         </nav>
 
         <div className="admin-main">
@@ -377,7 +433,7 @@ export default function AdminPage() {
               onUser={openUser}
             />
           ) : !data ? (
-            <p className="muted serif">불러오는 중이에요…</p>
+            <p className="muted serif is-loading">불러오는 중이에요…</p>
           ) : tab === 'home' ? (
             <>
               <Overview data={data} onUser={openUser} onReports={() => choose('reports')} />
@@ -433,6 +489,7 @@ function ReportsTab({ onGroup, onChanged }: { onGroup: (id: string) => void; onC
   const [list, setList] = useState<AdminReport[] | null>(null)
   const [err, setErr] = useState('')
   const [showDeleted, setShowDeleted] = useState(false)
+  const [noting, setNoting] = useState<string | null>(null) // 처리 메모 템플릿을 펼친 신고
   const load = () => api.adminReports(showDeleted).then(setList, (e) => setErr(e.message))
   useEffect(() => {
     setList(null)
@@ -441,7 +498,7 @@ function ReportsTab({ onGroup, onChanged }: { onGroup: (id: string) => void; onC
   const [deleting, setDeleting] = useState<AdminReport | null>(null)
   const remove = (r: AdminReport) => setDeleting(r)
   const act = async (fn: () => Promise<unknown>, confirmText?: string) => {
-    if (confirmText && !window.confirm(confirmText)) return
+    if (confirmText && !await confirmDialog(confirmText)) return
     setErr('')
     try {
       await fn()
@@ -457,7 +514,7 @@ function ReportsTab({ onGroup, onChanged }: { onGroup: (id: string) => void; onC
       <button type="button" role="tab" className="seg-btn" aria-selected={showDeleted} onClick={() => setShowDeleted(true)}>지운 신고</button>
     </div>
   )
-  if (!list) return <>{toggle}<p className="muted serif">불러오는 중이에요…</p></>
+  if (!list) return <>{toggle}<p className="muted serif is-loading">불러오는 중이에요…</p></>
   if (!list.length) return <>{toggle}<p className="card admin-empty muted">{showDeleted ? '지운 신고 기록이 없어요.' : '아직 들어온 신고가 없어요.'}</p></>
   return (
     <>
@@ -478,13 +535,20 @@ function ReportsTab({ onGroup, onChanged }: { onGroup: (id: string) => void; onC
             {r.detail && <p className="admin-report-detail serif">“{r.detail}”</p>}
             <p className="muted small">신고한 사람 · {r.reporter ?? '탈퇴한 사람'}</p>
             {r.deletedAt && <p className="small admin-report-deleted">지움 · {formatDate(r.deletedAt)} · 까닭: {r.deleteReason}</p>}
+            {r.resolvedAt && r.note && <p className="small muted">처리 메모 · {r.note}</p>}
+            {noting === r.id && !r.resolvedAt && (
+              <div className="resolve-notes" role="group" aria-label="처리 메모 고르기">
+                {RESOLVE_NOTES.map((n) => <button key={n} type="button" className="chip" onClick={() => { setNoting(null); act(() => api.adminResolveReport(r.id, false, n)) }}>{n}</button>)}
+                <button type="button" className="btn btn-text btn-sm" onClick={() => { setNoting(null); act(() => api.adminResolveReport(r.id)) }}>메모 없이 완료</button>
+              </div>
+            )}
             {r.reason === 'danger' && !r.resolvedAt && !r.deletedAt && <p className="small danger">도움이 필요해 보인다는 신고예요. 모임장 · 기관 담당자와 함께 살펴보고, 필요하면 청소년상담 1388 을 안내해 주세요.</p>}
             {!r.deletedAt && <div className="admin-actions">
               {r.groupId && <button type="button" className="btn btn-ghost btn-sm" onClick={() => onGroup(r.groupId!)}>모임에서 보기</button>}
               {r.postId && !r.resolvedAt && (
                 <button type="button" className="btn btn-text danger btn-sm" onClick={() => act(() => api.adminDelete('posts', r.postId!), `‘${r.postTitle}’ 를 모임에서 내릴까요? (본인의 기록은 그대로 남아요)`)}>글 내리기</button>
               )}
-              <button type="button" className={r.resolvedAt ? 'btn btn-text btn-sm' : 'btn btn-primary btn-sm'} onClick={() => act(() => api.adminResolveReport(r.id, !!r.resolvedAt))}>
+              <button type="button" className={r.resolvedAt ? 'btn btn-text btn-sm' : 'btn btn-primary btn-sm'} aria-expanded={r.resolvedAt ? undefined : noting === r.id} onClick={() => r.resolvedAt ? act(() => api.adminResolveReport(r.id, true)) : setNoting((x) => (x === r.id ? null : r.id))}>
                 {r.resolvedAt ? '다시 열기' : '처리 완료'}
               </button>
               <button type="button" className="btn btn-text btn-sm muted" onClick={() => remove(r)}>기록 지우기</button>
@@ -509,6 +573,8 @@ function ReportsTab({ onGroup, onChanged }: { onGroup: (id: string) => void; onC
 }
 
 const DELETE_REASONS = ['시험 신고', '중복 신고', '잘못 들어온 신고', '이미 처리한 일']
+/** 처리 완료 때 남기는 메모 템플릿 (1.3.0): 무엇을 했는지 한 줄 */
+const RESOLVE_NOTES = ['살펴봤고 문제 없어요', '글을 내리고 처리했어요', '모임장에게 알렸어요', '기관 담당자와 함께 살펴봤어요', '상담 안내(1388)를 전했어요']
 
 /** 신고 기록 지우기 팝업: 무엇을 지우는지 보여 주고, 까닭(2자 이상)을 받아야 지운다 */
 function DeleteReportDialog({ report, onClose, onDone }: { report: AdminReport; onClose: () => void; onDone: () => void }) {
@@ -582,7 +648,7 @@ function RestoreCard({ onDone }: { onDone: () => void }) {
   const go = async (e: FormEvent) => {
     e.preventDefault()
     if (!file || !pw || !sure) return
-    if (!window.confirm(`지금 DB 를 ‘${file.name}’ 내용으로 바꿀까요? 백업 뒤에 생긴 기록은 사라져요.`)) return
+    if (!await confirmDialog(`지금 DB 를 ‘${file.name}’ 내용으로 바꿀까요? 백업 뒤에 생긴 기록은 사라져요.`)) return
     setBusy(true)
     setMsg(null)
     try {
@@ -705,7 +771,7 @@ function DevlogTab() {
   useEffect(() => {
     import('../devlog').then((m) => { setLog(m.DEVLOG); setRel(m.DEVLOG[0]?.id ?? '') })
   }, [])
-  if (!log) return <p className="muted">불러오는 중이에요…</p>
+  if (!log) return <p className="muted is-loading">불러오는 중이에요…</p>
   const key = (r: DevRelease, c: DevChange, x: string) => `${r.id}|${c.title}|${x}`
   const toggleCheck = (k: string) => {
     const next = { ...done, [k]: !done[k] }
@@ -808,7 +874,7 @@ function DormantTab({ onDone }: { onDone: () => void }) {
     load()
   }, [months])
   const purge = async () => {
-    if (!pick.size || !window.confirm(`고른 ${pick.size}개 계정과 그 기록을 모두 지울까요? 되돌릴 수 없어요.`)) return
+    if (!pick.size || !await confirmDialog(`고른 ${pick.size}개 계정과 그 기록을 모두 지울까요? 되돌릴 수 없어요.`)) return
     const r = await api.adminPurgeDormant(months, [...pick]).catch((e) => { setMsg(e.message); return null })
     if (r) setMsg(`${r.deleted}개 계정을 정리했어요.`)
     load()
@@ -846,7 +912,7 @@ function ErrorsTab() {
     api.adminErrors().then(setRows, (e) => setErr(e.message))
   }, [])
   if (err) return <p className="alert" role="alert">{err}</p>
-  if (!rows) return <p className="muted">불러오는 중이에요…</p>
+  if (!rows) return <p className="muted is-loading">불러오는 중이에요…</p>
   // 아래 보안 정책 카드와 같은 모양: 제목 + 목록(또는 한 줄)
   return (
     <section className="card admin-settings">
@@ -888,7 +954,7 @@ function OrgsTab({ users }: { users: AdminOverview['users'] }) {
     }
   }
   const remove = async (o: AdminOrg) => {
-    if (!window.confirm(`‘${o.name}’ 기관을 지울까요? 모임 · 계정은 그대로 남아요.`)) return
+    if (!await confirmDialog(`‘${o.name}’ 기관을 지울까요? 모임 · 계정은 그대로 남아요.`)) return
     await api.adminDeleteOrg(o.id).catch(() => {})
     load()
   }
@@ -978,7 +1044,7 @@ function ResetCard({ onDone }: { onDone: () => void }) {
   const go = async (e: FormEvent) => {
     e.preventDefault()
     if (!ready) return
-    if (!window.confirm('정말 모든 회원과 기록을 지울까요? 지운 뒤에는 이 화면에서 되돌릴 수 없어요.')) return
+    if (!await confirmDialog('정말 모든 회원과 기록을 지울까요? 지운 뒤에는 이 화면에서 되돌릴 수 없어요.')) return
     setBusy(true)
     setMsg(null)
     try {
@@ -1219,13 +1285,13 @@ function LinksTab() {
   useEffect(() => {
     load()
   }, [])
-  if (!links) return <p className="muted serif">불러오는 중이에요…</p>
+  if (!links) return <p className="muted serif is-loading">불러오는 중이에요…</p>
   return (
     <>
       <LinkList
         links={links}
         onOff={async (code) => {
-          if (!window.confirm('이 링크를 끌까요?')) return
+          if (!await confirmDialog('이 링크를 끌까요?')) return
           await api.adminDeleteLink(code)
           load()
         }}
@@ -1242,7 +1308,7 @@ function LoginsTab() {
   useEffect(() => {
     load()
   }, [])
-  if (!logs) return <p className="muted serif">불러오는 중이에요…</p>
+  if (!logs) return <p className="muted serif is-loading">불러오는 중이에요…</p>
   const save = async () => {
     if (!edit) return
     await api.adminSetAlias(edit.ip, edit.alias)
@@ -1257,7 +1323,7 @@ function LoginsTab() {
       {fails > 0 && <p className="alert" role="alert">최근 24시간 동안 틀린 관리자 로그인 시도가 {fails}번 있었어요. 모르는 IP 라면 비밀번호를 바꿔 주세요.</p>}
       <AdminTable
         empty="아직 기록이 없어요."
-        head={['시각', 'IP', '별칭', '결과', '브라우저']}
+        head={['시각', 'IP', '별칭', '결과', '그려봄 계정', '브라우저']}
         rows={logs.map((l) => [
           new Date(l.at).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }),
           <code key="i">{l.ip}</code>,
@@ -1270,6 +1336,7 @@ function LoginsTab() {
             <button key="e" type="button" className="btn btn-text btn-sm" onClick={() => setEdit({ ip: l.ip, alias: l.alias })}>{l.alias || '+ 별칭'}</button>
           ),
           l.ok ? `들어옴${l.who ? ` · ${l.who}` : ''}` : <span key="r" className="danger">틀림</span>,
+          l.user || <span key="u" className="muted">–</span>,
           <span key="b" title={l.agent}>{browser(l.agent)}</span>,
         ])}
       />
@@ -1619,7 +1686,7 @@ function SiteSettings() {
         <div className="form-actions">
           <button type="submit" className="btn btn-primary">저장하기</button>
           {saved && (
-            <button type="button" className="btn btn-text" onClick={() => window.confirm('관리자 화면에서 정한 값을 지우고 .env 값으로 되돌릴까요?') && run(api.adminResetSettings, '.env 값으로 되돌렸어요.', false)}>
+            <button type="button" className="btn btn-text" onClick={async () => await confirmDialog('관리자 화면에서 정한 값을 지우고 .env 값으로 되돌릴까요?') && run(api.adminResetSettings, '.env 값으로 되돌렸어요.', false)}>
               .env 값으로 되돌리기
             </button>
           )}
@@ -1640,10 +1707,11 @@ function ServerTab() {
   const [h, setH] = useState<AdminHealth | null>(null)
   const [b, setB] = useState<Awaited<ReturnType<typeof api.adminBackups>> | null>(null)
   const [keep, setKeep] = useState('')
+  const [dir2, setDir2] = useState('') // 1.3.0 외부 폴더
   const [msg, setMsg] = useState('')
   const load = () => {
     api.adminHealth().then(setH, (e) => setMsg(e.message))
-    api.adminBackups().then((r) => { setB(r); setKeep(String(r.keep)) }, (e) => setMsg(e.message))
+    api.adminBackups().then((r) => { setB(r); setKeep(String(r.keep)); setDir2(r.dir2 ?? '') }, (e) => setMsg(e.message))
   }
   useEffect(() => {
     load()
@@ -1685,6 +1753,12 @@ function ServerTab() {
             <button type="button" className="btn btn-primary btn-sm" disabled={!b.dir} onClick={() => act(async () => ((await api.adminRunBackup()).made ? '지금 백업을 하나 남겼어요.' : '이번 시간 백업은 이미 있어요 (한 시간에 하나).'))}>지금 백업 남기기</button>
           </form>
           {Number(keep) === 0 && <p className="alert">0 이면 자동 백업을 하지 않아요.</p>}
+          <form className="inline-form" onSubmit={(e) => { e.preventDefault(); act(async () => { const r = await api.adminSetBackupDir2(dir2.trim()); return r.dir2 ? `이제 ${r.dir2} 에도 한 벌씩 복사해요.` : '외부 폴더 복사를 껐어요.' }) }}>
+            <label className="field-label" htmlFor="backup-dir2">다른 폴더에도 한 벌</label>
+            <input id="backup-dir2" value={dir2} placeholder="서버 안 절대 경로 · 예) /mnt/usb/geuryeobom" onChange={(e) => setDir2(e.target.value)} style={{ minWidth: 280 }} />
+            <button type="submit" className="btn btn-ghost btn-sm">저장</button>
+            <small className="muted">외장 디스크 · 동기화 폴더를 적어 두면 자동 백업마다 그곳에도 복사해요 (지우지는 않아요).</small>
+          </form>
           <AdminTable
             head={['파일', '크기', '남긴 때', '']}
             empty="아직 자동 백업이 없어요."
@@ -1705,7 +1779,7 @@ function BlocksTab() {
     load()
   }, [])
   if (err) return <p className="alert" role="alert">{err}</p>
-  if (!rows) return <p className="muted">불러오는 중이에요…</p>
+  if (!rows) return <p className="muted is-loading">불러오는 중이에요…</p>
   return (
     <>
       <div className="admin-toolbar">
@@ -1808,7 +1882,7 @@ function PrivacyTab() {
             open ? <span key="d" className={late ? 'danger' : ''}>{late ? '기한 지남 · ' : ''}{due.toLocaleDateString('ko-KR')}</span> : <span key="d" className="muted">{r.doneAt ? formatDate(r.doneAt) : ''}</span>,
             <span key="a" className="row-actions">
               <button type="button" className="btn btn-text btn-sm" onClick={() => setEdit(r)}>고치기</button>
-              <button type="button" className="btn btn-text btn-sm danger" onClick={() => window.confirm('이 기록을 지울까요?') && api.adminDeletePrivacy(r.id).then(load, () => {})}>지우기</button>
+              <button type="button" className="btn btn-text btn-sm danger" onClick={async () => await confirmDialog('이 기록을 지울까요?') && api.adminDeletePrivacy(r.id).then(load, () => {})}>지우기</button>
             </span>,
           ]
         })}
@@ -1828,9 +1902,9 @@ function TermsSettings() {
   }, [])
   if (!t) return msg ? <p className="alert" role="alert">{msg}</p> : null
   return (
-    <form className="card form-card admin-settings" onSubmit={(e) => {
+    <form className="card form-card admin-settings" onSubmit={async (e) => {
       e.preventDefault()
-      if (!window.confirm('다시 동의를 받을까요? 지금까지 동의한 사람 모두 다음에 들어올 때 이 내용을 보고 동의해야 해요.')) return
+      if (!await confirmDialog('다시 동의를 받을까요? 지금까지 동의한 사람 모두 다음에 들어올 때 이 내용을 보고 동의해야 해요.')) return
       api.adminSaveTerms(text).then(() => { setMsg('올렸어요. 다음에 들어오는 사람부터 다시 동의를 받아요.'); load() }, (e) => setMsg(e.message))
     }}>
       <h3 className="card-title">약관 다시 동의 받기</h3>
@@ -1925,24 +1999,25 @@ function AccountsTab() {
               <label key={k} className="seg"><input type="radio" name="acc-role" checked={form.role === k} onChange={() => setForm({ ...form, role: k })} /><span>{label}</span></label>
             ))}
           </div>
-          <small className="muted">보기만: 목록 · 기록을 열어 볼 수 있어요 (지우기 · 저장 · DB 내려받기는 막혀요). 바꾸기까지: 처음 관리자와 같지만, 관리자 계정은 정할 수 없고 DB 복원 · 초기화에는 처음 관리자 비밀번호가 필요해요.</small>
+          <small className="muted">보기만: 목록 · 기록을 열어 볼 수 있어요 (지우기 · 저장 · DB 내려받기는 막혀요). 바꾸기까지: 처음 관리자와 같지만, 관리자 계정은 정할 수 없고 DB 복원 · 초기화에는 처음 관리자 비밀번호가 필요해요. 더한 계정은 처음 그 아이디로 확인한 그려봄 계정에 묶여 그 뒤로는 그 계정으로만 들어와요 (아래에서 연결을 풀 수 있어요).</small>
         </fieldset>
         {msg && <p className="muted small" role="status">{msg}</p>}
         <div className="form-actions"><button type="submit" className="btn btn-primary">만들기</button></div>
       </form>
       <AdminTable
-        head={['아이디', '할 수 있는 일', '만든 날', '마지막 로그인', '']}
+        head={['아이디', '할 수 있는 일', '묶인 그려봄 계정', '만든 날', '마지막 로그인', '']}
         empty="더한 관리자가 없어요."
         rows={(list ?? []).map((a) => [
           <code key="i">{a.id}</code>,
           <select key="r" value={a.role} aria-label={`${a.id} 권한`} onChange={(e) => save(a.id, e.target.value, '', `‘${a.id}’ 의 권한을 바꿨어요 (그 계정은 다시 로그인해야 해요).`)}>
             <option value="viewer">보기만</option><option value="full">바꾸기까지</option>
           </select>,
+          a.userId ? <span key="u">{a.userNick ?? '(지워진 계정)'} <button type="button" className="btn btn-text btn-sm" onClick={async () => await confirmDialog(`‘${a.id}’ 와 ‘${a.userNick ?? '지워진 계정'}’ 의 연결을 풀까요? 다음에 처음 확인하는 그려봄 계정에 다시 묶여요.`) && api.adminUnlinkAccount(a.id).then(load, () => {})}>연결 풀기</button></span> : <span key="u" className="muted">아직 없음 · 처음 확인하는 계정에 묶여요</span>,
           formatDate(a.createdAt),
           a.lastLogin ? new Date(a.lastLogin).toLocaleString('ko-KR') : '아직 없음',
           <span key="a" className="row-actions">
             <button type="button" className="btn btn-text btn-sm" onClick={() => { const pw = window.prompt(`‘${a.id}’ 의 새 비밀번호 (12자 이상)`); if (pw) save(a.id, a.role, pw, '비밀번호를 바꿨어요.') }}>비밀번호 바꾸기</button>
-            <button type="button" className="btn btn-text btn-sm danger" onClick={() => window.confirm(`‘${a.id}’ 관리자 계정을 지울까요? 바로 로그아웃돼요.`) && api.adminDeleteAccount(a.id).then(load, () => {})}>지우기</button>
+            <button type="button" className="btn btn-text btn-sm danger" onClick={async () => await confirmDialog(`‘${a.id}’ 관리자 계정을 지울까요? 바로 로그아웃돼요.`) && api.adminDeleteAccount(a.id).then(load, () => {})}>지우기</button>
           </span>,
         ])}
       />
@@ -2000,7 +2075,7 @@ function CspCard() {
     <section className="card admin-settings">
       <h3 className="card-title">보안 정책(CSP) 위반 보고</h3>
       <p className="muted small">브라우저가 막은 스크립트 · 글꼴 · 그림이에요 (같은 것은 묶어 횟수만, 주소 속 코드 · 토큰은 가려요). 확장 프로그램 때문에 생기는 것도 있어요.
-        {rows.length > 0 && <> <button type="button" className="btn btn-text btn-sm" onClick={() => window.confirm('보고를 모두 비울까요?') && api.adminClearCsp().then(load, () => {})}>모두 비우기</button></>}
+        {rows.length > 0 && <> <button type="button" className="btn btn-text btn-sm" onClick={async () => await confirmDialog('보고를 모두 비울까요?') && api.adminClearCsp().then(load, () => {})}>모두 비우기</button></>}
       </p>
       <AdminTable
         head={['막은 규칙', '막힌 것', '화면', '횟수', '마지막']}
@@ -2062,7 +2137,7 @@ function InquiriesTab({ onChanged }: { onChanged: () => void }) {
     load()
   }, [])
   if (err) return <p className="alert" role="alert">{err}</p>
-  if (!rows) return <p className="muted">불러오는 중이에요…</p>
+  if (!rows) return <p className="muted is-loading">불러오는 중이에요…</p>
   if (!rows.length) return <div className="card admin-empty"><p className="serif">아직 들어온 문의가 없어요.</p><p className="muted small">로그인한 사람이 바닥글 ‘문의하기’ (모바일은 ‘나’) 에서 남길 수 있어요.</p></div>
   return (
     <ul className="inquiry-list">

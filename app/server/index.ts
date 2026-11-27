@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import { dirname, join } from 'node:path'
 import { createApp } from './app.ts'
 import { readConfig } from './config.ts'
-import { backupKeepOf, maintain, openDb } from './db.ts'
+import { backupDir2Of, backupKeepOf, maintain, openDb } from './db.ts'
 
 const config = readConfig(process.env)
 for (const w of config.warnings) console.warn(`[설정] ${w}`)
@@ -38,7 +38,7 @@ for (const sig of ['SIGTERM', 'SIGINT'])
 // 손질 + 자동 백업 (시작 1분 뒤 한 번, 그다음 한 시간마다 — 같은 시간 백업은 하나만, 최근 BACKUP_KEEP 개)
 const tidy = () => {
   try {
-    const f = maintain(db, autoDir, backupKeepOf(db, config.backupKeep))
+    const f = maintain(db, autoDir, backupKeepOf(db, config.backupKeep), new Date(), backupDir2Of(db) || null)
     if (f) console.log(`[손질] 자동 백업 ${f}`)
   } catch (e) {
     console.error('[손질] 실패', e)
