@@ -26,20 +26,31 @@ afterAll(() => server.close())
 
 /** 쿠키를 기억하는 작은 클라이언트 (브라우저 한 개 = 사람 한 명) */
 function client() {
-  let cookie = ''
+  // 브라우저처럼 쿠키를 이름마다 기억 (사람 로그인 gb_session + 관리자 확인 gb_admin)
+  const jar = new Map<string, string>()
+  const cookie = () => [...jar].map(([k, v]) => `${k}=${v}`).join('; ')
   // 사람마다 다른 IP (가입 · 로그인 횟수 제한은 IP 기준이라, 테스트가 늘어도 서로 막지 않게)
   const ip = `10.0.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`
-  const call = async (method: string, path: string, body?: unknown, headers: Record<string, string> = { 'X-Requested-With': 'geuryeobom' }) => {
+  const call = async (method: string, path: string, body?: unknown, headers: Record<string, string> = { 'X-Requested-With': 'geuryeobom' }): Promise<{ status: number; data: any }> => {
+    // 실험(로그인 하나로): 관리자 확인 전에, 같은 '운영자' 그려봄 계정으로 먼저 로그인 (없으면 가입)
+    if (path === '/admin/login' && !jar.has('gb_session')) {
+      const who = { name: '운영자', birth: '19900101' }
+      if ((await call('POST', '/auth/login', who)).status !== 200) await call('POST', '/auth/signup', { ...who, nickname: '운영자', agree: true })
+    }
+    const c = cookie()
     const res = await fetch(base + path, {
       method,
-      headers: { 'Content-Type': 'application/json', 'X-Real-IP': ip, ...headers, ...(cookie ? { Cookie: cookie } : {}) },
+      headers: { 'Content-Type': 'application/json', 'X-Real-IP': ip, ...headers, ...(c ? { Cookie: c } : {}) },
       body: body === undefined ? undefined : JSON.stringify(body),
     })
-    const set = res.headers.get('set-cookie')
-    if (set) cookie = set.split(';')[0]
+    for (const set of res.headers.getSetCookie()) {
+      const [k, v = ''] = set.split(';')[0].split('=')
+      if (/max-age=0|expires=thu, 01 jan 1970/i.test(set) || !v) jar.delete(k)
+      else jar.set(k, v)
+    }
     return { status: res.status, data: await res.json() }
   }
-  return Object.assign(call, { cookie: () => cookie })
+  return Object.assign(call, { cookie })
 }
 
 const BIRTH = '20120315'
@@ -628,8 +639,13 @@ describe('0.17 모임 주제 · 오늘의 한 줄 · 신고 · 웹 복원', () =
     const mine = (await adm('GET', '/admin/reports')).data.filter((r: { postId: string }) => r.postId === postId)
     expect(mine).toEqual([expect.objectContaining({ reason: 'danger', detail: '걱정돼요', postTitle: '신고의 선', postOwner: '신고원', groupName: '신고 모임', reporter: '신고장', resolvedAt: '' })])
     expect((await adm('GET', '/admin/overview')).data.stats.openReports).toBeGreaterThan(0)
+    await adm('POST', `/admin/reports/${mine[0].id}/resolve`, { note: '살펴봤고 문제 없어요' })
+    const resolved = (await adm('GET', '/admin/reports')).data.find((r: { id: string }) => r.id === mine[0].id)
+    expect(resolved.resolvedAt).not.toBe('')
+    expect(resolved.note).toBe('살펴봤고 문제 없어요') // 1.3.0 처리 메모
+    await adm('POST', `/admin/reports/${mine[0].id}/resolve`, { undo: true })
+    expect((await adm('GET', '/admin/reports')).data.find((r: { id: string }) => r.id === mine[0].id).note).toBe('') // 다시 열면 메모도 지움
     await adm('POST', `/admin/reports/${mine[0].id}/resolve`, {})
-    expect((await adm('GET', '/admin/reports')).data.find((r: { id: string }) => r.id === mine[0].id).resolvedAt).not.toBe('')
     // 글을 내려도 신고 기록은 남는다
     await adm('DELETE', `/admin/posts/${postId}`)
     expect((await adm('GET', '/admin/reports')).data.find((r: { id: string }) => r.id === mine[0].id).postTitle).toBe('신고의 선')
@@ -834,6 +850,19 @@ describe('1.0 신고 기록 지우기 · 내린 글 다시 나누기', () => {
     expect((await kid('GET', '/groups')).data.find((x: { id: string }) => x.id === id).newsAt).toBeTruthy()
     await lead('PUT', `/groups/${id}/news`, { news: '' })
     expect((await kid('GET', `/groups/${id}`)).data.news).toBe('')
+    // 1.3.0: 모임장이 소식 · 활동을 끄면 모임 화면 · 첫 화면에서 사라지고, 켜면 그대로 돌아온다
+    await lead('PUT', `/groups/${id}/news`, { news: '다시 올린 소식' })
+    await lead('POST', `/groups/${id}/events`, { day: '2099-01-01', title: '먼 훗날 모임' })
+    expect((await kid('PUT', `/groups/${id}/hidden`, { hidden: ['news'] })).status).toBe(403)
+    await lead('PUT', `/groups/${id}/topic`, { topic: '올해 가장 웃었던 날' })
+    expect((await lead('PUT', `/groups/${id}/hidden`, { hidden: ['news', 'events', 'topic', 'nope'] })).data.hidden).toEqual(['news', 'topic', 'events'])
+    const off = (await kid('GET', `/groups/${id}`)).data
+    expect([off.news, off.topic, off.events, off.hidden]).toEqual(['', '', [], ['news', 'topic', 'events']])
+    const row = (await kid('GET', '/groups')).data.find((x: { id: string }) => x.id === id)
+    expect([row.news, row.topic, row.nextEvent]).toEqual(['', '', null])
+    await lead('PUT', `/groups/${id}/hidden`, { hidden: [] })
+    const on = (await kid('GET', `/groups/${id}`)).data
+    expect([on.news, on.topic, on.events.length, on.hidden]).toEqual(['다시 올린 소식', '올해 가장 웃었던 날', 1, []])
 
   })
 
@@ -966,7 +995,13 @@ describe('1.0 신고 기록 지우기 · 내린 글 다시 나누기', () => {
     expect((await kid('POST', `/org-invite/${invite}`)).data.name).toBe('초대기관')
     expect((await late('POST', `/org-invite/${invite}`)).status).toBe(404) // 한 번 쓰면 꺼진다
     expect((await late('PUT', `/orgs/${org.id}/news`, { news: '휴관' })).status).toBe(404)
-    expect((await kid('PUT', `/orgs/${org.id}/news`, { news: '다음 주 휴관이에요' })).data.groups).toBe(1)
+    expect((await kid('PUT', `/orgs/${org.id}/news`, { news: '다음 주 휴관이에요' })).data).toMatchObject({ groups: 1, skipped: 0 })
+    expect((await lead('GET', `/groups/${id}`)).data.news).toBe('다음 주 휴관이에요')
+    // 1.3.0: 모임장이 소식을 끈 모임은 건너뛰고, 몇 곳인지 알려 준다 (끈 모임의 소식은 그대로 둔다)
+    await lead('PUT', `/groups/${id}/hidden`, { hidden: ['news'] })
+    expect((await kid('PUT', `/orgs/${org.id}/news`, { news: '바뀐 소식' })).data).toMatchObject({ groups: 0, skipped: 1 })
+    expect((await kid('GET', '/orgs')).data.find((o: { id: string }) => o.id === org.id).groups[0].newsOff).toBe(true) // 담당자 화면에 ‘소식 꺼짐’
+    await lead('PUT', `/groups/${id}/hidden`, { hidden: [] })
     expect((await lead('GET', `/groups/${id}`)).data.news).toBe('다음 주 휴관이에요')
 
     // 약관 재동의: 올리기 전 동의한 사람은 다시, 동의하면 끝
@@ -1269,7 +1304,7 @@ describe('1.0 신고 기록 지우기 · 내린 글 다시 나누기', () => {
     expect(r.status).toBe(200)
     expect(r.data.before).toMatch(/^before-reset-.*\.db$/)
     const o = (await adm('GET', '/admin/overview')).data
-    expect(o.counts).toMatchObject({ users: 0, graphs: 0, groups: 0, posts: 0, links: 0 })
+    expect(o.counts).toMatchObject({ users: 1, graphs: 0, groups: 0, posts: 0, links: 0 }) // 관리자로 연결된 계정 하나만 남는다
     expect((await kid('GET', '/graphs')).status).toBe(401) // 로그인도 풀린다
     expect((await client()('GET', '/notice')).data.notice.title).toBe('남을 공지')
     expect((await adm('GET', '/admin/settings')).status).toBe(200) // 관리자는 그대로
@@ -1351,5 +1386,60 @@ describe('칸이 더 생긴 DB 에서도', () => {
     } finally {
       s.close()
     }
+  })
+})
+
+describe('1.3.0 실험: 로그인 하나로', () => {
+  it('검색 엔진용 sitemap.xml · robots.txt 는 공개 화면만, 접속 주소로 만든다', async () => {
+    const raw = async (p: string) => { const r = await fetch(base + p, { headers: { Host: 'myline.example', 'X-Forwarded-Proto': 'https' } }); return { status: r.status, type: r.headers.get('content-type') ?? '', text: await r.text() } }
+    // 공개 주소가 설정돼 있으면 그 주소, 없으면 접속한 주소(Host · X-Forwarded-Proto)로
+    const cfg = (await fetch(base + '/config').then((r) => r.json())) as { publicUrl: string | null }
+    const expectBase = cfg.publicUrl?.replace(/\/+$/, '') || 'https://myline.example'
+    const sm = await raw('/sitemap.xml')
+    expect(sm.status).toBe(200)
+    expect(sm.type).toContain('application/xml')
+    expect(sm.text).toContain(`<loc>${expectBase}/guide</loc>`)
+    expect(sm.text).not.toContain('/admin')
+    expect(sm.text).not.toContain('/my')
+    const rb = await raw('/robots.txt')
+    expect(rb.text).toContain('Disallow: /graph/')
+    expect(rb.text).toContain(`Sitemap: ${expectBase}/sitemap.xml`)
+  })
+
+  it('그려봄 로그인 없이는 관리자 확인이 안 되고, 아이디를 비우면 첫 관리자, 다른 계정도 들어오되 누가 들어왔는지 남으며, 나가면 관리자 확인도 끝난다', async () => {
+    const raw = await fetch(base + '/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'geuryeobom', 'X-Real-IP': '10.7.7.7' },
+      body: JSON.stringify({ id: 'admin', password: 'admin-password-1234' }),
+    })
+    expect(raw.status).toBe(401)
+    const adm = client()
+    expect((await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })).status).toBe(200)
+    expect((await adm('GET', '/admin/me')).data.oneLogin).toMatchObject({ user: '운영자', linked: true, hasOwner: true })
+    expect((await adm('GET', '/me')).data.adminRole).toBe('owner')
+    const again = client()
+    expect((await again('POST', '/admin/login', { password: 'admin-password-1234' })).status).toBe(200) // 연결된 계정은 비밀번호만
+    const other = await signup('다른어른', '19850505')
+    expect((await other('POST', '/admin/login', { password: 'wrong-password-1234' })).status).toBe(401)
+    expect((await other('POST', '/admin/login', { password: 'admin-password-1234' })).status).toBe(200) // 1.3.0: 다른 계정도 첫 관리자 비밀번호로 들어온다 (기관 관리용)
+    expect((await other('GET', '/admin/me')).data.admin).toBe(true)
+    const logs = (await other('GET', '/admin/logins')).data as { ok: boolean; user: string; who: string }[]
+    expect(logs[0]).toMatchObject({ ok: true, who: 'admin', user: '다른어른' }) // 어느 그려봄 계정으로 들어왔는지 남는다
+    expect(logs[1]).toMatchObject({ ok: false, user: '다른어른' })
+    // 더 둔 관리자 계정은 처음 확인한 그려봄 계정에 묶인다 — 다른 계정은 같은 말로 막히고, 처음 관리자가 연결을 풀면 다시 묶인다
+    await adm('PUT', '/admin/accounts/helper1', { role: 'full', password: 'helper-password-123' })
+    const a = await signup('도우미A', '19870707')
+    const b = await signup('도우미B', '19880808')
+    expect((await a('POST', '/admin/login', { id: 'helper1', password: 'helper-password-123' })).status).toBe(200)
+    expect((await b('POST', '/admin/login', { id: 'helper1', password: 'helper-password-123' })).status).toBe(401)
+    expect((await adm('GET', '/admin/accounts')).data.find((x: { id: string }) => x.id === 'helper1')).toMatchObject({ userNick: '도우미A' })
+    expect((await adm('PUT', '/admin/accounts/helper1', { unlink: true })).status).toBe(200)
+    expect((await a('GET', '/admin/overview')).status).toBe(401) // 연결을 풀면 그 계정의 로그인은 끊긴다
+    expect((await b('POST', '/admin/login', { id: 'helper1', password: 'helper-password-123' })).status).toBe(200)
+    await adm('DELETE', '/admin/accounts/helper1')
+    await adm('POST', '/auth/logout')
+    expect((await adm('GET', '/admin/me')).data.admin).toBe(false) // 그려봄에서 나가면 관리자 확인도 끝
+    await adm('POST', '/auth/login', { name: '운영자', birth: '19900101' }) // 같은 계정으로 다시 들어와도 (관리자 쿠키가 남아 있어도) 관리자는 다시 확인해야 한다
+    expect((await adm('GET', '/admin/me')).data.admin).toBe(false)
   })
 })

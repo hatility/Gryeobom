@@ -473,3 +473,6 @@ export const EASY_Q: Record<string, string> = {
 }
 /** 막막할 때 눌러 넣는 문장 시작 */
 export const STARTERS = ['그때 나는 ', '지금 생각해 보면 ', '사실은 ', '그 덕분에 ', '그래도 ']
+
+/** '인사 · 오늘 할 일 알려 주기 (5분)' → 글과 분으로 나눔 (분이 없으면 0) — 선 하나 활동 · 모임 진행안 모음의 시간 띠에서 씀 */
+export const splitStep = (s: string) => { const m = s.match(/^(.*?)\s*\((\d+)분\)\s*$/); return m ? { text: m[1], min: +m[2] } : { text: s, min: 0 } }

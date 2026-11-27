@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router'
-import { api, type Guardian } from '../api'
+import { Link, useSearchParams } from 'react-router'
+import { useNavigate } from '../nav'
+import { ApiError, api, type Guardian } from '../api'
 import { useAuth } from '../auth'
 import { useLabs } from '../labs'
 
@@ -57,15 +58,15 @@ export function BirthField({ value, onChange, id = 'birth' }: { value: string; o
         name="birth"
         inputMode="numeric"
         autoComplete="bday"
-        placeholder="예) 20120315"
-        maxLength={8}
-        value={value}
+        placeholder="예) 2012.03.15"
+        maxLength={10}
+        value={value.replace(/^(\d{4})(\d{1,2})/, '$1.$2').replace(/^(\d{4}\.\d{2})(\d{1,2})/, '$1.$2')}
         onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 8))}
         aria-describedby={`${id}-hint`}
         required
       />
       <small id={`${id}-hint`} className={read ? 'field-ok' : 'muted'}>
-        {read ? `${read}` : value.length === 8 ? '없는 날짜예요. 한 번 더 확인해 주세요.' : '연도 4자리 · 월 2자리 · 일 2자리'}
+        {read ? `${read}` : value.length === 8 ? '없는 날짜예요. 한 번 더 확인해 주세요.' : '숫자만 이어서 적으면 점은 저절로 찍혀요'}
       </small>
     </div>
   )
@@ -78,6 +79,7 @@ export default function Login() {
   const labs = useLabs('guardian')
   const young = labs && mode === 'signup' && (ageFrom(form.birth) ?? 99) < 14
   const [err, setErr] = useState('')
+  const [dup, setDup] = useState(false) // 같은 이름 · 생일 계정이 이미 있음
   const [busy, setBusy] = useState(false)
   const { user, setUser } = useAuth()
   const navigate = useNavigate()
@@ -99,6 +101,7 @@ export default function Login() {
       setUser(u)
       navigate(next)
     } catch (e) {
+      setDup(e instanceof ApiError && e.status === 409)
       setErr(e instanceof Error ? e.message : '잠시 문제가 생겼어요.')
     } finally {
       setBusy(false)
@@ -162,7 +165,12 @@ export default function Login() {
             로그인 유지 <small className="muted">· 공용 PC에서는 꺼 두세요</small>
           </span>
         </label>
-        {err && <p className="alert" role="alert">{err}</p>}
+        {err && (
+          <p className="alert" role="alert">
+            {err}
+            {dup && mode === 'signup' && <> <button type="button" className="btn btn-text btn-sm" onClick={() => { setMode('login'); setErr(''); setDup(false) }}>같은 이름 · 생일로 로그인하기</button></>}
+          </p>
+        )}
         <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
           {busy ? '잠시만요…' : mode === 'login' ? '로그인' : '시작하기'}
         </button>

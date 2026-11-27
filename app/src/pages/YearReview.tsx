@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react'
+import EmptyDoodle from '../components/EmptyDoodle'
 import CountUp from '../components/CountUp'
 import MoodWords, { topWords } from '../components/MoodWords'
 import { useLabs } from '../labs'
@@ -95,6 +96,7 @@ export default function YearReview() {
 
       {empty ? (
         <div className="card empty-state">
+          <EmptyDoodle />
           <p className="serif big">{year}년에는 아직 남긴 이야기가 없어요.</p>
           <p className="muted">{user ? '첫 화면의 ‘오늘의 질문’에 한 줄을 남기면, 이곳이 조금씩 채워져요.' : '오늘의 한 줄은 로그인한 계정에 남아요. 로그인하면 한 해의 마음 색을 모아 볼 수 있어요.'}</p>
           <Link to={user ? '/' : `/login?next=/review/${year}`} className="btn btn-primary">{user ? '오늘의 질문 보러 가기' : '로그인하기'}</Link>

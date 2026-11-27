@@ -1,13 +1,13 @@
 {
   "name": "geuryeobom",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.3.0",
   "license": "AGPL-3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:api": "DB_FILE=./data/dev.db COOKIE_SECURE=false DEV_SERVER=true PORT=3001 node --watch server/index.ts",
-    "build": "tsc --noEmit && tsc --noEmit -p server && vite build && node scripts/licenses.mjs && vite build --ssr server/index.ts --outDir dist-server",
+    "build": "tsc --noEmit && tsc --noEmit -p server && vite build && node scripts/licenses.mjs && node scripts/prerender.mjs && vite build --ssr server/index.ts --outDir dist-server",
     "preview": "vite preview",
     "test": "vitest run",
     "release": "npm run build && node scripts/release.mjs",

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
+import { useNavigate } from '../nav'
 import { api, type Invite } from '../api'
 import { useAuth } from '../auth'
 import { presetLabel } from '../content'

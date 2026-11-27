@@ -1,4 +1,5 @@
 import EmptyDoodle from '../components/EmptyDoodle'
+import { confirmDialog } from '../components/confirm'
 import { isMobile } from '../device'
 import { useEffect, useId, useRef, useState, type RefObject } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
@@ -107,6 +108,12 @@ export default function GraphResult() {
               모임에 함께 나눴어요. 고친 내용도 모임에 바로 보여요. <Link to={`/groups/${graph.groupId}`}>모임에서 보기</Link>
             </p>
           )}
+          <ul className="next-list no-print" aria-label="다음에 할 일">
+            <li><button type="button" onClick={() => exportRef.current?.showModal()}><b>이미지로 간직하기</b><span className="muted small">휴대폰 배경 · 카드 한 장</span></button></li>
+            {!graph.groupId && <li><button type="button" onClick={() => shareRef.current?.showModal()}><b>누군가와 나누기</b><span className="muted small">링크 · 모임 · 기본은 나만 보기</span></button></li>}
+            <li><Link to="/review"><b>한 해 돌아보기</b><span className="muted small">오늘의 한 줄과 함께</span></Link></li>
+            <li><Link to={`/graph/new?again=${graph.id}`}><b>다음에 같은 기간 다시 그리기</b><span className="muted small">지난 선과 나란히 볼 수 있어요</span></Link></li>
+          </ul>
         </section>
       )}
 
@@ -548,6 +555,7 @@ function LinkShare({ graph, ready, makeShared, ensureOpen, deps }: {
 }) {
   const { user } = useAuth()
   const [agreed, setAgreed] = useState(false)
+  const [gift, setGift] = useState(false) // 선물처럼 포장 (받는 사람은 봉투를 열어 본다)
   const [link, setLink] = useState('')
   const [copied, setCopied] = useState(false)
   const [mine, setMine] = useState<{ code: string; createdAt: string }[]>([])
@@ -568,7 +576,7 @@ function LinkShare({ graph, ready, makeShared, ensureOpen, deps }: {
     if (!(await ensureOpen())) return
     try {
       const { code } = await api.createLink(makeShared(), user ? graph.id : undefined)
-      setLink(`${base}/s/${code}`)
+      setLink(`${base}/s/${code}${gift ? '?gift=1' : ''}`)
       loadMine()
     } catch {
       setLink(`${base}/share#${encodeShared(makeShared())}`)
@@ -576,7 +584,7 @@ function LinkShare({ graph, ready, makeShared, ensureOpen, deps }: {
   }
   const copy = (text: string) => navigator.clipboard.writeText(text).then(() => setCopied(true), () => setCopied(false))
   const off = async (code: string) => {
-    if (!window.confirm('이 링크를 끌까요? 받은 사람도 더는 볼 수 없어요.')) return
+    if (!await confirmDialog('이 링크를 끌까요? 받은 사람도 더는 볼 수 없어요.')) return
     await api.deleteLink(code).catch(() => {})
     if (link.endsWith(`/s/${code}`)) setLink('')
     loadMine()
@@ -598,8 +606,12 @@ function LinkShare({ graph, ready, makeShared, ensureOpen, deps }: {
               {user ? '만든 링크는 이 창에서 언제든 끌 수 있어요.' : <strong>로그인하지 않고 만든 링크는 끌 수 없어요.</strong>}
             </span>
           </label>
+          <label className="check">
+            <input type="checkbox" checked={gift} onChange={(e) => setGift(e.target.checked)} />
+            <span>선물처럼 포장하기 <small className="muted">· 받는 사람은 봉투를 열어 봐요</small></span>
+          </label>
           <button type="button" className="btn btn-primary btn-block" disabled={!ready || !agreed} onClick={make}>
-            짧은 링크 만들기
+            {gift ? '선물 링크 만들기' : '짧은 링크 만들기'}
           </button>
           {!ready && <small className="muted">{graph.entries.length ? '위 ‘무엇을 나눌까요?’ 에서 나눌 순간을 하나 이상 골라 주세요.' : '아직 순간이 없어요. 그래프에 순간을 하나 이상 더하면 링크를 만들 수 있어요.'}</small>}
         </>
@@ -655,7 +667,7 @@ function GroupShare({ graph, ready, makeOptions, ensureOpen, onNoGroups }: {
     })
   }, [graph.id])
 
-  if (groups === null) return <p className="muted small">모임을 불러오는 중이에요…</p>
+  if (groups === null) return <p className="muted small is-loading">모임을 불러오는 중이에요…</p>
   if (groups.length === 0) {
     return (
       <p className="muted small share-action">
@@ -874,7 +886,7 @@ function Versions({ graph, onPreview, onRestored }: { graph: Graph; onPreview: (
     onPreview(r?.graph ?? null)
   }
   const restore = async () => {
-    if (!v || !window.confirm(`${when(v.at)}의 모습으로 되돌릴까요? 지금 모습도 ‘지난 모습’ 에 남아서 다시 돌아올 수 있어요.`)) return
+    if (!v || !await confirmDialog(`${when(v.at)}의 모습으로 되돌릴까요? 지금 모습도 ‘지난 모습’ 에 남아서 다시 돌아올 수 있어요.`)) return
     const g = normalizeGraph({ ...v.graph, id: graph.id, updatedAt: new Date().toISOString() })
     try {
       await api.restoreGraph(g)

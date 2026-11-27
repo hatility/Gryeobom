@@ -34,10 +34,13 @@ export interface GroupPost {
   myCheers: string[]
   counts?: Record<string, number>
 }
+export type GroupHideable = 'news' | 'topic' | 'events'
 export interface GroupDetail {
   id: string; name: string; intro: string; topic: string; topicAt: string
   /** 모임 소식 · 다가오는 일정 (실험) */
   news?: string; newsAt?: string; events?: GroupEvent[]
+  /** 1.3.0: 이 모임에서 끈 것 ('news' 모임 소식 · 'topic' 함께 그릴 주제 · 'events' 다가오는 활동) */
+  hidden?: GroupHideable[]
   /** 끝난 모임 (실험 · 보기만) */
   closedAt?: string
   /** 이 모임이 이어진 기관 (실험 · 모임장 · 공동 모임장에게만) */
@@ -122,8 +125,10 @@ export const api = {
   restoreGraph: (g: LifeGraph) => req('PUT', `/graphs/${g.id}`, { graph: g, snapshot: true }),
   adminMaintenance: () => req<{ on: boolean; message: string; at: string }>('GET', '/admin/maintenance'),
   adminSetMaintenance: (on: boolean, message: string) => req<{ on: boolean; message: string; at: string }>('PUT', '/admin/maintenance', { on, message }),
-  adminAccounts: () => req<{ id: string; role: string; createdAt: string; lastLogin: string | null }[]>('GET', '/admin/accounts'),
+  adminAccounts: () => req<{ id: string; role: string; createdAt: string; lastLogin: string | null; /** 1.3.0 로그인 하나로: 묶인 그려봄 계정 */ userId?: string; userNick?: string | null }[]>('GET', '/admin/accounts'),
   adminSaveAccount: (id: string, role: string, password: string) => req('PUT', `/admin/accounts/${id}`, { role, password }),
+  /** 1.3.0: 묶인 그려봄 계정 풀기 (다음에 처음 확인하는 계정에 다시 묶임) */
+  adminUnlinkAccount: (id: string) => req('PUT', `/admin/accounts/${id}`, { unlink: true }),
   adminDeleteAccount: (id: string) => req('DELETE', `/admin/accounts/${id}`),
   adminFunnel: (from: string, to: string) => req<{ from: string; to: string; signup: number; started: number; moment: number; done: number; shared: number; grouped: number }>('GET', `/admin/funnel?from=${from}&to=${to}`),
   adminCsp: () => req<{ directive: string; blocked: string; page: string; source: string; count: number; firstAt: string; lastAt: string }[]>('GET', '/admin/csp'),
@@ -154,7 +159,7 @@ export const api = {
   orgRemoveGroup: (id: string, groupId: string) => req('DELETE', `/orgs/${id}/groups/${groupId}`),
   linkGroupOrg: (groupId: string, code: string) => req<{ id: string; name: string }>('POST', `/groups/${groupId}/org`, { code }),
   unlinkGroupOrg: (groupId: string) => req('DELETE', `/groups/${groupId}/org`),
-  orgNews: (orgId: string, news: string) => req<{ news: string; newsAt: string; groups: number }>('PUT', `/orgs/${orgId}/news`, { news }),
+  orgNews: (orgId: string, news: string) => req<{ news: string; newsAt: string; groups: number; skipped: number }>('PUT', `/orgs/${orgId}/news`, { news }),
   orgInvite: (token: string) => req<{ name: string; groups: number; already: boolean }>('GET', `/org-invite/${token}`),
   acceptOrgInvite: (token: string) => req<{ id: string; name: string }>('POST', `/org-invite/${token}`),
   myTerms: () => req<{ need: boolean; summary?: string; at?: string }>('GET', '/me/terms'),
@@ -162,8 +167,10 @@ export const api = {
   adminTerms: () => req<{ summary: string; at: string; agreed: number; users: number }>('GET', '/admin/terms'),
   adminSaveTerms: (summary: string) => req<{ summary: string; at: string }>('PUT', '/admin/terms', { summary }),
   adminHealth: () => req<AdminHealth>('GET', '/admin/health'),
-  adminBackups: () => req<{ keep: number; dir: boolean; folder: string; files: { name: string; size: number; at: string }[] }>('GET', '/admin/backups'),
+  adminBackups: () => req<{ keep: number; dir: boolean; folder: string; files: { name: string; size: number; at: string }[]; dir2?: string }>('GET', '/admin/backups'),
   adminSetBackupKeep: (keep: number) => req<{ keep: number }>('PUT', '/admin/backups', { keep }),
+  /** 1.3.0: 백업을 한 벌 더 둘 외부 폴더 (빈 문자열이면 끔) */
+  adminSetBackupDir2: (dir2: string) => req<{ keep: number; dir2: string }>('PUT', '/admin/backups', { dir2 }),
   adminRunBackup: () => req<{ file: string | null; made: boolean }>('POST', '/admin/backups/run'),
   adminBlocks: () => req<AdminBlock[]>('GET', '/admin/blocks'),
   adminReleaseBlock: (limit: string, key: string) => req('POST', '/admin/blocks/release', { limit, key }),
@@ -182,6 +189,7 @@ export const api = {
   /** 그 해에 받은 응원 수 */
   cheersOfYear: (year: number) => req<{ year: number; received: number }>('GET', `/me/cheers/${year}`),
   /** 모임 소식 */
+  setHidden: (id: string, hidden: GroupHideable[]) => req<{ hidden: GroupHideable[] }>('PUT', `/groups/${id}/hidden`, { hidden }),
   setNews: (id: string, news: string) => req<{ news: string; newsAt: string }>('PUT', `/groups/${id}/news`, { news }),
   setTopic: (id: string, topic: string) => req<{ topic: string; topicAt: string }>('PUT', `/groups/${id}/topic`, { topic }),
   report: (postId: string, reason: ReportReason, detail: string) => req('POST', `/posts/${postId}/report`, { reason, detail }),
@@ -206,12 +214,15 @@ export const api = {
   /** since 이후 내 그래프에 도착한 응원 (누가 보냈는지는 오지 않는다) */
   cheersSince: (since: string) => req<ReceivedCheer[]>('GET', `/me/cheers?since=${encodeURIComponent(since)}`),
 
-  adminMe: () => req<{ enabled: boolean; admin: boolean; who?: string; role?: '' | 'owner' | 'full' | 'viewer'; alerts?: { reports: number; inquiries: number } }>('GET', '/admin/me'),
+  adminMe: () => req<{ enabled: boolean; admin: boolean; who?: string; role?: '' | 'owner' | 'full' | 'viewer'; alerts?: { reports: number; inquiries: number }; oneLogin?: { user: string; linked: boolean; hasOwner: boolean } }>('GET', '/admin/me'),
   adminLogin: (id: string, password: string) => req('POST', '/admin/login', { id, password }),
+  // 실험(1.3.0 사이트 지도 보드): 노드 메모 · 손으로 옮긴 자리
+  adminBoard: () => req<BoardSaved>('GET', '/admin/board'),
+  saveAdminBoard: (b: BoardSaved) => req<BoardSaved>('PUT', '/admin/board', b),
   adminLogout: () => req('POST', '/admin/logout'),
   adminReports: (deleted = false) => req<AdminReport[]>('GET', `/admin/reports${deleted ? '?deleted=1' : ''}`),
   adminDeleteReport: (id: string, reason: string) => req('DELETE', `/admin/reports/${id}`, { reason }),
-  adminResolveReport: (id: string, undo = false) => req('POST', `/admin/reports/${id}/resolve`, { undo }),
+  adminResolveReport: (id: string, undo = false, note = '') => req('POST', `/admin/reports/${id}/resolve`, { undo, note }),
   /** 백업 파일로 되돌리기: 파일을 그대로 올리고, 관리자 비밀번호를 한 번 더 보낸다 */
   adminRestore: async (file: File, password: string) => {
     const res = await fetch('/api/admin/restore', {
@@ -253,9 +264,11 @@ export interface AdminReport {
   id: string; postId: string | null; groupId: string | null; reason: ReportReason; detail: string
   postTitle: string; postOwner: string; groupName: string; createdAt: string; resolvedAt: string; reporter: string | null
   deletedAt: string; deleteReason: string
+  /** 1.3.0 처리 메모 (템플릿 한 줄) */
+  note?: string
 }
 export interface AdminLink { code: string; createdAt: string; nickname: string | null; graphId: string | null; graph: SharedGraph }
-export interface AdminLogin { id: number; ip: string; ok: boolean; agent: string; at: string; alias: string; who?: string }
+export interface AdminLogin { id: number; ip: string; ok: boolean; agent: string; at: string; alias: string; who?: string; /** 1.3.0 로그인 하나로: 어느 그려봄 계정(별명)으로 들어왔는지 */ user?: string }
 export interface AdminUser {
   id: string; nickname: string; createdAt: string; agreedAt: string; lastSeenAt: string
   /** 만 14세 미만 보호자 동의 (실험) */
@@ -336,7 +349,7 @@ export interface AdminBlock { limit: string; kind: 'ip' | 'name' | 'user' | 'all
 export interface PrivacyRequest { id: string; kind: string; who: string; detail: string; receivedAt: string; status: string; doneAt: string; note: string }
 export interface AdminOrg { invite?: string; id: string; name: string; createdAt: string; groups: { id: string; name: string; code: string }[]; managers: { id: string; nickname: string }[] }
 export interface OrgPeriod { joined: number; graphs: number; posts: number; cheers: number; events: number; attended: number }
-export interface MyOrg { id: string; name: string; code: string; invite: string; managers: { id: string; nickname: string; me: boolean }[]; groups: { id: string; name: string; code: string; report: GroupReport; period: OrgPeriod | null }[]; total: { groups: number; members: number; sharers: number; posts: number; moments: number; cheers: number; done: number; drawing: number } }
+export interface MyOrg { id: string; name: string; code: string; invite: string; managers: { id: string; nickname: string; me: boolean }[]; groups: { id: string; name: string; code: string; report: GroupReport; period: OrgPeriod | null; /** 모임장이 모임 소식을 꺼 둠 */ newsOff?: boolean }[]; total: { groups: number; members: number; sharers: number; posts: number; moments: number; cheers: number; done: number; drawing: number } }
 
 /* ───── 실험: 인터넷 없이 쓰기 ───── */
 const PENDING = 'geuryeobom:pending'
@@ -368,3 +381,6 @@ export async function flushPending() {
     }
   }
 }
+
+/** 실험(1.3.0 사이트 지도 보드): 관리자끼리 같이 보는 노드 메모 · 자리 */
+export type BoardSaved = { notes: Record<string, string>; pos: Record<string, { x: number; y: number }>; prints?: Record<string, string>; checks?: Record<string, boolean> }

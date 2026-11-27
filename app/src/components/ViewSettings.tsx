@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadView, saveView, type TextSize, type Theme, type View } from '../view'
+import { type Paper, loadView, saveView, type TextSize, type Theme, type View } from '../view'
 import { useLabs } from '../labs'
 
 const THEMES: [Theme, string][] = [['auto', '자동'], ['light', '밝게'], ['dark', '늦은 밤']]
 const SIZES: [TextSize, string][] = [['sm', '작게'], ['md', '보통'], ['lg', '크게']]
+const PAPERS: [Paper, string][] = [['plain', '민무늬'], ['lined', '줄'], ['grid', '모눈'], ['kraft', '크라프트']]
 
 /** 헤더의 ‘보기’ 버튼: 화면 밝기와 글자 크기. 이 기기에만 기억한다. */
 export default function ViewSettings() {
@@ -50,13 +51,16 @@ export default function ViewSettings() {
 export function ViewPanel() {
   const labs = useLabs('graph')
   const [v, setV] = useState<View>(loadView)
+  const initial = useRef<View>(v) // 이 판을 열었을 때의 값 — ‘되돌리기’ 가 돌아갈 곳
   const set = (p: Partial<View>) => {
     const next = { ...v, ...p }
     setV(next)
     saveView(next)
   }
+  const changed = JSON.stringify(v) !== JSON.stringify(initial.current)
   return (
     <>
+      {changed && <p className="view-revert" role="status"><small className="muted">바로 적용됐어요.</small> <button type="button" className="btn btn-text btn-sm" onClick={() => set(initial.current)}>되돌리기</button></p>}
       <fieldset className="field">
         <legend className="field-label">화면 밝기</legend>
         <div className="segmented">
@@ -81,6 +85,18 @@ export function ViewPanel() {
           조용한 시간 <small className="muted">밤 10시 ~ 새벽 5시엔 움직임을 멈추고 더 잔잔하게, 질문도 잠들기 전에 어울리는 것으로 바꿔요.</small>
         </span>
       </label>
+      <fieldset className="field">
+        <legend className="field-label">종이 결</legend>
+        <div className="segmented">
+          {PAPERS.map(([p, label]) => (
+            <label key={p} className="seg">
+              <input type="radio" name="view-paper" checked={v.paper === p} onChange={() => set({ paper: p })} />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+        <small className="muted">카드 종이의 결이 바뀌어요. 선 색은 그리기 1단계에서 그래프마다 골라요.</small>
+      </fieldset>
       <fieldset className="field">
         <legend className="field-label">글자 크기</legend>
         <div className="segmented">
