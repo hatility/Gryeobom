@@ -18,7 +18,7 @@ type Frame = { el: HTMLIFrameElement; id: string; seen: number; readyAt: number;
 const GROUPS: [string, [string, string][]][] = [
   ['그리기', [['/', '처음'], ['/graph/new', '그리기'], ['/example', '예시 그래프'], ['/welcome', '1분 투어'], ['/worksheet', '종이 활동지']]],
   ['나', [['/login', '로그인'], ['/me', '나'], ['/my', '기록 모아보기'], ['/my/book', '내 기록 한 권'], ['/me/overview', '내 흐름'], ['/lines', '오늘의 한 줄'], ['/words', '마음 서랍'], ['/letters', '편지함'], ['/inbox', '소식함'], ['/review', '한 해 돌아보기'], ['/share', '나누기'], ['/contact', '문의하기']]],
-  ['함께 · 기관', [['/activities', '선 하나 활동'], ['/guide', '진행자 안내서'], ['/org', '기관']]],
+  ['함께 · 동아리', [['/activities', '선 하나 활동'], ['/guide', '진행자 안내서'], ['/org', '동아리']]],
   ['둘러보기', [['/credits', '만든 사람'], ['/terms', '이용약관'], ['/privacy', '개인정보 처리방침']]],
   ['관리자', [['/admin?tab=home', '한눈에'], ['/admin?tab=reports', '신고함'], ['/admin?tab=inquiries', '문의함'], ['/admin?tab=notice', '공지 · 점검'], ['/admin?tab=users', '사람'], ['/admin?tab=groups', '모임'], ['/admin?tab=settings', '설정'], ['/admin?tab=flags', '실험 기능'], ['/admin?tab=devlog', '변경 내역']]],
 ]

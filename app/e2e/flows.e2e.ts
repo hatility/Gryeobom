@@ -9,7 +9,7 @@ async function signup(page: Page, name: string, birth: string, nickname: string)
   await page.locator('input[name=name]').fill(name)
   await page.locator('input[name=birth]').fill(birth)
   await page.locator('input[name=nickname]').fill(nickname)
-  await page.locator('.check.agree input[type=checkbox]').check()
+  for (const box of await page.locator('.check.agree input[type=checkbox]').all()) await box.check() // 약관 동의 · 만 14세 이상
 }
 
 test('로그인 없이 그래프를 그리고 결과를 본다', async ({ page }) => {
@@ -49,28 +49,22 @@ test('가입하고 모임을 만들어 소식 · 일정을 올린다', async ({ 
   await expect(page.locator('.events-card')).toContainText('처음 해낸 일 그리기')
 })
 
-test('만 14세 미만은 보호자 동의가 있어야 가입되고, 보호자가 링크로 확인한다', async ({ page, browser }) => {
+test('만 14세 미만은 가입되지 않고, 안내가 보인다', async ({ page }) => {
   await signup(page, `아이${uniq()}`, '20150505', '새싹')
-  await expect(page.locator('.guardian-box')).toBeVisible()
   await page.getByRole('button', { name: '시작하기' }).click()
-  // 보호자 칸을 비우면 가입되지 않는다 (브라우저가 빈 칸을 먼저 막는다)
+  await expect(page.getByText('만 14세 미만은 가입할 수 없어요')).toBeVisible()
   await expect(page).toHaveURL(/\/login/)
-  await page.getByPlaceholder('휴대폰 번호 또는 이메일').fill('010-1234-5678')
-  await page.locator('.guardian-box input[type=checkbox]').check()
-  await page.getByRole('button', { name: '시작하기' }).click()
-  await expect(page).toHaveURL(/\/my/)
-  const link = (await page.locator('.guardian-link code').textContent()) ?? ''
-  expect(link).toContain('/guardian/')
+})
 
-  // 보호자는 다른 브라우저에서 링크를 연다
-  const guardian = await browser.newPage()
-  await guardian.goto(new URL(link).pathname)
-  await expect(guardian.getByText('새싹')).toBeVisible()
-  await guardian.locator('.check.agree input[type=checkbox]').check()
-  await guardian.getByRole('button', { name: '동의해요' }).click()
-  await expect(guardian.getByText('동의가 확인됐어요')).toBeVisible()
-  await page.reload()
-  await expect(page.locator('.guardian-notice')).toHaveCount(0)
+test('선 하나 활동에서 고른 틀로 그리기가 열린다', async ({ page }) => {
+  await page.goto('/activities')
+  await page.getByRole('button', { name: /이번 주 한 선/ }).click()
+  await expect(page.locator('.act-panel h2')).toHaveText('이번 주 한 선')
+  await page.getByRole('tab', { name: /모임 진행안/ }).click()
+  await expect(page.locator('.act-pbp .tbar i').first()).toBeVisible() // 단계마다 시간 띠
+  await page.getByRole('tab', { name: /짧은 활동/ }).click()
+  await page.getByRole('link', { name: '이 틀로 그리기' }).click()
+  await expect(page).toHaveURL(/\/graph\/new\?tpl=week/)
 })
 
 test.describe('모바일', () => {

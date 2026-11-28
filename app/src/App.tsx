@@ -35,14 +35,14 @@ import AdminPage from './pages/AdminPage'
 import Board from './pages/Board'
 import Join from './pages/Join'
 import Worksheet from './pages/Worksheet'
-import GuardianConsent from './pages/GuardianConsent'
 import OrgHome, { OrgDetail, OrgInvite } from './pages/OrgReport'
 import Contact from './pages/Contact'
 import { useLabs } from './labs'
-import { useRouteMeta } from './seo'
+import { PUBLIC_PAGES, useRouteMeta } from './seo'
 import { flushSync } from 'react-dom'
 import { canUseMobile, isMobile, M, switchLayout } from './device'
 import { Me, MobileBar, MobileHome, MobileTabs } from './mobile'
+import { Md } from './md'
 
 export default function App() {
   const { pathname, search, hash } = useLocation()
@@ -119,7 +119,7 @@ export default function App() {
         <PageLink to="/graph/new" className="dock-draw" aria-label="새 그래프 그리기"><span className="rail-icon">{RI('M12 5v14M5 12h14')}</span></PageLink>
         <PageLink to="/share" className="dock-item"><span className="rail-icon">{RI('M8 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20c0-3 2-5 5-5s5 2 5 5M11 20c0-3 2-5 5-5s5 2 5 5')}</span><span>함께</span></PageLink>
         {orgs?.length ? (
-          <PageLink to="/org" className="dock-item"><span className="rail-icon">{RI('M4 20V9l8-5 8 5v11M9 20v-6h6v6M4 20h16')}</span><span>기관</span></PageLink>
+          <PageLink to="/org" className="dock-item"><span className="rail-icon">{RI('M4 20V9l8-5 8 5v11M9 20v-6h6v6M4 20h16')}</span><span>동아리</span></PageLink>
         ) : (
           <Link to="/#intro" className="dock-item"><span className="rail-icon">{RI('M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01')}</span><span>소개</span></Link>
         )}
@@ -165,7 +165,6 @@ export default function App() {
             <Route path="/groups/:id/live" element={<Live />} />
             <Route path="/board" element={<Board />} />
             <Route path="/worksheet" element={<Worksheet />} />
-            <Route path="/guardian/:token" element={<GuardianConsent />} />
             <Route path="/org" element={<OrgHome />} />
             <Route path="/org/:id" element={<OrgDetail />} />
             <Route path="/credits" element={<Credits />} />
@@ -179,7 +178,8 @@ export default function App() {
         )}
       </main>
 
-      {!mobile && <SiteFooter />}
+      {/* 푸터는 공개 안내 화면(처음 · 투어 · 활동 · 안내서 · 예시 · 함께 소개 · 만든 사람 · 약관 · 문의 · 활동지)에만 — 그리기 · 기록 · 모임 · 동아리 · 관리자 같은 작업 화면은 비워 둔다 */}
+      {!mobile && PUBLIC_PAGES.includes(pathname) && <SiteFooter />}
 
       {/* 모바일: 앱처럼 아래 탭바. 작성 중에는 단계 이동 버튼이 그 자리를 쓴다 */}
       {/* 모바일 · 태블릿(/m)은 앱 탭바 (그리기 가운데) */}
@@ -326,7 +326,7 @@ function TermsPrompt({ onLogout }: { onLogout: () => void }) {
     <dialog ref={ref} className="dialog notice-dialog terms-dialog" aria-labelledby="terms-title" onCancel={(e) => e.preventDefault()}>
       <p className="eyebrow">약관이 바뀌었어요</p>
       <h2 id="terms-title" className="card-title">바뀐 점을 확인해 주세요</h2>
-      <p className="notice-body">{t.summary}</p>
+      <Md className="notice-body" text={t.summary} />
       <p className="muted small"><Link to="/terms" target="_blank">이용약관</Link> · <Link to="/privacy" target="_blank">개인정보 처리방침</Link> 전문은 새 창으로 열려요.</p>
       <label className="check agree"><input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} /> 바뀐 이용약관과 개인정보 처리방침을 읽었고 동의해요</label>
       <div className="form-actions">
@@ -396,7 +396,7 @@ function SiteFooter() {
                 <li><Link to="/share">{I('M8 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20c0-3 3-5 6-5s6 2 6 5M14 15c3 0 6 2 6 5')}함께 나누기</Link></li>
                 <li><Link to="/guide">{I('M4 4h12l4 4v12H4zM8 12h8M8 16h5')}진행자 안내서</Link></li>
                 {labsGroup && <li><Link to="/worksheet">{I('M6 9V3h12v6M6 18H4v-7h16v7h-2M6 15h12v6H6z')}종이 활동지</Link></li>}
-                {labsOrg && <li><Link to="/org">{I('M4 20V9l8-5 8 5v11M9 20v-6h6v6')}기관</Link></li>}
+                {labsOrg && <li><Link to="/org">{I('M4 20V9l8-5 8 5v11M9 20v-6h6v6')}동아리</Link></li>}
               </ul>
             </nav>
             <nav aria-label="정보">

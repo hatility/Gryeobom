@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createApp } from './app.ts'
+import { UNDER14_MESSAGE, createApp } from './app.ts'
 import { openDb } from './db.ts'
 import { readConfig } from './config.ts'
 import { newEntry, newGraph } from '../src/store.ts'
@@ -35,7 +35,7 @@ function client() {
     // 실험(로그인 하나로): 관리자 확인 전에, 같은 '운영자' 그려봄 계정으로 먼저 로그인 (없으면 가입)
     if (path === '/admin/login' && !jar.has('gb_session')) {
       const who = { name: '운영자', birth: '19900101' }
-      if ((await call('POST', '/auth/login', who)).status !== 200) await call('POST', '/auth/signup', { ...who, nickname: '운영자', agree: true })
+      if ((await call('POST', '/auth/login', who)).status !== 200) await call('POST', '/auth/signup', { ...who, nickname: '운영자', agree: true, age14: true })
     }
     const c = cookie()
     const res = await fetch(base + path, {
@@ -56,7 +56,7 @@ function client() {
 const BIRTH = '20120315'
 const signup = async (name: string, birth = BIRTH) => {
   const c = client()
-  const r = await c('POST', '/auth/signup', { name, birth, nickname: name, agree: true })
+  const r = await c('POST', '/auth/signup', { name, birth, nickname: name, agree: true, age14: true })
   expect(r.status).toBe(200)
   return c
 }
@@ -85,8 +85,8 @@ describe('api', () => {
     expect((await login('김하늘', '20120316')).status).toBe(401)
     expect((await login('김 하늘', BIRTH)).status).toBe(200) // 띄어쓰기는 같은 이름으로 본다
     // 같은 이름 · 같은 생일은 한 계정만, 이름이 같아도 생일이 다르면 다른 사람
-    expect((await client()('POST', '/auth/signup', { name: '김하늘', birth: BIRTH, nickname: 'x', agree: true })).status).toBe(409)
-    expect((await client()('POST', '/auth/signup', { name: '김하늘', birth: '20100101', nickname: 'y', agree: true })).status).toBe(200)
+    expect((await client()('POST', '/auth/signup', { name: '김하늘', birth: BIRTH, nickname: 'x', agree: true, age14: true })).status).toBe(409)
+    expect((await client()('POST', '/auth/signup', { name: '김하늘', birth: '20100101', nickname: 'y', agree: true, age14: true })).status).toBe(200)
   })
 
   it('같은 이름으로 생일을 계속 맞혀보면 막힌다', async () => {
@@ -98,15 +98,15 @@ describe('api', () => {
     expect((await client()('POST', '/auth/login', { name: '박노을', birth: '20110707' })).status).toBe(429) // 잠시 동안은 본인도 기다려야 한다
   })
 
-  it('약관에 동의(agree: true)하지 않으면 가입되지 않는다', async () => {
+  it('약관에 동의(agree: true, age14: true)하지 않으면 가입되지 않는다', async () => {
     expect((await client()('POST', '/auth/signup', { name: '동의안함', birth: '20080808', nickname: 'n' })).status).toBe(400)
     expect((await client()('POST', '/auth/signup', { name: '동의안함', birth: '20080808', nickname: 'n', agree: 'yes' })).status).toBe(400)
-    expect((await client()('POST', '/auth/signup', { name: '동의함', birth: '20080808', nickname: 'n', agree: true })).status).toBe(200)
+    expect((await client()('POST', '/auth/signup', { name: '동의함', birth: '20080808', nickname: 'n', agree: true, age14: true })).status).toBe(200)
   })
 
   it('없는 날짜 · 미래 날짜 · 8자리가 아닌 생년월일은 받지 않는다', async () => {
     for (const birth of ['20120230', '2012031', '20991231', '2012-03-15', '18991231']) {
-      expect((await client()('POST', '/auth/signup', { name: '테스트', birth, nickname: 't', agree: true })).status).toBe(400)
+      expect((await client()('POST', '/auth/signup', { name: '테스트', birth, nickname: 't', agree: true, age14: true })).status).toBe(400)
     }
   })
 
@@ -206,7 +206,6 @@ describe('api', () => {
     expect((await fetch(url + '/me/export')).status).toBe(401)
     expect((await fetch(url + '/orgs')).status).toBe(401)
     expect((await fetch(url + '/groups/bulk', { method: 'POST', headers: h, body: JSON.stringify({ names: ['x'] }) })).status).toBe(401)
-    expect((await fetch(url + '/guardian/abcdefghijklmnopqrstu')).status).toBe(404)
     prod.close()
   })
 
@@ -292,7 +291,7 @@ describe('api', () => {
     // 처음 온 사람: 별명 없이 보내면 가입이 필요하다고만 알려준다
     expect((await guest('POST', `/invite/${code}`, { name: 'newbie', birth: BIRTH })).data).toEqual({ needSignup: true })
     expect((await guest('POST', `/invite/${code}`, { name: 'newbie', birth: BIRTH, nickname: '새싹' })).status).toBe(400) // 동의 없음
-    const joined = await guest('POST', `/invite/${code}`, { name: 'newbie', birth: BIRTH, nickname: '새싹', agree: true })
+    const joined = await guest('POST', `/invite/${code}`, { name: 'newbie', birth: BIRTH, nickname: '새싹', agree: true, age14: true })
     expect(joined.data).toMatchObject({ id, user: { nickname: '새싹' } })
     expect((await guest('GET', `/groups/${id}`)).data.members).toEqual([{ nickname: 'inviter', role: 'owner' }, { nickname: '새싹', role: 'member' }])
 
@@ -308,12 +307,12 @@ describe('api', () => {
     const { id, code } = (await owner('POST', '/groups', { name: '한 번에 모임', intro: '반가워요' })).data
     expect((await client()('GET', `/invite/${code}`)).data.intro).toBe('반가워요')
     const guest = client()
-    const r = await guest('POST', `/invite/${code}`, { name: '한번에', birth: '20100303', nickname: '단번', agree: true })
+    const r = await guest('POST', `/invite/${code}`, { name: '한번에', birth: '20100303', nickname: '단번', agree: true, age14: true })
     expect(r.data).toMatchObject({ id, user: { nickname: '단번' } })
     // 다음에는 같은 이름 · 생일로 로그인해서 쓰던 기록을 이어 쓴다
     expect((await client()('POST', '/auth/login', { name: '한번에', birth: '20100303' })).status).toBe(200)
     // 이미 계정이 있으면 별명은 무시하고 그 계정으로 들어간다
-    const again = await client()('POST', `/invite/${code}`, { name: '한번에', birth: '20100303', nickname: '다른별명', agree: true })
+    const again = await client()('POST', `/invite/${code}`, { name: '한번에', birth: '20100303', nickname: '다른별명', agree: true, age14: true })
     expect(again.data.user.nickname).toBe('단번')
   })
 
@@ -512,13 +511,13 @@ describe('api', () => {
     const owner = await signup('공격자모임')
     const { code } = (await owner('POST', '/groups', { name: '미끼 모임' })).data
     // 사람(IP)마다 새 클라이언트: IP 를 바꿔 가며 생일을 맞혀 본다
-    const tryInvite = (d: number) => client()('POST', `/invite/${code}`, { name: '피해자', birth: `201106${String(d).padStart(2, '0')}`, nickname: '침입', agree: true })
+    const tryInvite = (d: number) => client()('POST', `/invite/${code}`, { name: '피해자', birth: `201106${String(d).padStart(2, '0')}`, nickname: '침입', agree: true, age14: true })
     const statuses: number[] = []
     for (let d = 13; d <= 24; d++) statuses.push((await tryInvite(d)).status) // 모두 틀린 생일
     expect(statuses.filter((s) => s === 429).length).toBeGreaterThan(0) // 몇 번 틀리면 막힌다
     expect((await tryInvite(7)).status).toBe(429) // 맞는 생일이어도 막힌 동안은 들어갈 수 없다
     // 가입(409 = 이미 있음)으로 떠보는 것도 같은 이름 기준으로 막힌다
-    const trySignup = (d: number) => client()('POST', '/auth/signup', { name: '피해자', birth: `201106${String(d).padStart(2, '0')}`, nickname: 'x', agree: true })
+    const trySignup = (d: number) => client()('POST', '/auth/signup', { name: '피해자', birth: `201106${String(d).padStart(2, '0')}`, nickname: 'x', agree: true, age14: true })
     expect((await trySignup(7)).status).toBe(429)
   })
 
@@ -794,19 +793,32 @@ describe('1.0 신고 기록 지우기 · 내린 글 다시 나누기', () => {
     expect((await kid('DELETE', `/admin/reports/${r.id}`, { reason: '시험' })).status).toBe(401)
   })
 
-  it('실험: 만 14세 미만은 보호자 동의가 있어야 가입되고, 관리자에게 보인다', async () => {
+  it('만 14세 미만은 가입되지 않는다', async () => {
     const kid = client()
-    const base = { name: '어린이', birth: '20150101', nickname: '어린이', agree: true }
-    expect((await kid('POST', '/auth/signup', base)).status).toBe(400)
-    expect((await kid('POST', '/auth/signup', { ...base, guardian: { relation: '부모님', contact: '1234', agreed: true } })).status).toBe(400)
-    const ok = await kid('POST', '/auth/signup', { ...base, guardian: { relation: '부모님', contact: '010-1234-5678', agreed: true } })
-    expect(ok.status).toBe(200)
     const adm = client()
     await adm('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
-    const detail = (await adm('GET', `/admin/users/${ok.data.user.id}`)).data
-    expect(detail.guardian).toMatchObject({ relation: '부모님', contact: '01012345678' })
+    const blocked = async () => (await adm('GET', '/admin/overview')).data.stats.under14Blocked as number
+    const before = await blocked()
+    const base = { name: '어린이', birth: '20150101', nickname: '어린이', agree: true, age14: true }
+    const r = await kid('POST', '/auth/signup', base)
+    expect([r.status, r.data.error]).toEqual([403, UNDER14_MESSAGE])
+    expect((await kid('GET', '/me')).data.user).toBeNull() // 계정도 로그인도 생기지 않는다
+    expect(await blocked()).toBe(before + 1) // 막은 횟수만 센다 (누구인지는 남기지 않음)
+    // 만 14세 이상 확인이 없으면 받지 않는다
+    expect((await client()('POST', '/auth/signup', { name: '확인없음', birth: '20000101', nickname: '확인', agree: true })).status).toBe(400)
+    // 한 번 막힌 이름은 날짜를 고쳐 넣어도 그날은 가입되지 않는다
+    expect((await kid('POST', '/auth/signup', { ...base, birth: '20000101' })).status).toBe(403)
+    // 예전 보호자 칸을 같이 보내도 막힌다
+    expect((await kid('POST', '/auth/signup', { ...base, guardian: { relation: '부모님', contact: '010-1234-5678', agreed: true } })).status).toBe(403)
+    // 만 14세가 되는 날부터는 된다 (한국 시간 기준)
+    const t = new Date(Date.now() + 9 * 3600_000)
+    const ymd = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '')
+    const just14 = ymd(new Date(Date.UTC(t.getUTCFullYear() - 14, t.getUTCMonth(), t.getUTCDate())))
+    const almost = ymd(new Date(Date.UTC(t.getUTCFullYear() - 14, t.getUTCMonth(), t.getUTCDate() + 1)))
+    expect((await client()('POST', '/auth/signup', { name: '내일열넷', birth: almost, nickname: '내일', agree: true, age14: true })).status).toBe(403)
+    expect((await client()('POST', '/auth/signup', { name: '오늘열넷', birth: just14, nickname: '오늘', agree: true, age14: true })).status).toBe(200)
     // 14세 이상은 그대로
-    expect((await client()('POST', '/auth/signup', { name: '청소년', birth: '20100101', nickname: '청소년', agree: true })).status).toBe(200)
+    expect((await client()('POST', '/auth/signup', { name: '청소년', birth: '20100101', nickname: '청소년', agree: true, age14: true })).status).toBe(200)
   })
 
   it('실험: 내 기록 내려받기 · 모임 여러 개 만들기 · 질문 묶음 · 기간 통계', async () => {
@@ -864,22 +876,6 @@ describe('1.0 신고 기록 지우기 · 내린 글 다시 나누기', () => {
     const on = (await kid('GET', `/groups/${id}`)).data
     expect([on.news, on.topic, on.events.length, on.hidden]).toEqual(['다시 올린 소식', '올해 가장 웃었던 날', 1, []])
 
-  })
-
-  it('실험: 보호자는 링크로 동의를 확인하고, 아이 화면은 확인됐는지 안다', async () => {
-    const kid = client()
-    const r = await kid('POST', '/auth/signup', { name: '링크아이', birth: '20160101', nickname: '링크아이', agree: true, guardian: { relation: '보호자', contact: 'mom@example.kr', agreed: true } })
-    expect(r.status).toBe(200)
-    const st = (await kid('GET', '/me/guardian')).data
-    expect(st).toMatchObject({ needed: true, confirmed: false })
-    expect(st.token.length).toBeGreaterThan(16)
-    const guardian = client()
-    expect((await guardian('GET', '/guardian/not-a-real-token-123')).status).toBe(404)
-    expect((await guardian('GET', `/guardian/${st.token}`)).data).toMatchObject({ nickname: '링크아이', confirmed: false })
-    expect((await guardian('POST', `/guardian/${st.token}`, {})).status).toBe(400)
-    expect((await guardian('POST', `/guardian/${st.token}`, { agree: true })).status).toBe(200)
-    expect((await kid('GET', '/me/guardian')).data).toMatchObject({ confirmed: true, token: null })
-    expect((await (await signup('어른계정'))('GET', '/me/guardian')).data.needed).toBe(false)
   })
 
   it('실험: 모임 일정 · 기관 담당자 리포트 · 올해 받은 응원', async () => {
@@ -1009,7 +1005,7 @@ describe('1.0 신고 기록 지우기 · 내린 글 다시 나누기', () => {
     expect((await kid('PUT', '/admin/terms', { summary: '출석 기록을 남겨요' })).status).toBe(401)
     await adm('PUT', '/admin/terms', { summary: '출석 기록을 남겨요' })
     expect((await kid('GET', '/me/terms')).data).toMatchObject({ need: true, summary: '출석 기록을 남겨요' })
-    await kid('POST', '/me/agree', { agree: true })
+    await kid('POST', '/me/agree', { agree: true, age14: true })
     expect((await kid('GET', '/me/terms')).data.need).toBe(false)
     expect((await adm('GET', '/admin/terms')).data.agreed).toBe(1)
   })
@@ -1221,11 +1217,10 @@ describe('1.0 신고 기록 지우기 · 내린 글 다시 나누기', () => {
       const official = ['graph', 'group', 'org', 'me', 'ops']
       expect((await call('GET', '/config')).data).toMatchObject({ dev: false, flags: official })
       expect((await call('POST', '/contact', { kind: '궁금해요', message: '정식에서도 되나요' })).status).toBe(401) // 열려 있고, 로그인이 필요
-      expect((await call('GET', '/guardian/abcdefghijklmnopqrstu')).status).toBe(404) // 보호자 동의는 꺼짐
       await call('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
       expect((await call('GET', '/admin/hours')).status).toBe(200)
-      await call('PUT', '/admin/flags', { flags: { guardian: true, nope: true } })
-      expect((await call('GET', '/config')).data.flags).toEqual(['graph', 'group', 'org', 'guardian', 'me', 'ops'])
+      await call('PUT', '/admin/flags', { flags: { board: true, guardian: true, nope: true } })
+      expect((await call('GET', '/config')).data.flags).toEqual(['graph', 'group', 'org', 'me', 'ops', 'board']) // 없어진 guardian · 모르는 이름은 버린다
       await call('PUT', '/admin/flags', { flags: { ops: false } }) // 정식 묶음은 꺼도 그대로
       expect((await call('GET', '/admin/hours')).status).toBe(200)
       expect((await call('GET', '/config')).data.flags).toEqual(official)
@@ -1240,12 +1235,13 @@ describe('1.0 신고 기록 지우기 · 내린 글 다시 나누기', () => {
     const lead = await signup('잇는모임장')
     const kid = await signup('기관모르는아이')
     expect((await boss('POST', '/orgs', { name: '바다수련관' })).status).toBe(400) // 안내 동의 없이는 안 됨
-    const org = (await boss('POST', '/orgs', { name: '바다수련관', agree: true })).data
+    const org = (await boss('POST', '/orgs', { name: '바다수련관', agree: true, age14: true })).data
     expect(org.code).toMatch(/^[A-Z0-9]{6}$/)
-    // 만 14세 미만(보호자 기록이 있는 계정)은 기관을 등록하지 못한다
-    const young = client()
-    await young('POST', '/auth/signup', { name: '기관아이', birth: '20160101', nickname: '기관아이', agree: true, guardian: { relation: '보호자', contact: 'mom@example.kr', agreed: true } })
-    expect((await young('POST', '/orgs', { name: '장난기관', agree: true })).status).toBe(403)
+    // 등록할 때 확인한 내용이 그때의 문구 그대로 남는다 (관리자가 본다)
+    const seen = client()
+    await seen('POST', '/admin/login', { id: 'admin', password: 'admin-password-1234' })
+    const rec = (await seen('GET', '/admin/orgs')).data.find((o: { id: string }) => o.id === org.id).agreed
+    expect([rec.notice.length, rec.notice.some((t: string) => t.includes('만 14세 미만')), rec.at.slice(0, 4)]).toEqual([6, true, String(new Date().getUTCFullYear())])
     const { id: gid, code } = (await lead('POST', '/groups', { name: '이을 모임' })).data
     await kid('POST', '/groups/join', { code })
     expect((await kid('POST', `/groups/${gid}/org`, { code: org.code })).status).toBe(403) // 회원은 못 잇는다
@@ -1377,7 +1373,7 @@ describe('칸이 더 생긴 DB 에서도', () => {
       return res.status
     }
     try {
-      expect(await call('POST', '/auth/signup', { name: 'future', birth: BIRTH, nickname: 'future', agree: true })).toBe(200)
+      expect(await call('POST', '/auth/signup', { name: 'future', birth: BIRTH, nickname: 'future', agree: true, age14: true })).toBe(200)
       const g = { ...newGraph(), visibility: 'link' as const, entries: [newEntry(5, 2, '반짝')] }
       expect(await call('PUT', `/graphs/${g.id}`, { graph: g })).toBe(200)
       const shared = toShared(g, { title: '선', entryIds: new Set([g.entries[0].id]), descriptions: false, time: true })

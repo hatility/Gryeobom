@@ -1117,7 +1117,6 @@ body { transition: background-color 0.4s ease, color 0.4s ease; }
 .legal-table td:last-child { text-align: left; }
 .legal-foot { margin-top: 32px; }
 .footer-legal { margin-top: -2px; }
-.agree-sub { display: block; margin-top: 2px; }
 @media (max-width: 720px) {
   .legal-toc ol { columns: 1; }
   .legal-section { scroll-margin-top: 16px; }
@@ -2210,9 +2209,6 @@ html.m .dev-badge { top: calc(8px + env(safe-area-inset-top)); bottom: auto; lef
 
 /* ═══ 실험 기능 (개발 테스트 서버) ═══ */
 /* 보호자 동의 */
-.guardian-box { padding: 16px; border-radius: 14px; background: color-mix(in srgb, var(--primary) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border)); gap: 12px; }
-.guardian-box > p { margin: 0; }
-.guardian-note { margin: 4px 0 0; color: var(--text-soft); }
 /* 내 기록 내려받기 */
 .export-mine { margin: 24px 0 0; }
 /* 여러 모임 한 번에 */
@@ -2314,12 +2310,6 @@ html.m .dev-badge { top: calc(8px + env(safe-area-inset-top)); bottom: auto; lef
 }
 
 /* 실험: 보호자 확인 · 기관 · 일정 */
-.guardian-notice { display: grid; gap: 8px; margin: 0 0 16px; padding: 14px 16px; border-radius: 14px; background: color-mix(in srgb, #5b6b8c 10%, var(--surface)); border: 1px solid color-mix(in srgb, #5b6b8c 30%, var(--border)); }
-.guardian-notice p { margin: 0; }
-.guardian-notice .btn { justify-self: start; }
-.guardian-link code { font-size: 12px; word-break: break-all; color: var(--text-soft); }
-.guardian-page .form-card { max-width: 640px; margin: 0 auto; display: grid; gap: 14px; }
-.guardian-page ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .org-card { display: grid; gap: 14px; margin-bottom: 20px; }
 .org-card .card-title { margin: 0; }
 .events-card { display: grid; gap: 10px; border-left: 4px solid #8fb3a2; }
@@ -2418,14 +2408,6 @@ html.m .dev-badge { right: auto; }
 .moment-head-select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; cursor: pointer; }
 
 /* 보호자 동의 칸: 제목을 테두리 안으로, 연락처 칸을 넓게, 동의 체크는 따로 한 칸 */
-.guardian-box { display: grid; gap: 14px; padding: 18px; }
-.guardian-box > .guardian-title { float: left; width: 100%; padding: 0; margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: var(--text); }
-.guardian-box > .guardian-title + * { clear: both; }
-.guardian-tag { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--primary-ink); background: color-mix(in srgb, var(--primary) 18%, transparent); }
-.guardian-sub { margin: -4px 0 0; line-height: 1.6; }
-.guardian-box .field-row { grid-template-columns: minmax(120px, 0.7fr) 1.3fr; gap: 12px; }
-.guardian-box .check { padding: 12px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); align-items: flex-start; }
-@media (max-width: 480px) { .guardian-box .field-row { grid-template-columns: 1fr; } }
 
 /* 조용한 시간에도 처음 화면의 그래프 선은 천천히 그려진다 (다른 움직임은 그대로 멈춤) */
 :root[data-quiet='1'] .hero-art .art-line { animation-duration: 3.4s !important; }
@@ -5244,3 +5226,19 @@ img.foot-made-ic { display: block; width: 32px; height: 32px; border-radius: 9px
   .act-pbp { grid-template-columns: 1fr; padding: 22px 18px; }
   .act-tabs .chip { min-height: 40px; }
 }
+
+/* ───── 1.3.1: 약관 ‘바뀐 점’ 작은 마크다운 (md.tsx) ───── */
+.mdtext { white-space: normal; }
+.mdtext p { margin: 0 0 8px; }
+.mdtext ul, .mdtext ol { margin: 0 0 8px; padding-left: 1.3em; }
+.mdtext li { margin: 3px 0; }
+.mdtext li::marker { color: var(--accent); }
+.mdtext .mdtext-h { font-weight: 700; margin: 12px 0 6px; }
+.mdtext > :first-child { margin-top: 0; }
+.mdtext > :last-child { margin-bottom: 0; }
+.mdtext a { text-decoration: underline; text-underline-offset: 3px; }
+.md-preview { margin-top: 10px; padding: 10px 14px; border: 1px dashed var(--line); border-radius: 12px; background: var(--paper, transparent); }
+.md-preview > summary { cursor: pointer; list-style: none; }
+.md-preview > summary::before { content: "▸ "; font-size: 12px; }
+.md-preview[open] > summary { margin-bottom: 6px; }
+.md-preview[open] > summary::before { content: "▾ "; }

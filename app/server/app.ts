@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statfsSync, w
 import { tmpdir } from 'node:os'
 import { isAbsolute, basename, join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { CHEERS, MOOD_COLORS } from '../src/content.ts'
+import { CHEERS, MOOD_COLORS, ORG_NOTICE } from '../src/content.ts'
 import { GROUP_POST, postShared, sanitizePostOptions, sanitizeShared, type PostOptions } from '../src/share.ts'
 import type { GroupPreset, GroupPrompts, LifeGraph } from '../src/types.ts'
 import { httpUrl, isEmail } from './config.ts'
@@ -67,7 +67,7 @@ export function ageOf(birth: string, today = new Date(Date.now() + 9 * 3600_000)
   const t = today.toISOString().slice(0, 10).replace(/-/g, '')
   return +t.slice(0, 4) - y - (t.slice(4) < md ? 1 : 0)
 }
-export const GUARDIAN_RELATIONS = ['부모님', '보호자', '기관 담당 선생님']
+export const UNDER14_MESSAGE = '만 14세 미만은 가입할 수 없어요. 로그인 없이도 이 기기에 저장하며 쓸 수 있어요.'
 
 // 헷갈리는 글자(0/O, 1/I/L)를 뺀 6자리 모임 코드
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -333,6 +333,8 @@ export function createApp(db: Db, opts: AppOptions) {
     check: (k: string) => (nameShort.check(k), nameDay.check(k)),
     hit: (k: string) => (nameShort.hit(k), nameDay.hit(k)),
   }
+  /** 만 14세 미만 생일로 가입하려다 막힌 이름(변환값) → 풀리는 시각 */
+  const youngNames = new Map<string, number>()
   const joinLimit = limiter(20, 15 * 60_000)
   const linkMake = limiter(30, 15 * 60_000) // 짧은 링크 만들기 (IP 기준)
   const linkMiss = limiter(60, 15 * 60_000) // 없는 링크 코드 맞혀 보기 막기
@@ -520,6 +522,7 @@ export function createApp(db: Db, opts: AppOptions) {
     names.check(nameKey)
     signupLimit.check(c.ip)
     if (c.body.agree !== true) throw new HttpError(400, '이용약관과 개인정보 처리방침에 동의해 주세요.')
+    if (c.body.age14 !== true) throw new HttpError(400, '만 14세 이상인지 확인해 주세요.')
     const nickname = clean(c.body.nickname)
     if (nickname.length < 1 || nickname.length > 12) throw new HttpError(400, '별명은 1~12자로 정해 주세요.')
     signupLimit.hit(c.ip) // 성공 · 중복 시도는 센다 (계정 대량 생성 · 가입 여부 떠보기 방지)
@@ -527,20 +530,22 @@ export function createApp(db: Db, opts: AppOptions) {
     if (one('SELECT 1 FROM users WHERE login_key = ?', key)) {
       throw new HttpError(409, '같은 이름과 생년월일로 만든 계정이 이미 있어요. 로그인해 주세요.')
     }
-    // 실험 기능(개발 테스트 서버): 만 14세 미만은 보호자 동의를 함께 받는다
-    let guardian = ''
+    // 1.3.1: 만 14세 미만은 가입할 수 없다 (법정대리인 동의를 확인할 방법이 없어서). 기기 저장으로는 쓸 수 있다.
+    // 한 번 막힌 이름은 하루 동안 가입을 받지 않는다: 날짜만 고쳐 다시 넣는 것을 막으려고 (로그인은 그대로).
+    // ponytail: 서버 메모리에만 둔다 (다시 켜면 풀림), 같은 이름의 다른 사람도 그날은 막힌다. 문제 되면 기기 표시로 바꾸기.
     const birth = validBirth(c.body.birth)
-    if (lab('guardian') && birth && ageOf(birth) < 14) {
-      const g = c.body.guardian ?? {}
-      const contact = clean(g.contact).slice(0, 80)
-      const phone = contact.replace(/[^0-9]/g, '')
-      if (g.agreed !== true || !GUARDIAN_RELATIONS.includes(g.relation)) throw new HttpError(400, '만 14세 미만은 보호자의 동의가 필요해요. 보호자와 함께 적어 주세요.')
-      if (!(isEmail(contact) || /^01\d{8,9}$/.test(phone))) throw new HttpError(400, '보호자 연락처는 휴대폰 번호나 이메일로 적어 주세요.')
-      // token: 보호자에게 보낼 확인 링크(/guardian/토큰). 보호자가 열어 동의하면 confirmedAt 이 생긴다
-      guardian = JSON.stringify({ relation: g.relation, contact: isEmail(contact) ? contact : phone, at: now(), token: randomBytes(18).toString('base64url'), confirmedAt: '' })
+    const young = !!birth && ageOf(birth) < 14
+    if (young) {
+      if (youngNames.size > 5000) for (const [k, until] of youngNames) if (until < Date.now()) youngNames.delete(k)
+      youngNames.set(nameKey, Date.now() + 24 * HOUR)
+    }
+    if (young || (youngNames.get(nameKey) ?? 0) > Date.now()) {
+      // 1.3.2: 막은 횟수만 센다 (누구인지는 남기지 않음) — 관리자 ‘한눈에’ 에 숫자로 보임
+      run("INSERT INTO meta (key, value) VALUES ('under14_blocked', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)")
+      throw new HttpError(403, UNDER14_MESSAGE)
     }
     const user = { id: newId(), nickname }
-    run('INSERT INTO users (id, login_key, nickname, created_at, agreed_at, guardian) VALUES (?, ?, ?, ?, ?, ?)', user.id, key, nickname, now(), now(), guardian)
+    run('INSERT INTO users (id, login_key, nickname, created_at, agreed_at) VALUES (?, ?, ?, ?, ?)', user.id, key, nickname, now(), now())
     startSession(c.res, user.id, c.body.remember === true)
     return user
   }
@@ -696,7 +701,7 @@ export function createApp(db: Db, opts: AppOptions) {
     if (!lab(k)) throw new HttpError(404, '찾을 수 없어요.')
   }
 
-  // 실험: 기관용 — 모임 여러 개를 한 번에 (만든 사람이 모두의 모임장)
+  // 실험: 동아리용 — 모임 여러 개를 한 번에 (만든 사람이 모두의 모임장)
   on('POST', '/groups/bulk', (c) => {
     labs('group')
     const u = me(c)
@@ -853,7 +858,7 @@ export function createApp(db: Db, opts: AppOptions) {
     if (!circle.manager) throw new HttpError(403, '모임장 · 공동 모임장만 볼 수 있어요.')
     return reportOf(circle.id)
   })
-  /** 모임 리포트: 누가 그렸는지 없이 모임 전체의 흐름 (모임장 · 기관 담당자) */
+  /** 모임 리포트: 누가 그렸는지 없이 모임 전체의 흐름 (모임장 · 동아리 담당자) */
   function reportOf(circleId: string) {
     const circle = { id: circleId }
     const members = one<{ n: number }>('SELECT COUNT(*) AS n FROM members WHERE circle_id = ?', circle.id)!.n
@@ -949,44 +954,9 @@ export function createApp(db: Db, opts: AppOptions) {
     run('DELETE FROM events WHERE id = ? AND circle_id = ?', c.params.eid, c.params.id)
   })
 
-  // 실험: 만 14세 미만 보호자 동의 확인 — 아이가 보호자에게 보낸 링크(/guardian/토큰)를 보호자가 열어 동의한다
-  type GuardianRec = { relation: string; contact: string; at: string; token?: string; confirmedAt?: string }
-  const guardianByToken = (token: string) => {
-    const t = str(token, 64)
-    if (t.length < 16) return null
-    const row = one<{ id: string; nickname: string; guardian: string }>("SELECT id, nickname, guardian FROM users WHERE guardian <> '' AND json_extract(guardian, '$.token') = ?", t)
-    return row ? { ...row, g: JSON.parse(row.guardian) as GuardianRec } : null
-  }
-  on('GET', '/me/guardian', (c) => {
-    labs('guardian')
-    const u = me(c)
-    const raw = one<{ guardian: string }>('SELECT guardian FROM users WHERE id = ?', u.id)?.guardian
-    if (!raw) return { needed: false }
-    const g = JSON.parse(raw) as GuardianRec
-    return { needed: true, relation: g.relation, confirmed: !!g.confirmedAt, token: g.confirmedAt ? null : g.token ?? null }
-  })
-  on('GET', '/guardian/:token', (c) => {
-    labs('guardian')
-    const r = guardianByToken(c.params.token)
-    if (!r) throw new HttpError(404, '확인 링크를 찾을 수 없어요. 아이에게 링크를 다시 받아 주세요.')
-    return { nickname: r.nickname, relation: r.g.relation, confirmed: !!r.g.confirmedAt, confirmedAt: r.g.confirmedAt ?? '' }
-  })
-  on('POST', '/guardian/:token', (c) => {
-    labs('guardian')
-    linkMiss.check(c.ip)
-    const r = guardianByToken(c.params.token)
-    if (!r) {
-      linkMiss.hit(c.ip)
-      throw new HttpError(404, '확인 링크를 찾을 수 없어요. 아이에게 링크를 다시 받아 주세요.')
-    }
-    if (c.body.agree !== true) throw new HttpError(400, '동의 칸을 확인해 주세요.')
-    if (!r.g.confirmedAt) run('UPDATE users SET guardian = ? WHERE id = ?', JSON.stringify({ ...r.g, confirmedAt: now() }), r.id)
-    return { confirmed: true }
-  })
-
-  // 실험: 기관 담당자 — 맡은 기관의 모임 리포트만 모아 본다 (개인 기록은 없다)
-  type OrgRow = { id: string; name: string; circle_ids: string; manager_ids: string; created_at: string; invite: string; code: string }
-  /** 기관 연결 코드 (모임장이 자기 모임을 기관에 이을 때). 없던 기관이면 이때 만든다 */
+  // 실험: 동아리 담당자 — 맡은 동아리의 모임 리포트만 모아 본다 (개인 기록은 없다)
+  type OrgRow = { id: string; name: string; circle_ids: string; manager_ids: string; created_at: string; invite: string; code: string; agreed: string }
+  /** 동아리 연결 코드 (모임장이 자기 모임을 동아리에 이을 때). 없던 동아리면 이때 만든다 */
   const orgCode = (o: OrgRow) => {
     if (o.code) return o.code
     let code = newCode()
@@ -994,10 +964,10 @@ export function createApp(db: Db, opts: AppOptions) {
     run('UPDATE orgs SET code = ? WHERE id = ?', code, o.id)
     return code
   }
-  /** 내가 담당자인 기관 (아니면 404 — 일반 회원은 기관이 있는지도 모르게) */
+  /** 내가 담당자인 동아리 (아니면 404 — 일반 회원은 동아리가 있는지도 모르게) */
   const myOrg = (id: string, userId: string) => {
     const o = one<OrgRow>('SELECT * FROM orgs WHERE id = ? AND EXISTS (SELECT 1 FROM json_each(manager_ids) WHERE value = ?)', id, userId)
-    if (!o) throw new HttpError(404, '맡은 기관을 찾을 수 없어요.')
+    if (!o) throw new HttpError(404, '맡은 동아리를 찾을 수 없어요.')
     return o
   }
   const orgView = (o: OrgRow) => {
@@ -1005,6 +975,7 @@ export function createApp(db: Db, opts: AppOptions) {
     const mids = JSON.parse(o.manager_ids) as string[]
     return {
       id: o.id, name: o.name, createdAt: o.created_at, invite: o.invite,
+      agreed: o.agreed ? (JSON.parse(o.agreed) as { at: string; by: string; notice: string[] }) : null,
       groups: ids.map((id) => one<{ id: string; name: string; code: string }>('SELECT id, name, code FROM circles WHERE id = ?', id)).filter((g): g is { id: string; name: string; code: string } => !!g),
       managers: mids.map((id) => one<{ id: string; nickname: string }>('SELECT id, nickname FROM users WHERE id = ?', id)).filter((m): m is { id: string; nickname: string } => !!m),
     }
@@ -1027,11 +998,11 @@ export function createApp(db: Db, opts: AppOptions) {
       events: one<{ n: number }>('SELECT COUNT(*) AS n FROM events WHERE circle_id = ? AND day BETWEEN ? AND ?', id, from, to)!.n,
       attended: one<{ n: number }>('SELECT COUNT(*) AS n FROM attendance a JOIN events e ON e.id = a.event_id WHERE e.circle_id = ? AND e.day BETWEEN ? AND ?', id, from, to)!.n,
     } : null
-    // lite: 이름 · 모임 id 만 (첫 화면 · 모임 목록에서 기관별로 묶을 때)
+    // lite: 이름 · 모임 id 만 (첫 화면 · 모임 목록에서 동아리별로 묶을 때)
     if (q.get('lite') === '1') return mine.map((o) => ({ id: o.id, name: o.name, groupIds: JSON.parse(o.circle_ids) as string[] }))
     return mine.map((o) => {
       const v = orgView(o)
-      // newsOff: 모임장이 ‘모임 소식’ 을 꺼 둔 모임 (기관 소식 한 번에 올리기가 건너뛰는 곳)
+      // newsOff: 모임장이 ‘모임 소식’ 을 꺼 둔 모임 (동아리 소식 한 번에 올리기가 건너뛰는 곳)
       const groups = v.groups.map((g) => ({ id: g.id, name: g.name, code: g.code, report: reportOf(g.id), period: periodOf(g.id), newsOff: readHidden(one<{ hidden: string }>('SELECT hidden FROM circles WHERE id = ?', g.id)?.hidden ?? '').includes('news') }))
       const sum = (k: 'members' | 'sharers' | 'posts' | 'moments' | 'cheers' | 'done' | 'drawing') => groups.reduce((t, g) => t + g.report[k], 0)
       return {
@@ -1051,28 +1022,30 @@ export function createApp(db: Db, opts: AppOptions) {
     return { closedAt: at }
   })
 
-  // 실험: 기관 직접 등록 — 등록한 사람이 첫 담당자 (한 사람이 5곳까지)
+  // 실험: 동아리 직접 등록 — 등록한 사람이 첫 담당자 (한 사람이 5곳까지)
   on('POST', '/orgs', (c) => {
     labs('org')
     const u = me(c)
-    if (c.body.agree !== true) throw new HttpError(400, '기관 등록 안내에 동의해 주세요.')
+    if (c.body.agree !== true) throw new HttpError(400, '동아리 등록 안내에 동의해 주세요.')
     // 생일은 저장하지 않는다 — 만 14세 미만으로 가입해 보호자 기록이 있는 계정만 알 수 있다
-    if (one<{ guardian: string }>('SELECT guardian FROM users WHERE id = ?', u.id)?.guardian) throw new HttpError(403, '기관 등록은 기관의 어른 담당자만 할 수 있어요. 모임은 누구나 만들 수 있어요.')
+    if (one<{ guardian: string }>('SELECT guardian FROM users WHERE id = ?', u.id)?.guardian) throw new HttpError(403, '동아리 등록은 기관의 어른 담당자만 할 수 있어요. 모임은 누구나 만들 수 있어요.')
     const name = clean(c.body.name).slice(0, 40)
-    if (!name) throw new HttpError(400, '기관 이름을 적어 주세요.')
-    if (one<{ n: number }>('SELECT COUNT(*) AS n FROM orgs WHERE EXISTS (SELECT 1 FROM json_each(manager_ids) WHERE value = ?)', u.id)!.n >= 5) throw new HttpError(400, '기관은 한 사람이 5곳까지 맡을 수 있어요.')
+    if (!name) throw new HttpError(400, '동아리 이름을 적어 주세요.')
+    if (one<{ n: number }>('SELECT COUNT(*) AS n FROM orgs WHERE EXISTS (SELECT 1 FROM json_each(manager_ids) WHERE value = ?)', u.id)!.n >= 5) throw new HttpError(400, '동아리는 한 사람이 5곳까지 맡을 수 있어요.')
     let code = newCode()
     while (one('SELECT 1 FROM orgs WHERE code = ?', code)) code = newCode()
     const id = newId()
-    run('INSERT INTO orgs (id, name, circle_ids, manager_ids, created_at, code) VALUES (?, ?, ?, ?, ?, ?)', id, name, '[]', JSON.stringify([u.id]), now(), code)
+    // 무엇을 확인하고 등록했는지 그때의 문구 그대로 남긴다 (나중에 문구가 바뀌어도 이 동아리가 본 것을 알 수 있게)
+    const agreed = JSON.stringify({ at: now(), by: u.id, notice: ORG_NOTICE })
+    run('INSERT INTO orgs (id, name, circle_ids, manager_ids, created_at, code, agreed) VALUES (?, ?, ?, ?, ?, ?, ?)', id, name, '[]', JSON.stringify([u.id]), now(), code, agreed)
     return { id, code }
   })
-  // 기관 이름 바꾸기 · 지우기 (담당자)
+  // 동아리 이름 바꾸기 · 지우기 (담당자)
   on('PUT', '/orgs/:id', (c) => {
     labs('org')
     const o = myOrg(c.params.id, me(c).id)
     const name = clean(c.body.name).slice(0, 40)
-    if (!name) throw new HttpError(400, '기관 이름을 적어 주세요.')
+    if (!name) throw new HttpError(400, '동아리 이름을 적어 주세요.')
     run('UPDATE orgs SET name = ? WHERE id = ?', name, o.id)
     return { name }
   })
@@ -1103,16 +1076,16 @@ export function createApp(db: Db, opts: AppOptions) {
     const o = myOrg(c.params.id, me(c).id)
     run("UPDATE orgs SET invite = '' WHERE id = ?", o.id)
   })
-  // 담당자 그만하기 (마지막 담당자는 기관을 지워야 한다)
+  // 담당자 그만하기 (마지막 담당자는 동아리를 지워야 한다)
   on('POST', '/orgs/:id/leave', (c) => {
     labs('org')
     const u = me(c)
     const o = myOrg(c.params.id, u.id)
     const mids = (JSON.parse(o.manager_ids) as string[]).filter((x) => x !== u.id)
-    if (!mids.length) throw new HttpError(400, '마지막 담당자예요. 그만두려면 기관을 지워 주세요.')
+    if (!mids.length) throw new HttpError(400, '마지막 담당자예요. 그만두려면 동아리를 지워 주세요.')
     run('UPDATE orgs SET manager_ids = ? WHERE id = ?', JSON.stringify(mids), o.id)
   })
-  // 내가 꾸리는(모임장 · 공동 모임장) 모임을 기관에 더하기 · 빼기 (빼기는 담당자라면 어느 모임이든)
+  // 내가 꾸리는(모임장 · 공동 모임장) 모임을 동아리에 더하기 · 빼기 (빼기는 담당자라면 어느 모임이든)
   on('POST', '/orgs/:id/groups', (c) => {
     labs('org')
     const u = me(c)
@@ -1128,16 +1101,16 @@ export function createApp(db: Db, opts: AppOptions) {
     const o = myOrg(c.params.id, me(c).id)
     run('UPDATE orgs SET circle_ids = ? WHERE id = ?', JSON.stringify((JSON.parse(o.circle_ids) as string[]).filter((x) => x !== c.params.gid)), o.id)
   })
-  // 모임 쪽: 모임장 · 공동 모임장이 기관의 연결 코드로 모임을 기관에 잇거나 끊는다
+  // 모임 쪽: 모임장 · 공동 모임장이 동아리의 연결 코드로 모임을 동아리에 잇거나 끊는다
   on('POST', '/groups/:id/org', (c) => {
     labs('org')
     const u = me(c)
-    if (!memberOf(c.params.id, u.id).manager) throw new HttpError(403, '모임장 · 공동 모임장만 기관에 이을 수 있어요.')
+    if (!memberOf(c.params.id, u.id).manager) throw new HttpError(403, '모임장 · 공동 모임장만 동아리에 이을 수 있어요.')
     joinLimit.check(c.ip)
     const o = one<OrgRow>("SELECT * FROM orgs WHERE code <> '' AND code = ?", str(c.body.code, 20).trim().toUpperCase())
     if (!o) {
       joinLimit.hit(c.ip)
-      throw new HttpError(404, '그 연결 코드의 기관을 찾지 못했어요. 기관 담당자에게 한 번 더 확인해 주세요.')
+      throw new HttpError(404, '그 연결 코드의 동아리를 찾지 못했어요. 동아리 담당자에게 한 번 더 확인해 주세요.')
     }
     run('UPDATE orgs SET circle_ids = ? WHERE id = ?', JSON.stringify([...new Set([...(JSON.parse(o.circle_ids) as string[]), c.params.id])]), o.id)
     return { id: o.id, name: o.name }
@@ -1145,18 +1118,18 @@ export function createApp(db: Db, opts: AppOptions) {
   on('DELETE', '/groups/:id/org', (c) => {
     labs('org')
     const u = me(c)
-    if (!memberOf(c.params.id, u.id).manager) throw new HttpError(403, '모임장 · 공동 모임장만 기관 연결을 끊을 수 있어요.')
+    if (!memberOf(c.params.id, u.id).manager) throw new HttpError(403, '모임장 · 공동 모임장만 동아리 연결을 끊을 수 있어요.')
     for (const o of all<OrgRow>('SELECT * FROM orgs WHERE EXISTS (SELECT 1 FROM json_each(circle_ids) WHERE value = ?)', c.params.id)) {
       run('UPDATE orgs SET circle_ids = ? WHERE id = ?', JSON.stringify((JSON.parse(o.circle_ids) as string[]).filter((x) => x !== c.params.id)), o.id)
     }
   })
 
-  // 실험: 기관 담당자가 맡은 모임 모두에 같은 소식을 한 번에 (비우면 모두 내린다)
+  // 실험: 동아리 담당자가 맡은 모임 모두에 같은 소식을 한 번에 (비우면 모두 내린다)
   on('PUT', '/orgs/:id/news', (c) => {
     labs('org')
     const u = me(c)
     const o = one<OrgRow>('SELECT * FROM orgs WHERE id = ? AND EXISTS (SELECT 1 FROM json_each(manager_ids) WHERE value = ?)', c.params.id, u.id)
-    if (!o) throw new HttpError(404, '맡은 기관을 찾을 수 없어요.')
+    if (!o) throw new HttpError(404, '맡은 동아리를 찾을 수 없어요.')
     const news = cleanText(c.body.news, 300)
     const at = news ? now() : ''
     const ids = JSON.parse(o.circle_ids) as string[]
@@ -1171,7 +1144,7 @@ export function createApp(db: Db, opts: AppOptions) {
     return { news, newsAt: at, groups: ids.length - skipped, skipped }
   })
 
-  // 실험: 기관 담당자 초대 링크 — 관리자가 만들고, 로그인한 사람이 열어 ‘맡을게요’ 를 누르면 담당자가 된다 (한 번 쓰면 꺼진다)
+  // 실험: 동아리 담당자 초대 링크 — 관리자가 만들고, 로그인한 사람이 열어 ‘맡을게요’ 를 누르면 담당자가 된다 (한 번 쓰면 꺼진다)
   const orgByInvite = (token: string) => (str(token, 64).length >= 16 ? one<OrgRow>("SELECT * FROM orgs WHERE invite <> '' AND invite = ?", str(token, 64)) : undefined)
   on('GET', '/org-invite/:token', (c) => {
     labs('org')
@@ -1664,12 +1637,12 @@ export function createApp(db: Db, opts: AppOptions) {
     admin(c)
     return all<OrgRow>('SELECT * FROM orgs ORDER BY created_at DESC').map(orgView)
   })
-  /** 기관 만들기(id = new) · 고치기: 이름, 모임 참여 코드들, 담당자 계정 id 들 */
+  /** 동아리 만들기(id = new) · 고치기: 이름, 모임 참여 코드들, 담당자 계정 id 들 */
   on('PUT', '/admin/orgs/:id', (c) => {
     labs('org')
     admin(c)
     const name = clean(c.body.name).slice(0, 40)
-    if (!name) throw new HttpError(400, '기관 이름을 적어 주세요.')
+    if (!name) throw new HttpError(400, '동아리 이름을 적어 주세요.')
     const codes: string[] = Array.isArray(c.body.codes) ? c.body.codes.map((x: unknown) => str(x, 20).trim().toUpperCase()).filter(Boolean) : []
     const circleIds = [...new Set(codes.map((code) => {
       const r = one<{ id: string }>('SELECT id FROM circles WHERE code = ?', code)
@@ -1680,7 +1653,7 @@ export function createApp(db: Db, opts: AppOptions) {
     for (const mid of managerIds) if (!one('SELECT 1 FROM users WHERE id = ?', mid)) throw new HttpError(400, '없는 계정이 담당자에 들어 있어요.')
     const id = c.params.id === 'new' ? newId() : c.params.id
     if (c.params.id === 'new') run('INSERT INTO orgs (id, name, circle_ids, manager_ids, created_at) VALUES (?, ?, ?, ?, ?)', id, name, JSON.stringify(circleIds), JSON.stringify(managerIds), now())
-    else if (!one('SELECT 1 FROM orgs WHERE id = ?', id)) throw new HttpError(404, '기관을 찾을 수 없어요.')
+    else if (!one('SELECT 1 FROM orgs WHERE id = ?', id)) throw new HttpError(404, '동아리를 찾을 수 없어요.')
     else run('UPDATE orgs SET name = ?, circle_ids = ?, manager_ids = ? WHERE id = ?', name, JSON.stringify(circleIds), JSON.stringify(managerIds), id)
     return orgView(one<OrgRow>('SELECT * FROM orgs WHERE id = ?', id)!)
   })
@@ -1811,7 +1784,7 @@ export function createApp(db: Db, opts: AppOptions) {
   on('PUT', '/admin/terms', (c) => {
     labs('ops')
     admin(c)
-    const summary = cleanText(c.body.summary, 1000)
+    const summary = cleanText(c.body.summary, 2000) // 1.3.1: 작은 마크다운(문단 · 목록 · 굵게 · 링크)으로 화면에 보인다 — 화면 쪽 md.tsx
     if (summary.length < 5) throw new HttpError(400, '무엇이 바뀌었는지 적어 주세요.')
     const t: Terms = { summary, at: now() }
     run("INSERT INTO meta (key, value) VALUES ('terms', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", JSON.stringify(t))
@@ -1934,12 +1907,12 @@ export function createApp(db: Db, opts: AppOptions) {
     run('DELETE FROM privacy_requests WHERE id = ?', c.params.id)
   })
 
-  // 실험: 기관 담당자 초대 링크 만들기 · 끄기
+  // 실험: 동아리 담당자 초대 링크 만들기 · 끄기
   on('POST', '/admin/orgs/:id/invite', (c) => {
     labs('org')
     admin(c)
     const token = randomBytes(18).toString('base64url')
-    if (!run('UPDATE orgs SET invite = ? WHERE id = ?', token, c.params.id).changes) throw new HttpError(404, '기관을 찾을 수 없어요.')
+    if (!run('UPDATE orgs SET invite = ? WHERE id = ?', token, c.params.id).changes) throw new HttpError(404, '동아리를 찾을 수 없어요.')
     return { invite: token }
   })
   on('DELETE', '/admin/orgs/:id/invite', (c) => {
@@ -2049,6 +2022,7 @@ export function createApp(db: Db, opts: AppOptions) {
         },
         online: count('users', 'last_seen_at >= ?', ago(1 / 24)),
         openReports: count('reports', "resolved_at = '' AND deleted_at = ''"),
+        under14Blocked: +(one<{ value: string }>("SELECT value FROM meta WHERE key = 'under14_blocked'")?.value ?? 0),
         storage: storageOf(db, autoDir),
         answers: count('answers'),
         daily: days.map((d) => ({ day: d, signups: pick(signups, d), graphs: pick(graphsMade, d) })),

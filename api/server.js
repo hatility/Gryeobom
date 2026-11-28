@@ -54,6 +54,18 @@ var MOOD_COLORS = [
 		hex: "#6D7EA8"
 	}
 ];
+/**
+* 동아리를 등록하기 전에 줄마다 확인받는 내용. 화면에 보이는 그대로 서버가 동의 기록(orgs.agreed)에 남긴다.
+* 줄을 고치면 그 뒤에 등록하는 동아리부터 새 문구로 남는다 (이미 등록한 동아리의 기록은 그대로).
+*/
+var ORG_NOTICE = [
+	"학교 · 청소년수련관 · 복지관 등 실제 기관에서 모임을 꾸리는 담당자예요.",
+	"그려봄은 운영자가 따로 운영하는 서비스이고, 우리 기관은 이용하는 쪽이에요.",
+	"참여자에게 가입을 강제하지 않고, 이용약관과 개인정보 처리방침을 미리 안내할게요.",
+	"만 14세 미만은 가입할 수 없어요. 가입을 권하거나 나이를 속여 가입하게 하지 않을게요.",
+	"동아리 담당자는 묶인 모임의 통계만 보고, 회원 한 사람의 기록은 볼 수 없어요.",
+	"장난이나 실제 기관이 아닌 등록은 운영자가 지울 수 있어요."
+];
 // src/store.ts
 /** 과거 → 현재 순서. 같은 시점이면 적은 순서를 유지한다. */
 var sortEntries = (entries) => [...entries].sort((a, b) => a.timePoint - b.timePoint);
@@ -243,13 +255,8 @@ var FLAGS = [
 	{
 		key: "org",
 		official: true,
-		name: "기관",
-		desc: "기관 리포트 · 기관 소식 한 번에 · 담당자 초대 링크 · 기관 직접 등록(등록 안내 동의) · 맨 위 기관 탭"
-	},
-	{
-		key: "guardian",
-		name: "만 14세 미만 보호자 동의",
-		desc: "가입 때 보호자 정보 · 보호자 확인 링크"
+		name: "동아리",
+		desc: "동아리 리포트 · 동아리 소식 한 번에 · 담당자 초대 링크 · 동아리 직접 등록(등록 안내 동의) · 맨 위 동아리 탭"
 	},
 	{
 		key: "me",
@@ -274,7 +281,7 @@ var FLAGS = [
 		desc: "관리자: 화면들을 살아 있는 노드로 띄워 한눈에 확인 · 자동 배치 · 자동 선 · 노드 상태 표시"
 	}
 ];
-/** 1.1.0 에서 정식이 된 묶음: 스위치와 상관없이 늘 켜진다 (보호자 동의만 아직 스위치) */
+/** 1.1.0 에서 정식이 된 묶음: 스위치와 상관없이 늘 켜진다 */
 var OFFICIAL = FLAGS.filter((f) => "official" in f).map((f) => f.key);
 var isFlag = (x) => FLAGS.some((f) => f.key === x);
 // server/db.ts
@@ -395,7 +402,7 @@ function openDb(file) {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS events_circle ON events(circle_id, day);
-    -- 기관: 여러 모임을 묶고 담당자에게 모임 리포트만 모아 보여 준다 (실험). circle_ids · manager_ids 는 JSON 배열
+    -- 동아리: 여러 모임을 묶고 담당자에게 모임 리포트만 모아 보여 준다 (실험). circle_ids · manager_ids 는 JSON 배열
     CREATE TABLE IF NOT EXISTS orgs (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -403,7 +410,7 @@ function openDb(file) {
       manager_ids TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL
     );
-    -- 모임 활동 출석 (실험): 누가 참여했는지는 본인만, 모임장 · 기관 담당자는 인원 수만
+    -- 모임 활동 출석 (실험): 누가 참여했는지는 본인만, 모임장 · 동아리 담당자는 인원 수만
     CREATE TABLE IF NOT EXISTS attendance (
       event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -565,7 +572,9 @@ function openDb(file) {
 	if (!inqCols.some((c) => c.name === "answer")) db.exec("ALTER TABLE inquiries ADD COLUMN answer TEXT NOT NULL DEFAULT ''");
 	if (!inqCols.some((c) => c.name === "answered_at")) db.exec("ALTER TABLE inquiries ADD COLUMN answered_at TEXT NOT NULL DEFAULT ''");
 	db.exec(`CREATE TRIGGER IF NOT EXISTS inquiries_with_user BEFORE DELETE ON users BEGIN DELETE FROM inquiries WHERE user_id = OLD.id; END;`);
-	if (!db.prepare("SELECT name FROM pragma_table_info('orgs')").all().some((c) => c.name === "code")) db.exec("ALTER TABLE orgs ADD COLUMN code TEXT NOT NULL DEFAULT ''");
+	const orgCols2 = db.prepare("SELECT name FROM pragma_table_info('orgs')").all();
+	if (!orgCols2.some((c) => c.name === "code")) db.exec("ALTER TABLE orgs ADD COLUMN code TEXT NOT NULL DEFAULT ''");
+	if (!orgCols2.some((c) => c.name === "agreed")) db.exec("ALTER TABLE orgs ADD COLUMN agreed TEXT NOT NULL DEFAULT ''");
 	db.exec(`
     CREATE INDEX IF NOT EXISTS members_user ON members(user_id);
     CREATE INDEX IF NOT EXISTS posts_circle ON posts(circle_id, created_at);
@@ -686,11 +695,7 @@ function ageOf(birth, today = new Date(Date.now() + 324e5)) {
 	const t = today.toISOString().slice(0, 10).replace(/-/g, "");
 	return +t.slice(0, 4) - y - (t.slice(4) < md ? 1 : 0);
 }
-var GUARDIAN_RELATIONS = [
-	"부모님",
-	"보호자",
-	"기관 담당 선생님"
-];
+var UNDER14_MESSAGE = "만 14세 미만은 가입할 수 없어요. 로그인 없이도 이 기기에 저장하며 쓸 수 있어요.";
 var CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 var newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[randomInt(31)]).join("");
 var LINK_CHARS = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -1011,6 +1016,8 @@ function createApp(db, opts) {
 		check: (k) => (nameShort.check(k), nameDay.check(k)),
 		hit: (k) => (nameShort.hit(k), nameDay.hit(k))
 	};
+	/** 만 14세 미만 생일로 가입하려다 막힌 이름(변환값) → 풀리는 시각 */
+	const youngNames = /* @__PURE__ */ new Map();
 	const joinLimit = limiter(20, 9e5);
 	const linkMake = limiter(30, 9e5);
 	const linkMiss = limiter(60, 9e5);
@@ -1235,32 +1242,29 @@ function createApp(db, opts) {
 		names.check(nameKey);
 		signupLimit.check(c.ip);
 		if (c.body.agree !== true) throw new HttpError(400, "이용약관과 개인정보 처리방침에 동의해 주세요.");
+		if (c.body.age14 !== true) throw new HttpError(400, "만 14세 이상인지 확인해 주세요.");
 		const nickname = clean(c.body.nickname);
 		if (nickname.length < 1 || nickname.length > 12) throw new HttpError(400, "별명은 1~12자로 정해 주세요.");
 		signupLimit.hit(c.ip);
 		names.hit(nameKey);
 		if (one("SELECT 1 FROM users WHERE login_key = ?", key)) throw new HttpError(409, "같은 이름과 생년월일로 만든 계정이 이미 있어요. 로그인해 주세요.");
-		let guardian = "";
 		const birth = validBirth(c.body.birth);
-		if (lab("guardian") && birth && ageOf(birth) < 14) {
-			const g = c.body.guardian ?? {};
-			const contact = clean(g.contact).slice(0, 80);
-			const phone = contact.replace(/[^0-9]/g, "");
-			if (g.agreed !== true || !GUARDIAN_RELATIONS.includes(g.relation)) throw new HttpError(400, "만 14세 미만은 보호자의 동의가 필요해요. 보호자와 함께 적어 주세요.");
-			if (!(isEmail(contact) || /^01\d{8,9}$/.test(phone))) throw new HttpError(400, "보호자 연락처는 휴대폰 번호나 이메일로 적어 주세요.");
-			guardian = JSON.stringify({
-				relation: g.relation,
-				contact: isEmail(contact) ? contact : phone,
-				at: now(),
-				token: randomBytes(18).toString("base64url"),
-				confirmedAt: ""
-			});
+		const young = !!birth && ageOf(birth) < 14;
+		if (young) {
+			if (youngNames.size > 5e3) {
+				for (const [k, until] of youngNames) if (until < Date.now()) youngNames.delete(k);
+			}
+			youngNames.set(nameKey, Date.now() + 24 * HOUR);
+		}
+		if (young || (youngNames.get(nameKey) ?? 0) > Date.now()) {
+			run("INSERT INTO meta (key, value) VALUES ('under14_blocked', '1') ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)");
+			throw new HttpError(403, UNDER14_MESSAGE);
 		}
 		const user = {
 			id: newId(),
 			nickname
 		};
-		run("INSERT INTO users (id, login_key, nickname, created_at, agreed_at, guardian) VALUES (?, ?, ?, ?, ?, ?)", user.id, key, nickname, now(), now(), guardian);
+		run("INSERT INTO users (id, login_key, nickname, created_at, agreed_at) VALUES (?, ?, ?, ?, ?)", user.id, key, nickname, now(), now());
 		startSession(c.res, user.id, c.body.remember === true);
 		return user;
 	}
@@ -1563,7 +1567,7 @@ function createApp(db, opts) {
 		if (!circle.manager) throw new HttpError(403, "모임장 · 공동 모임장만 볼 수 있어요.");
 		return reportOf(circle.id);
 	});
-	/** 모임 리포트: 누가 그렸는지 없이 모임 전체의 흐름 (모임장 · 기관 담당자) */
+	/** 모임 리포트: 누가 그렸는지 없이 모임 전체의 흐름 (모임장 · 동아리 담당자) */
 	function reportOf(circleId) {
 		const circle = { id: circleId };
 		const members = one("SELECT COUNT(*) AS n FROM members WHERE circle_id = ?", circle.id).n;
@@ -1666,55 +1670,7 @@ function createApp(db, opts) {
 		if (!memberOf(c.params.id, u.id).crew) throw new HttpError(403, "모임장 · 공동 모임장 · 도우미만 일정을 지울 수 있어요.");
 		run("DELETE FROM events WHERE id = ? AND circle_id = ?", c.params.eid, c.params.id);
 	});
-	const guardianByToken = (token) => {
-		const t = str(token, 64);
-		if (t.length < 16) return null;
-		const row = one("SELECT id, nickname, guardian FROM users WHERE guardian <> '' AND json_extract(guardian, '$.token') = ?", t);
-		return row ? {
-			...row,
-			g: JSON.parse(row.guardian)
-		} : null;
-	};
-	on("GET", "/me/guardian", (c) => {
-		labs("guardian");
-		const u = me(c);
-		const raw = one("SELECT guardian FROM users WHERE id = ?", u.id)?.guardian;
-		if (!raw) return { needed: false };
-		const g = JSON.parse(raw);
-		return {
-			needed: true,
-			relation: g.relation,
-			confirmed: !!g.confirmedAt,
-			token: g.confirmedAt ? null : g.token ?? null
-		};
-	});
-	on("GET", "/guardian/:token", (c) => {
-		labs("guardian");
-		const r = guardianByToken(c.params.token);
-		if (!r) throw new HttpError(404, "확인 링크를 찾을 수 없어요. 아이에게 링크를 다시 받아 주세요.");
-		return {
-			nickname: r.nickname,
-			relation: r.g.relation,
-			confirmed: !!r.g.confirmedAt,
-			confirmedAt: r.g.confirmedAt ?? ""
-		};
-	});
-	on("POST", "/guardian/:token", (c) => {
-		labs("guardian");
-		linkMiss.check(c.ip);
-		const r = guardianByToken(c.params.token);
-		if (!r) {
-			linkMiss.hit(c.ip);
-			throw new HttpError(404, "확인 링크를 찾을 수 없어요. 아이에게 링크를 다시 받아 주세요.");
-		}
-		if (c.body.agree !== true) throw new HttpError(400, "동의 칸을 확인해 주세요.");
-		if (!r.g.confirmedAt) run("UPDATE users SET guardian = ? WHERE id = ?", JSON.stringify({
-			...r.g,
-			confirmedAt: now()
-		}), r.id);
-		return { confirmed: true };
-	});
-	/** 기관 연결 코드 (모임장이 자기 모임을 기관에 이을 때). 없던 기관이면 이때 만든다 */
+	/** 동아리 연결 코드 (모임장이 자기 모임을 동아리에 이을 때). 없던 동아리면 이때 만든다 */
 	const orgCode = (o) => {
 		if (o.code) return o.code;
 		let code = newCode();
@@ -1722,10 +1678,10 @@ function createApp(db, opts) {
 		run("UPDATE orgs SET code = ? WHERE id = ?", code, o.id);
 		return code;
 	};
-	/** 내가 담당자인 기관 (아니면 404 — 일반 회원은 기관이 있는지도 모르게) */
+	/** 내가 담당자인 동아리 (아니면 404 — 일반 회원은 동아리가 있는지도 모르게) */
 	const myOrg = (id, userId) => {
 		const o = one("SELECT * FROM orgs WHERE id = ? AND EXISTS (SELECT 1 FROM json_each(manager_ids) WHERE value = ?)", id, userId);
-		if (!o) throw new HttpError(404, "맡은 기관을 찾을 수 없어요.");
+		if (!o) throw new HttpError(404, "맡은 동아리를 찾을 수 없어요.");
 		return o;
 	};
 	const orgView = (o) => {
@@ -1736,6 +1692,7 @@ function createApp(db, opts) {
 			name: o.name,
 			createdAt: o.created_at,
 			invite: o.invite,
+			agreed: o.agreed ? JSON.parse(o.agreed) : null,
 			groups: ids.map((id) => one("SELECT id, name, code FROM circles WHERE id = ?", id)).filter((g) => !!g),
 			managers: mids.map((id) => one("SELECT id, nickname FROM users WHERE id = ?", id)).filter((m) => !!m)
 		};
@@ -1808,15 +1765,20 @@ function createApp(db, opts) {
 	on("POST", "/orgs", (c) => {
 		labs("org");
 		const u = me(c);
-		if (c.body.agree !== true) throw new HttpError(400, "기관 등록 안내에 동의해 주세요.");
-		if (one("SELECT guardian FROM users WHERE id = ?", u.id)?.guardian) throw new HttpError(403, "기관 등록은 기관의 어른 담당자만 할 수 있어요. 모임은 누구나 만들 수 있어요.");
+		if (c.body.agree !== true) throw new HttpError(400, "동아리 등록 안내에 동의해 주세요.");
+		if (one("SELECT guardian FROM users WHERE id = ?", u.id)?.guardian) throw new HttpError(403, "동아리 등록은 기관의 어른 담당자만 할 수 있어요. 모임은 누구나 만들 수 있어요.");
 		const name = clean(c.body.name).slice(0, 40);
-		if (!name) throw new HttpError(400, "기관 이름을 적어 주세요.");
-		if (one("SELECT COUNT(*) AS n FROM orgs WHERE EXISTS (SELECT 1 FROM json_each(manager_ids) WHERE value = ?)", u.id).n >= 5) throw new HttpError(400, "기관은 한 사람이 5곳까지 맡을 수 있어요.");
+		if (!name) throw new HttpError(400, "동아리 이름을 적어 주세요.");
+		if (one("SELECT COUNT(*) AS n FROM orgs WHERE EXISTS (SELECT 1 FROM json_each(manager_ids) WHERE value = ?)", u.id).n >= 5) throw new HttpError(400, "동아리는 한 사람이 5곳까지 맡을 수 있어요.");
 		let code = newCode();
 		while (one("SELECT 1 FROM orgs WHERE code = ?", code)) code = newCode();
 		const id = newId();
-		run("INSERT INTO orgs (id, name, circle_ids, manager_ids, created_at, code) VALUES (?, ?, ?, ?, ?, ?)", id, name, "[]", JSON.stringify([u.id]), now(), code);
+		const agreed = JSON.stringify({
+			at: now(),
+			by: u.id,
+			notice: ORG_NOTICE
+		});
+		run("INSERT INTO orgs (id, name, circle_ids, manager_ids, created_at, code, agreed) VALUES (?, ?, ?, ?, ?, ?, ?)", id, name, "[]", JSON.stringify([u.id]), now(), code, agreed);
 		return {
 			id,
 			code
@@ -1826,7 +1788,7 @@ function createApp(db, opts) {
 		labs("org");
 		const o = myOrg(c.params.id, me(c).id);
 		const name = clean(c.body.name).slice(0, 40);
-		if (!name) throw new HttpError(400, "기관 이름을 적어 주세요.");
+		if (!name) throw new HttpError(400, "동아리 이름을 적어 주세요.");
 		run("UPDATE orgs SET name = ? WHERE id = ?", name, o.id);
 		return { name };
 	});
@@ -1860,7 +1822,7 @@ function createApp(db, opts) {
 		const u = me(c);
 		const o = myOrg(c.params.id, u.id);
 		const mids = JSON.parse(o.manager_ids).filter((x) => x !== u.id);
-		if (!mids.length) throw new HttpError(400, "마지막 담당자예요. 그만두려면 기관을 지워 주세요.");
+		if (!mids.length) throw new HttpError(400, "마지막 담당자예요. 그만두려면 동아리를 지워 주세요.");
 		run("UPDATE orgs SET manager_ids = ? WHERE id = ?", JSON.stringify(mids), o.id);
 	});
 	on("POST", "/orgs/:id/groups", (c) => {
@@ -1881,12 +1843,12 @@ function createApp(db, opts) {
 	on("POST", "/groups/:id/org", (c) => {
 		labs("org");
 		const u = me(c);
-		if (!memberOf(c.params.id, u.id).manager) throw new HttpError(403, "모임장 · 공동 모임장만 기관에 이을 수 있어요.");
+		if (!memberOf(c.params.id, u.id).manager) throw new HttpError(403, "모임장 · 공동 모임장만 동아리에 이을 수 있어요.");
 		joinLimit.check(c.ip);
 		const o = one("SELECT * FROM orgs WHERE code <> '' AND code = ?", str(c.body.code, 20).trim().toUpperCase());
 		if (!o) {
 			joinLimit.hit(c.ip);
-			throw new HttpError(404, "그 연결 코드의 기관을 찾지 못했어요. 기관 담당자에게 한 번 더 확인해 주세요.");
+			throw new HttpError(404, "그 연결 코드의 동아리를 찾지 못했어요. 동아리 담당자에게 한 번 더 확인해 주세요.");
 		}
 		run("UPDATE orgs SET circle_ids = ? WHERE id = ?", JSON.stringify([.../* @__PURE__ */ new Set([...JSON.parse(o.circle_ids), c.params.id])]), o.id);
 		return {
@@ -1897,14 +1859,14 @@ function createApp(db, opts) {
 	on("DELETE", "/groups/:id/org", (c) => {
 		labs("org");
 		const u = me(c);
-		if (!memberOf(c.params.id, u.id).manager) throw new HttpError(403, "모임장 · 공동 모임장만 기관 연결을 끊을 수 있어요.");
+		if (!memberOf(c.params.id, u.id).manager) throw new HttpError(403, "모임장 · 공동 모임장만 동아리 연결을 끊을 수 있어요.");
 		for (const o of all("SELECT * FROM orgs WHERE EXISTS (SELECT 1 FROM json_each(circle_ids) WHERE value = ?)", c.params.id)) run("UPDATE orgs SET circle_ids = ? WHERE id = ?", JSON.stringify(JSON.parse(o.circle_ids).filter((x) => x !== c.params.id)), o.id);
 	});
 	on("PUT", "/orgs/:id/news", (c) => {
 		labs("org");
 		const u = me(c);
 		const o = one("SELECT * FROM orgs WHERE id = ? AND EXISTS (SELECT 1 FROM json_each(manager_ids) WHERE value = ?)", c.params.id, u.id);
-		if (!o) throw new HttpError(404, "맡은 기관을 찾을 수 없어요.");
+		if (!o) throw new HttpError(404, "맡은 동아리를 찾을 수 없어요.");
 		const news = cleanText(c.body.news, 300);
 		const at = news ? now() : "";
 		const ids = JSON.parse(o.circle_ids);
@@ -2427,12 +2389,12 @@ function createApp(db, opts) {
 		admin(c);
 		return all("SELECT * FROM orgs ORDER BY created_at DESC").map(orgView);
 	});
-	/** 기관 만들기(id = new) · 고치기: 이름, 모임 참여 코드들, 담당자 계정 id 들 */
+	/** 동아리 만들기(id = new) · 고치기: 이름, 모임 참여 코드들, 담당자 계정 id 들 */
 	on("PUT", "/admin/orgs/:id", (c) => {
 		labs("org");
 		admin(c);
 		const name = clean(c.body.name).slice(0, 40);
-		if (!name) throw new HttpError(400, "기관 이름을 적어 주세요.");
+		if (!name) throw new HttpError(400, "동아리 이름을 적어 주세요.");
 		const codes = Array.isArray(c.body.codes) ? c.body.codes.map((x) => str(x, 20).trim().toUpperCase()).filter(Boolean) : [];
 		const circleIds = [...new Set(codes.map((code) => {
 			const r = one("SELECT id FROM circles WHERE code = ?", code);
@@ -2443,7 +2405,7 @@ function createApp(db, opts) {
 		for (const mid of managerIds) if (!one("SELECT 1 FROM users WHERE id = ?", mid)) throw new HttpError(400, "없는 계정이 담당자에 들어 있어요.");
 		const id = c.params.id === "new" ? newId() : c.params.id;
 		if (c.params.id === "new") run("INSERT INTO orgs (id, name, circle_ids, manager_ids, created_at) VALUES (?, ?, ?, ?, ?)", id, name, JSON.stringify(circleIds), JSON.stringify(managerIds), now());
-		else if (!one("SELECT 1 FROM orgs WHERE id = ?", id)) throw new HttpError(404, "기관을 찾을 수 없어요.");
+		else if (!one("SELECT 1 FROM orgs WHERE id = ?", id)) throw new HttpError(404, "동아리를 찾을 수 없어요.");
 		else run("UPDATE orgs SET name = ?, circle_ids = ?, manager_ids = ? WHERE id = ?", name, JSON.stringify(circleIds), JSON.stringify(managerIds), id);
 		return orgView(one("SELECT * FROM orgs WHERE id = ?", id));
 	});
@@ -2589,7 +2551,7 @@ function createApp(db, opts) {
 	on("PUT", "/admin/terms", (c) => {
 		labs("ops");
 		admin(c);
-		const summary = cleanText(c.body.summary, 1e3);
+		const summary = cleanText(c.body.summary, 2e3);
 		if (summary.length < 5) throw new HttpError(400, "무엇이 바뀌었는지 적어 주세요.");
 		const t = {
 			summary,
@@ -2764,7 +2726,7 @@ function createApp(db, opts) {
 		labs("org");
 		admin(c);
 		const token = randomBytes(18).toString("base64url");
-		if (!run("UPDATE orgs SET invite = ? WHERE id = ?", token, c.params.id).changes) throw new HttpError(404, "기관을 찾을 수 없어요.");
+		if (!run("UPDATE orgs SET invite = ? WHERE id = ?", token, c.params.id).changes) throw new HttpError(404, "동아리를 찾을 수 없어요.");
 		return { invite: token };
 	});
 	on("DELETE", "/admin/orgs/:id/invite", (c) => {
@@ -2892,6 +2854,7 @@ function createApp(db, opts) {
 				},
 				online: count("users", "last_seen_at >= ?", ago(1 / 24)),
 				openReports: count("reports", "resolved_at = '' AND deleted_at = ''"),
+				under14Blocked: +(one("SELECT value FROM meta WHERE key = 'under14_blocked'")?.value ?? 0),
 				storage: storageOf(db, autoDir),
 				answers: count("answers"),
 				daily: days.map((d) => ({

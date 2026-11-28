@@ -1273,7 +1273,7 @@ function PromptsCard({ group, onSaved }: { group: GroupDetail; onSaved: () => vo
   )
 }
 
-/** 기관에 잇기 — 기관 담당자에게 받은 연결 코드로 (모임 회원들에게는 기관이 보이지 않는다) */
+/** 동아리에 잇기 — 동아리 담당자에게 받은 연결 코드로 (모임 회원들에게는 동아리가 보이지 않는다) */
 function OrgLinkCard({ group, onSaved }: { group: GroupDetail; onSaved: () => void }) {
   const labs = useLabs('org')
   const [code, setCode] = useState('')
@@ -1282,20 +1282,20 @@ function OrgLinkCard({ group, onSaved }: { group: GroupDetail; onSaved: () => vo
   if (group.orgs.length) {
     return (
       <p className="org-linked muted small">
-        <span className="badge badge-soft">기관</span> {group.orgs.map((o) => o.name).join(', ')} 에 이어져 있어요 (기관 담당자가 이 모임의 흐름 — 개인을 알 수 없는 통계 — 를 봐요).{' '}
-        <button type="button" className="btn btn-text btn-sm" onClick={async () => await confirmDialog('기관과의 연결을 끊을까요?') && api.unlinkGroupOrg(group.id).then(onSaved, (e) => setMsg(e.message))}>끊기</button>
+        <span className="badge badge-soft">동아리</span> {group.orgs.map((o) => o.name).join(', ')} 에 이어져 있어요 (동아리 담당자가 이 모임의 흐름 — 개인을 알 수 없는 통계 — 를 봐요).{' '}
+        <button type="button" className="btn btn-text btn-sm" onClick={async () => await confirmDialog('동아리와의 연결을 끊을까요?') && api.unlinkGroupOrg(group.id).then(onSaved, (e) => setMsg(e.message))}>끊기</button>
         {msg && <span role="status"> {msg}</span>}
       </p>
     )
   }
   return (
     <details className="card org-link-card">
-      <summary><span className="news-label">기관에 잇기</span> <span className="muted small">수련관 · 학교 같은 기관에서 연결 코드를 받았다면</span></summary>
+      <summary><span className="news-label">동아리에 잇기</span> <span className="muted small">수련관 · 학교 같은 동아리에서 연결 코드를 받았다면</span></summary>
       <form className="inline-form" onSubmit={(e) => { e.preventDefault(); api.linkGroupOrg(group.id, code).then((r) => { setMsg(`‘${r.name}’ 에 이었어요.`); setCode(''); onSaved() }, (x) => setMsg(x.message)) }}>
-        <input value={code} maxLength={10} placeholder="기관 연결 코드 6자리" aria-label="기관 연결 코드" onChange={(e) => setCode(e.target.value.toUpperCase())} />
+        <input value={code} maxLength={10} placeholder="동아리 연결 코드 6자리" aria-label="동아리 연결 코드" onChange={(e) => setCode(e.target.value.toUpperCase())} />
         <button type="submit" className="btn btn-ghost btn-sm" disabled={code.trim().length < 4}>잇기</button>
       </form>
-      <p className="muted small">이으면 기관 담당자가 이 모임의 흐름(나눈 사람 수 · 응원 수 같은 통계)만 봐요. 누가 무엇을 그렸는지, 그때의 마음은 보이지 않아요.</p>
+      <p className="muted small">이으면 동아리 담당자가 이 모임의 흐름(나눈 사람 수 · 응원 수 같은 통계)만 봐요. 누가 무엇을 그렸는지, 그때의 마음은 보이지 않아요.</p>
       {msg && <p className="muted small" role="status">{msg}</p>}
     </details>
   )

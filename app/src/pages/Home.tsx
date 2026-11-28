@@ -10,7 +10,6 @@ import { dayKey, useJournal } from '../journal'
 import { formatDate, graphPoints, graphTitle } from '../store'
 import LifeGraphView from '../components/LifeGraph'
 import { markNewsSeen, newsSeen, useLabs } from '../labs'
-import GuardianNotice from '../components/GuardianNotice'
 import { dayLabel } from './GroupPage'
 import type { LifeGraph } from '../types'
 
@@ -93,7 +92,6 @@ export default function Home() {
       </section>
       )}
 
-      <div className="container"><GuardianNotice /></div>
       {/* 위 최근 그래프 카드가 그리던 그래프면 ‘이어서 그리기’ 를 두 번 말하지 않게 */}
       {!(recent && !recent.completed) && <Resume />}
       <TodayQuestion />
@@ -424,8 +422,8 @@ function lookBack(list: Answer[], d: Date): { label: string; a: Answer } | null 
   return week ? { label: '일주일 전 오늘', a: week } : null
 }
 
-/** 내가 맡은 기관 (없거나 실험이 꺼져 있으면 빈 목록) — 첫 화면 한 줄 · 맨 위 ‘기관’ 메뉴 */
-/** refresh: 바뀌면 다시 불러온다 (기관 화면에서 등록 · 지우기를 한 뒤 맨 위 탭이 바로 맞게) */
+/** 내가 맡은 동아리 (없거나 실험이 꺼져 있으면 빈 목록) — 첫 화면 한 줄 · 맨 위 ‘동아리’ 메뉴 */
+/** refresh: 바뀌면 다시 불러온다 (동아리 화면에서 등록 · 지우기를 한 뒤 맨 위 탭이 바로 맞게) */
 export function useMyOrgs(refresh = '') {
   const { user } = useAuth()
   const labs = useLabs('org')
@@ -438,21 +436,21 @@ export function useMyOrgs(refresh = '') {
   return orgs
 }
 
-/** 기관 담당자라면 첫 화면에 ‘내가 맡은 기관’ */
+/** 동아리 담당자라면 첫 화면에 ‘내가 맡은 동아리’ */
 export function OrgHomeCard() {
   const orgs = useMyOrgs()
   if (!orgs) return null
   if (!orgs.length) {
     return (
       <section className="container news-wrap">
-        <p className="org-home-invite muted small">학교 · 수련관 · 복지관 담당자이신가요? <Link to="/org">기관 등록하기 ›</Link></p>
+        <p className="org-home-invite muted small">학교 · 수련관 · 복지관 담당자이신가요? <Link to="/org">동아리 등록하기 ›</Link></p>
       </section>
     )
   }
-  // 기관이 여럿이어도 첫 화면에는 한 줄만 — 자세한 것은 ‘기관’ 화면에서
+  // 동아리가 여럿이어도 첫 화면에는 한 줄만 — 자세한 것은 ‘동아리’ 화면에서
   return (
     <section className="container news-wrap">
-      <p className="org-home-invite muted small">내가 맡은 기관 · <Link to="/org">{orgs.length > 1 ? `${orgs[0].name} 외 ${orgs.length - 1}곳` : orgs[0].name} ›</Link></p>
+      <p className="org-home-invite muted small">내가 맡은 동아리 · <Link to="/org">{orgs.length > 1 ? `${orgs[0].name} 외 ${orgs.length - 1}곳` : orgs[0].name} ›</Link></p>
     </section>
   )
 }

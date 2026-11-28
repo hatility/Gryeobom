@@ -7,12 +7,13 @@ import { useNavigate } from '../nav'
 import { api, shareBase, type GroupSummary, type MyOrg } from '../api'
 import { useAuth } from '../auth'
 import { useLabs } from '../labs'
+import { ORG_NOTICE } from '../content'
 
 const pct = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0)
 
 /**
- * 실험: 기관 (/org) — 내가 담당자인 기관 목록과 ‘기관 등록하기’.
- * 기관은 담당자만 본다 (모임 회원에게는 기관이 있는지도 보이지 않는다).
+ * 실험: 동아리 (/org) — 내가 담당자인 동아리 목록과 ‘동아리 등록하기’.
+ * 동아리는 담당자만 본다 (모임 회원에게는 동아리가 있는지도 보이지 않는다).
  */
 export default function OrgHome() {
   const labs = useLabs('org')
@@ -20,7 +21,7 @@ export default function OrgHome() {
   const navigate = useNavigate()
   const [orgs, setOrgs] = useState<MyOrg[] | null>(null)
   const [name, setName] = useState('')
-  const [checks, setChecks] = useState([false, false, false])
+  const [checks, setChecks] = useState(() => ORG_NOTICE.map(() => false))
   const [err, setErr] = useState('')
   useEffect(() => {
     if (labs && user) api.myOrgs().then(setOrgs, (e) => { setOrgs([]); setErr(e.message) })
@@ -40,7 +41,7 @@ export default function OrgHome() {
     <section className="container page org-page">
       <header className="page-head">
         <div>
-          <h1 className="page-title">기관</h1>
+          <h1 className="page-title">동아리</h1>
           <p className="muted">수련관 · 학교 · 복지관처럼 여러 모임을 꾸리는 곳이에요.</p>
         </div>
       </header>
@@ -59,14 +60,14 @@ export default function OrgHome() {
               ))}
             </ul>
           )}
-          {/* 이미 기관이 있으면: 확인 세 줄까지 늘 펼쳐진 등록 양식 대신 접힌 한 줄 */}
+          {/* 이미 동아리가 있으면: 확인 줄까지 늘 펼쳐진 등록 양식 대신 접힌 한 줄 */}
           {orgs?.length ? (
             <details className="org-more">
-              <summary className="btn btn-text">+ 기관 하나 더 등록하기</summary>
+              <summary className="btn btn-text">+ 동아리 하나 더 등록하기</summary>
           <form className="card form-card org-register" onSubmit={(e) => { e.preventDefault(); if (name.trim() && agreed) register() }}>
-            <h2 className="card-title">{orgs?.length ? '기관 하나 더 등록하기' : '기관 등록하기'}</h2>
+            <h2 className="card-title">{orgs?.length ? '동아리 하나 더 등록하기' : '동아리 등록하기'}</h2>
             <fieldset className="org-notice">
-              <legend>기관 등록 전에 확인해 주세요</legend>
+              <legend>동아리 등록 전에 확인해 주세요</legend>
               {ORG_NOTICE.map((t, i) => (
                 <label key={i} className="check">
                   <input type="checkbox" checked={checks[i]} onChange={(e) => setChecks((c) => c.map((x, k) => (k === i ? e.target.checked : x)))} />
@@ -74,9 +75,9 @@ export default function OrgHome() {
                 </label>
               ))}
             </fieldset>
-            <p className="org-alt muted small">기관이 아니라 친구 · 동아리끼리라면 <Link to="/share">모임 만들기 ›</Link></p>
+            <p className="org-alt muted small">수련관 · 학교가 아니라 친구끼리 그냥 모이는 거라면 <Link to="/share">모임 만들기 ›</Link></p>
             <div className="inline-form">
-              <input value={name} maxLength={40} placeholder="예) ○○시 청소년수련관" aria-label="기관 이름" onChange={(e) => setName(e.target.value)} />
+              <input value={name} maxLength={40} placeholder="예) ○○시 청소년수련관" aria-label="동아리 이름" onChange={(e) => setName(e.target.value)} />
               <button type="submit" className="btn btn-primary btn-sm" disabled={!name.trim() || !agreed}>등록하기</button>
             </div>
             {err && <p className="alert" role="alert">{err}</p>}
@@ -84,9 +85,9 @@ export default function OrgHome() {
             </details>
           ) : (
           <form className="card form-card org-register" onSubmit={(e) => { e.preventDefault(); if (name.trim() && agreed) register() }}>
-            <h2 className="card-title">{orgs?.length ? '기관 하나 더 등록하기' : '기관 등록하기'}</h2>
+            <h2 className="card-title">{orgs?.length ? '동아리 하나 더 등록하기' : '동아리 등록하기'}</h2>
             <fieldset className="org-notice">
-              <legend>기관 등록 전에 확인해 주세요</legend>
+              <legend>동아리 등록 전에 확인해 주세요</legend>
               {ORG_NOTICE.map((t, i) => (
                 <label key={i} className="check">
                   <input type="checkbox" checked={checks[i]} onChange={(e) => setChecks((c) => c.map((x, k) => (k === i ? e.target.checked : x)))} />
@@ -94,21 +95,21 @@ export default function OrgHome() {
                 </label>
               ))}
             </fieldset>
-            <p className="org-alt muted small">기관이 아니라 친구 · 동아리끼리라면 <Link to="/share">모임 만들기 ›</Link></p>
+            <p className="org-alt muted small">수련관 · 학교가 아니라 친구끼리 그냥 모이는 거라면 <Link to="/share">모임 만들기 ›</Link></p>
             <div className="inline-form">
-              <input value={name} maxLength={40} placeholder="예) ○○시 청소년수련관" aria-label="기관 이름" onChange={(e) => setName(e.target.value)} />
+              <input value={name} maxLength={40} placeholder="예) ○○시 청소년수련관" aria-label="동아리 이름" onChange={(e) => setName(e.target.value)} />
               <button type="submit" className="btn btn-primary btn-sm" disabled={!name.trim() || !agreed}>등록하기</button>
             </div>
             {err && <p className="alert" role="alert">{err}</p>}
           </form>
           )}
         </div>
-        <aside className="card org-guide" aria-label="기관 쓰는 법">
-          <h2 className="card-title">기관은 이렇게 써요</h2>
+        <aside className="card org-guide" aria-label="동아리 쓰는 법">
+          <h2 className="card-title">동아리는 이렇게 써요</h2>
           <ol className="org-steps">
-            <li><strong>기관 등록</strong><span className="muted small">등록한 사람이 첫 담당자가 돼요.</span></li>
-            <li><strong>모임 잇기</strong><span className="muted small">내 모임을 더하거나, 다른 모임장에게 기관의 ‘연결 코드’ 를 알려 주면 그 모임장이 이어요.</span></li>
-            <li><strong>기관 리포트</strong><span className="muted small">묶인 모임의 흐름을 개인을 알 수 없는 통계로 모아 봐요.</span></li>
+            <li><strong>동아리 등록</strong><span className="muted small">등록한 사람이 첫 담당자가 돼요.</span></li>
+            <li><strong>모임 잇기</strong><span className="muted small">내 모임을 더하거나, 다른 모임장에게 동아리의 ‘연결 코드’ 를 알려 주면 그 모임장이 이어요.</span></li>
+            <li><strong>동아리 리포트</strong><span className="muted small">묶인 모임의 흐름을 개인을 알 수 없는 통계로 모아 봐요.</span></li>
           </ol>
           <div className="org-sees">
             <p><strong>담당자가 볼 수 있는 것</strong><span className="muted small">모임 수 · 참여 인원 · 나눈 순간의 마음 분포 같은 전체 통계</span></p>
@@ -120,15 +121,9 @@ export default function OrgHome() {
   )
 }
 
-const ORG_NOTICE = [
-  '학교 · 청소년수련관 · 복지관 등 실제 기관에서 모임을 꾸리는 담당자예요.',
-  '장난이나 기관이 아닌 등록은 운영자가 지울 수 있어요.',
-  '기관 담당자는 묶인 모임의 통계만 보고, 회원 한 사람의 기록은 볼 수 없어요.',
-]
-
 type Tab = 'report' | 'groups' | 'people'
 
-/** 기관 하나 (/org/:id) — 리포트 · 모임 · 담당자와 설정. 담당자만 */
+/** 동아리 하나 (/org/:id) — 리포트 · 모임 · 담당자와 설정. 담당자만 */
 export function OrgDetail() {
   const { id = '' } = useParams()
   const labs = useLabs('org')
@@ -144,12 +139,12 @@ export function OrgDetail() {
   if (!labs) return null
   if (!user) return <section className="container page empty-state"><p className="serif big">로그인하면 볼 수 있어요.</p><Link to={`/login?next=/org/${id}`} className="btn btn-primary">로그인</Link></section>
   if (org === undefined) return <p className="container page loading serif">불러오는 중이에요…</p>
-  if (!org) return <section className="container page empty-state"><p className="serif big">맡은 기관이 아니거나 없어진 기관이에요.</p><Link to="/org" className="btn btn-primary">내가 맡은 기관</Link></section>
+  if (!org) return <section className="container page empty-state"><p className="serif big">맡은 동아리가 아니거나 없어진 동아리예요.</p><Link to="/org" className="btn btn-primary">내가 맡은 동아리</Link></section>
   return (
     <section className="container page org-page">
       <header className="page-head">
         <div>
-          <Link to="/org" className="btn btn-text btn-sm no-print back-top">← 기관</Link>
+          <Link to="/org" className="btn btn-text btn-sm no-print back-top">← 동아리</Link>
           <h1 className="page-title">{org.name}</h1>
           <p className="muted">모임 {org.total.groups}개 · 함께하는 사람 {org.total.members}명 · 담당자 {org.managers.map((m) => m.nickname).join(', ')}</p>
         </div>
@@ -214,7 +209,7 @@ function OrgReportView({ org, range, setRange, onGroups }: { org: MyOrg; range: 
             <thead><tr><th>모임</th><th>사람</th><th>나눈 사람</th><th>다 그린 선</th><th>그리는 중</th><th>나눈 순간</th><th>응원</th><th>이번 주 새 글</th></tr></thead>
             <tbody>
               {org.groups.map((g, i) => (
-                <tr key={g.id} style={{ '--i': i } as CSSProperties}><td>{g.name}{g.newsOff && <span className="org-off" title="모임장이 모임 소식을 꺼 두었어요. 기관 소식이 가지 않아요">소식 꺼짐</span>}</td><td>{g.report.members}</td><td>{g.report.sharers} ({pct(g.report.sharers, g.report.members)}%)<span className="org-bar" aria-hidden="true"><i style={{ width: `${pct(g.report.sharers, g.report.members)}%` }} /></span></td><td>{g.report.done}</td><td>{g.report.drawing}</td><td>{g.report.moments}</td><td>{g.report.cheers}</td><td>{g.report.newPosts}</td></tr>
+                <tr key={g.id} style={{ '--i': i } as CSSProperties}><td>{g.name}{g.newsOff && <span className="org-off" title="모임장이 모임 소식을 꺼 두었어요. 동아리 소식이 가지 않아요">소식 꺼짐</span>}</td><td>{g.report.members}</td><td>{g.report.sharers} ({pct(g.report.sharers, g.report.members)}%)<span className="org-bar" aria-hidden="true"><i style={{ width: `${pct(g.report.sharers, g.report.members)}%` }} /></span></td><td>{g.report.done}</td><td>{g.report.drawing}</td><td>{g.report.moments}</td><td>{g.report.cheers}</td><td>{g.report.newPosts}</td></tr>
               ))}
             </tbody>
           </table>
@@ -227,7 +222,7 @@ function OrgReportView({ org, range, setRange, onGroups }: { org: MyOrg; range: 
                 <thead><tr><th>모임</th><th>새로 들어온 사람</th><th>모임에서 그린 그래프</th><th>나눈 글</th><th>응원</th><th>활동</th><th>참여(연인원)</th></tr></thead>
                 <tbody>
                   {org.groups.map((g) => g.period && (
-                    <tr key={g.id}><td>{g.name}{g.newsOff && <span className="org-off" title="모임장이 모임 소식을 꺼 두었어요. 기관 소식이 가지 않아요">소식 꺼짐</span>}</td><td>{g.period.joined}</td><td>{g.period.graphs}</td><td>{g.period.posts}</td><td>{g.period.cheers}</td><td>{g.period.events}</td><td>{g.period.attended}</td></tr>
+                    <tr key={g.id}><td>{g.name}{g.newsOff && <span className="org-off" title="모임장이 모임 소식을 꺼 두었어요. 동아리 소식이 가지 않아요">소식 꺼짐</span>}</td><td>{g.period.joined}</td><td>{g.period.graphs}</td><td>{g.period.posts}</td><td>{g.period.cheers}</td><td>{g.period.events}</td><td>{g.period.attended}</td></tr>
                   ))}
                 </tbody>
               </table>
@@ -240,8 +235,8 @@ function OrgReportView({ org, range, setRange, onGroups }: { org: MyOrg; range: 
   )
 }
 
-/** 기관의 모임: 내 모임 더하기 · 빼기, 다른 모임은 연결 코드로 */
-/** 기관 담당자의 이번 주 할 일 (1.3.0): 리포트 숫자에서 바로 읽어 낸 세 가지 안팎 — 없으면 ‘안부 한 줄’ */
+/** 동아리의 모임: 내 모임 더하기 · 빼기, 다른 모임은 연결 코드로 */
+/** 동아리 담당자의 이번 주 할 일 (1.3.0): 리포트 숫자에서 바로 읽어 낸 세 가지 안팎 — 없으면 ‘안부 한 줄’ */
 function OrgWeek({ org, onGroups }: { org: MyOrg; onGroups: () => void }) {
   const sum = (k: 'newPosts' | 'drawing') => org.groups.reduce((n, g) => n + (g.report[k] ?? 0), 0)
   const quiet = org.groups.filter((g) => g.report.posts === 0)
@@ -295,7 +290,7 @@ function OrgGroups({ org, onChange }: { org: MyOrg; onChange: () => void }) {
                 <span className="entry-body"><strong>{g.name}</strong><small>{g.report.members}명 · 참여 코드 {g.code}</small></span>
                 <span className="entry-actions">
                   {mine.some((m) => m.id === g.id) && <Link to={`/groups/${g.id}`} className="btn btn-text btn-sm">들어가기</Link>}
-                  <button type="button" className="btn btn-text btn-sm danger" onClick={async () => await confirmDialog(`‘${g.name}’ 을 기관에서 뺄까요? 모임은 그대로예요.`) && act(api.orgRemoveGroup(org.id, g.id), '뺐어요.')}>빼기</button>
+                  <button type="button" className="btn btn-text btn-sm danger" onClick={async () => await confirmDialog(`‘${g.name}’ 을 동아리에서 뺄까요? 모임은 그대로예요.`) && act(api.orgRemoveGroup(org.id, g.id), '뺐어요.')}>빼기</button>
                 </span>
               </li>
             ))}
@@ -310,7 +305,7 @@ function OrgGroups({ org, onChange }: { org: MyOrg; onChange: () => void }) {
       </section>
       <section className="card">
         <h2 className="card-title">다른 모임장의 모임 잇기</h2>
-        <p className="muted small">이 연결 코드를 모임장에게 알려 주세요. 모임 화면의 ‘기관에 잇기’ 에 적으면 묶여요. 모임 회원에게는 기관이 보이지 않아요.</p>
+        <p className="muted small">이 연결 코드를 모임장에게 알려 주세요. 모임 화면의 ‘동아리에 잇기’ 에 적으면 묶여요. 모임 회원에게는 동아리가 보이지 않아요.</p>
         <p className="org-code"><span className="muted small">연결 코드</span><strong>{org.code}</strong>
           <button type="button" className="btn btn-text btn-sm" onClick={() => navigator.clipboard?.writeText(org.code).then(() => setMsg('연결 코드를 복사했어요.'), () => {})}>복사</button>
           <button type="button" className="btn btn-text btn-sm" onClick={async () => await confirmDialog('연결 코드를 새로 만들까요? 예전 코드는 더 쓸 수 없어요 (이미 묶인 모임은 그대로).') && act(api.newOrgCode(org.id), '새 연결 코드를 만들었어요.')}>새로 만들기</button>
@@ -346,18 +341,18 @@ function OrgPeople({ org, onChange, onGone }: { org: MyOrg; onChange: () => void
         ) : <button type="button" className="btn btn-ghost btn-sm" onClick={() => act(api.orgMakeInvite(org.id), '초대 링크를 만들었어요.')}>담당자 초대 링크 만들기</button>}
       </section>
       <form className="card" onSubmit={(e) => { e.preventDefault(); act(api.renameOrg(org.id, name.trim()), '이름을 바꿨어요.') }}>
-        <h2 className="card-title">기관 이름</h2>
+        <h2 className="card-title">동아리 이름</h2>
         <div className="inline-form">
-          <input value={name} maxLength={40} aria-label="기관 이름" onChange={(e) => setName(e.target.value)} />
+          <input value={name} maxLength={40} aria-label="동아리 이름" onChange={(e) => setName(e.target.value)} />
           <button type="submit" className="btn btn-ghost btn-sm" disabled={!name.trim() || name.trim() === org.name}>바꾸기</button>
         </div>
       </form>
       <section className="card org-danger">
-        <h2 className="card-title">기관 그만두기</h2>
-        <p className="muted small">기관을 지워도 묶인 모임과 회원 · 기록은 그대로 남아요.</p>
+        <h2 className="card-title">동아리 그만두기</h2>
+        <p className="muted small">동아리를 지워도 묶인 모임과 회원 · 기록은 그대로 남아요.</p>
         <div className="form-actions">
-          {org.managers.length > 1 && <button type="button" className="btn btn-text danger" onClick={async () => await confirmDialog('이 기관의 담당자를 그만둘까요? 다른 담당자는 그대로예요.') && api.leaveOrg(org.id).then(onGone, (e) => setMsg(e.message))}>담당자 그만두기</button>}
-          <button type="button" className="btn btn-text danger" onClick={async () => await confirmDialog(`‘${org.name}’ 기관을 지울까요? 묶인 모임과 회원 · 기록은 그대로예요.`) && api.deleteOrg(org.id).then(onGone, (e) => setMsg(e.message))}>기관 지우기</button>
+          {org.managers.length > 1 && <button type="button" className="btn btn-text danger" onClick={async () => await confirmDialog('이 동아리의 담당자를 그만둘까요? 다른 담당자는 그대로예요.') && api.leaveOrg(org.id).then(onGone, (e) => setMsg(e.message))}>담당자 그만두기</button>}
+          <button type="button" className="btn btn-text danger" onClick={async () => await confirmDialog(`‘${org.name}’ 동아리를 지울까요? 묶인 모임과 회원 · 기록은 그대로예요.`) && api.deleteOrg(org.id).then(onGone, (e) => setMsg(e.message))}>동아리 지우기</button>
         </div>
       </section>
       {msg && <p className="muted small" role="status">{msg}</p>}
@@ -387,7 +382,7 @@ function OrgNews({ org }: { org: MyOrg }) {
     <details className="org-news no-print">
       <summary className="field-label">모든 모임에 소식 보내기</summary>
       <form onSubmit={(e) => { e.preventDefault(); if (text.trim()) send(text.trim()) }}>
-        <textarea rows={3} maxLength={300} value={text} placeholder="예) 다음 주는 기관 휴관이라 모임을 쉬어요." aria-label="모든 모임에 보낼 소식" onChange={(e) => setText(e.target.value)} />
+        <textarea rows={3} maxLength={300} value={text} placeholder="예) 다음 주는 휴관이라 모임을 쉬어요." aria-label="모든 모임에 보낼 소식" onChange={(e) => setText(e.target.value)} />
         <p className="muted small">각 모임의 ‘모임 소식’ 을 이 글로 바꿔요 (모임장이 쓴 소식 대신). 끝난 모임에는 가지 않아요. {text.length}/300</p>
         {off.length > 0 && <p className="muted small">모임 소식을 꺼 둔 <b>{off.map((g) => g.name).join(' · ')}</b> ({off.length}개)는 건너뛰어요.</p>}
         <div className="form-actions">
@@ -401,7 +396,7 @@ function OrgNews({ org }: { org: MyOrg }) {
   )
 }
 
-/** 기관 담당자 초대 링크 (/org-invite/:token) — 로그인한 사람이 ‘맡을게요’ 를 누르면 담당자가 된다 */
+/** 동아리 담당자 초대 링크 (/org-invite/:token) — 로그인한 사람이 ‘맡을게요’ 를 누르면 담당자가 된다 */
 export function OrgInvite() {
   const { token = '' } = useParams()
   const { user } = useAuth()
@@ -417,11 +412,11 @@ export function OrgInvite() {
   return (
     <section className="container page auth-page">
       <div className="card form-card auth-card">
-        <p className="eyebrow">기관 담당자 초대</p>
+        <p className="eyebrow">동아리 담당자 초대</p>
         <h1 className="card-title">‘{info.name}’ 의 담당자가 되어 주세요</h1>
         <p className="muted">모임 {info.groups}개의 리포트를 모아 볼 수 있어요. 누가 무엇을 그렸는지, 그때의 마음은 보이지 않아요.</p>
         {info.already ? (
-          <Link to="/org" className="btn btn-primary btn-block">이미 담당자예요 · 기관 보기</Link>
+          <Link to="/org" className="btn btn-primary btn-block">이미 담당자예요 · 동아리 보기</Link>
         ) : user ? (
           <button type="button" className="btn btn-primary btn-block" onClick={accept}>{user.nickname} 계정으로 맡을게요</button>
         ) : (

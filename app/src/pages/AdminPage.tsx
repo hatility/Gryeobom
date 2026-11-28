@@ -10,6 +10,7 @@ import LifeGraph from '../components/LifeGraph'
 import { NOW_QUESTIONS, questionsFor, lineColorOf, presetLabel, rangeLabel, scoreWord, signed, timeLabel } from '../content'
 import { formatDate, graphPoints, graphTitle, sortEntries } from '../store'
 import { GroupInfoForm } from './GroupPage'
+import { Md } from '../md'
 
 type State = 'loading' | 'off' | 'login' | 'in'
 type Tab = 'home' | 'reports' | 'notice' | 'flags' | 'inquiries' | 'orgs' | 'dormant' | 'errors' | 'devlog' | 'server' | 'blocks' | 'privacy' | 'admins' | 'users' | 'groups' | 'posts' | 'links' | 'logins' | 'settings' | 'backup'
@@ -26,7 +27,7 @@ const TAB_INFO: Record<Tab, [string, string]> = {
   groups: ['모임', '모임 이름 · 소개를 고치거나, 함께하는 사람과 나눈 그래프를 봐요.'],
   posts: ['나눈 그래프', '모임에 나눈 그래프예요. 내려도 본인의 기록은 그대로 남아요.'],
   links: ['공유 링크', '링크로 나간 그래프예요 (그때의 마음 · 지금의 나는 담기지 않아요). 끄면 받은 사람도 더는 못 봐요.'],
-  orgs: ['기관', '기관은 담당자가 /org 에서 직접 등록해요. 여기서는 모든 기관을 살펴보고 고치거나 지워요.'],
+  orgs: ['동아리', '동아리는 담당자가 /org 에서 직접 등록해요. 여기서는 모든 동아리를 살펴보고 고치거나 지워요.'],
   privacy: ['요청 대장', '메일 · 전화 · 문의함으로 받은 열람 · 정정 · 삭제 · 처리정지 요청을 적어 두고 10일 안에 처리해요.'],
   dormant: ['휴면 계정', '처리방침의 보유 기간에 맞춰, 오래 다녀가지 않은 계정을 골라 정리해요. 지우면 되돌릴 수 없어요.'],
   logins: ['접속', '관리자 로그인 시도 최근 300건이에요. IP 에 별칭을 붙이면 알아보기 쉬워요.'],
@@ -42,7 +43,7 @@ const TAB_INFO: Record<Tab, [string, string]> = {
 /** 왼쪽 메뉴: 묶음 → [메뉴 이름, 그 안의 화면들]. 화면이 둘 이상이면 위에 작은 탭으로 */
 const NAV: [string, [string, Tab[]][]][] = [
   ['운영', [['한눈에', ['home']], ['신고 · 문의', ['reports', 'inquiries']], ['공지 · 점검', ['notice']]]],
-  ['사람 · 모임', [['사람', ['users']], ['모임', ['groups']], ['나눈 것', ['posts', 'links']], ['기관', ['orgs']]]],
+  ['사람 · 모임', [['사람', ['users']], ['모임', ['groups']], ['나눈 것', ['posts', 'links']], ['동아리', ['orgs']]]],
   ['개인정보 · 보안', [['개인정보', ['privacy', 'dormant']], ['접속 · 차단', ['logins', 'blocks']], ['오류', ['errors']]]],
   ['서버 · 설정', [['서버 · 백업', ['server', 'backup']], ['설정', ['settings', 'flags', 'admins']]]],
   ['개발', [['변경 내역', ['devlog']]]],
@@ -542,7 +543,7 @@ function ReportsTab({ onGroup, onChanged }: { onGroup: (id: string) => void; onC
                 <button type="button" className="btn btn-text btn-sm" onClick={() => { setNoting(null); act(() => api.adminResolveReport(r.id)) }}>메모 없이 완료</button>
               </div>
             )}
-            {r.reason === 'danger' && !r.resolvedAt && !r.deletedAt && <p className="small danger">도움이 필요해 보인다는 신고예요. 모임장 · 기관 담당자와 함께 살펴보고, 필요하면 청소년상담 1388 을 안내해 주세요.</p>}
+            {r.reason === 'danger' && !r.resolvedAt && !r.deletedAt && <p className="small danger">도움이 필요해 보인다는 신고예요. 모임장 · 동아리 담당자와 함께 살펴보고, 필요하면 청소년상담 1388 을 안내해 주세요.</p>}
             {!r.deletedAt && <div className="admin-actions">
               {r.groupId && <button type="button" className="btn btn-ghost btn-sm" onClick={() => onGroup(r.groupId!)}>모임에서 보기</button>}
               {r.postId && !r.resolvedAt && (
@@ -574,7 +575,7 @@ function ReportsTab({ onGroup, onChanged }: { onGroup: (id: string) => void; onC
 
 const DELETE_REASONS = ['시험 신고', '중복 신고', '잘못 들어온 신고', '이미 처리한 일']
 /** 처리 완료 때 남기는 메모 템플릿 (1.3.0): 무엇을 했는지 한 줄 */
-const RESOLVE_NOTES = ['살펴봤고 문제 없어요', '글을 내리고 처리했어요', '모임장에게 알렸어요', '기관 담당자와 함께 살펴봤어요', '상담 안내(1388)를 전했어요']
+const RESOLVE_NOTES = ['살펴봤고 문제 없어요', '글을 내리고 처리했어요', '모임장에게 알렸어요', '동아리 담당자와 함께 살펴봤어요', '상담 안내(1388)를 전했어요']
 
 /** 신고 기록 지우기 팝업: 무엇을 지우는지 보여 주고, 까닭(2자 이상)을 받아야 지운다 */
 function DeleteReportDialog({ report, onClose, onDone }: { report: AdminReport; onClose: () => void; onDone: () => void }) {
@@ -932,7 +933,7 @@ function ErrorsTab() {
   )
 }
 
-/** 기관 — 모임 묶기 · 담당자 정하기 */
+/** 동아리 — 모임 묶기 · 담당자 정하기 */
 function OrgsTab({ users }: { users: AdminOverview['users'] }) {
   const [orgs, setOrgs] = useState<AdminOrg[] | null>(null)
   const [edit, setEdit] = useState<{ id: string; name: string; codes: string; managers: string[] } | null>(null)
@@ -954,7 +955,7 @@ function OrgsTab({ users }: { users: AdminOverview['users'] }) {
     }
   }
   const remove = async (o: AdminOrg) => {
-    if (!await confirmDialog(`‘${o.name}’ 기관을 지울까요? 모임 · 계정은 그대로 남아요.`)) return
+    if (!await confirmDialog(`‘${o.name}’ 동아리를 지울까요? 모임 · 계정은 그대로 남아요.`)) return
     await api.adminDeleteOrg(o.id).catch(() => {})
     load()
   }
@@ -962,13 +963,13 @@ function OrgsTab({ users }: { users: AdminOverview['users'] }) {
     const shown = users.filter((u) => edit.managers.includes(u.id) || has(q, u.nickname)).slice(0, 30)
     return (
       <form className="card form-card admin-settings" onSubmit={(e) => { e.preventDefault(); save() }}>
-        <label className="field"><span className="field-label">기관 이름</span><input value={edit.name} maxLength={40} required onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
+        <label className="field"><span className="field-label">동아리 이름</span><input value={edit.name} maxLength={40} required onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></label>
         <label className="field">
           <span className="field-label">묶을 모임의 참여 코드</span>
           <textarea rows={3} value={edit.codes} placeholder="예) K7M2QX DTQWCX (띄어 쓰거나 줄을 바꿔요)" onChange={(e) => setEdit({ ...edit, codes: e.target.value })} />
         </label>
         <fieldset className="field">
-          <legend className="field-label">기관 담당자 ({edit.managers.length}명)</legend>
+          <legend className="field-label">동아리 담당자 ({edit.managers.length}명)</legend>
           <input value={q} placeholder="별명으로 찾기" aria-label="담당자 별명으로 찾기" onChange={(e) => setQ(e.target.value)} />
           <ul className="pick-list">
             {shown.map((u) => (
@@ -980,7 +981,7 @@ function OrgsTab({ users }: { users: AdminOverview['users'] }) {
               </li>
             ))}
           </ul>
-          <small className="muted">담당자는 ‘기관 리포트’(/org)에서 이 모임들의 리포트만 모아 봐요. 개인 기록은 볼 수 없어요.</small>
+          <small className="muted">담당자는 ‘동아리 리포트’(/org)에서 이 모임들의 리포트만 모아 봐요. 개인 기록은 볼 수 없어요.</small>
         </fieldset>
         {(() => { const o = orgs?.find((x) => x.id === edit.id); return o ? <div className="field"><span className="field-label">담당자 초대 링크</span><OrgInviteButton org={o} onChange={load} /></div> : null })()}
         {msg && <p className="alert" role="alert">{msg}</p>}
@@ -994,23 +995,26 @@ function OrgsTab({ users }: { users: AdminOverview['users'] }) {
   return (
     <>
       <div className="admin-toolbar">
-        <span className="muted small">{orgs ? `기관 ${orgs.length}곳` : '불러오는 중이에요…'}</span>
+        <span className="muted small">{orgs ? `동아리 ${orgs.length}곳` : '불러오는 중이에요…'}</span>
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEdit({ id: 'new', name: '', codes: '', managers: [] })}>+ 관리자가 직접 만들기</button>
       </div>
       {msg && <p className="alert" role="alert">{msg}</p>}
       {orgs && !orgs.length && (
         <div className="card admin-empty">
-          <p className="serif">아직 등록된 기관이 없어요.</p>
-          <p className="muted small">수련관 · 학교 담당자가 로그인해서 ‘기관’ 화면(/org)에서 등록하면 여기에 보여요. 담당자 대신 만들어 줄 때만 위의 ‘관리자가 직접 만들기’ 를 써요.</p>
+          <p className="serif">아직 등록된 동아리가 없어요.</p>
+          <p className="muted small">수련관 · 학교 담당자가 로그인해서 ‘동아리’ 화면(/org)에서 등록하면 여기에 보여요. 담당자 대신 만들어 줄 때만 위의 ‘관리자가 직접 만들기’ 를 써요.</p>
         </div>
       )}
       {orgs && orgs.length > 0 && (
         <AdminTable
-          head={['기관', '등록', '담당자', '모임', '']}
+          head={['동아리', '등록', '등록 전 확인', '담당자', '모임', '']}
           empty=""
           rows={orgs.map((o) => [
             <strong key="n" title={o.name}>{o.name}</strong>,
             formatDate(o.createdAt),
+            o.agreed
+              ? <span key="c" title={`${formatDate(o.agreed.at)} 에 확인한 내용\n${o.agreed.notice.map((t, i) => `${i + 1}. ${t}`).join('\n')}`}>{o.agreed.notice.length}줄 확인</span>
+              : <span key="c" className="muted">기록 없음</span>,
             o.managers.map((m) => m.nickname).join(', ') || <span key="m" className="muted">없음</span>,
             <span key="g" className="num" title={o.groups.map((g) => `${g.name} ${g.code}`).join('\n')}>{o.groups.length}개</span>,
             <span key="a" className="row-actions">
@@ -1402,7 +1406,7 @@ function Overview({ data, onUser, onReports }: { data: AdminOverview; onUser: (i
   const kpis: [string, ReactNode, string, number[]?][] = [
     ['지금 (1시간 안)', s.online, '다녀간 사람'],
     ['이번 주 다녀간 사람', s.week.visitors, `가입한 사람의 ${pct(s.week.visitors, c.users)}`],
-    ['이번 주 새로 가입', s.week.signups, `모두 ${c.users}명`, week.map((d) => d.signups)],
+    ['이번 주 새로 가입', s.week.signups, `모두 ${c.users}명${s.under14Blocked ? ` · 만 14세 미만이라 막음 ${s.under14Blocked}번` : ''}`, week.map((d) => d.signups)],
     ['이번 주 새 그래프', s.week.graphs, `모두 ${c.graphs}개`, week.map((d) => d.graphs)],
     ['이번 주 모임에 나눔', s.week.posts, `모두 ${c.posts}개`],
     ['이번 주 응원', s.week.cheers, `모두 ${s.cheers}번`],
@@ -1912,15 +1916,17 @@ function TermsSettings() {
       {t.at && <p className="muted small">마지막 요청 · {new Date(t.at).toLocaleString('ko-KR')} · 다시 동의한 사람 {t.agreed} / {t.users}명</p>}
       <label className="field">
         <span className="field-label">바뀐 점</span>
-        <textarea rows={4} maxLength={1000} value={text} placeholder="예) 모임 활동 출석 기록을 새로 남겨요 (개인정보 처리방침 2. 처리하는 항목)." onChange={(e) => setText(e.target.value)} />
+        <textarea rows={7} maxLength={2000} value={text} placeholder={"예) 2026-11-24 시행 · 새로 모으는 개인정보는 없어요.\n- **새 기능**을 약관에 적었어요\n- 기기에만 저장하는 것을 더 적었어요"} onChange={(e) => setText(e.target.value)} />
+        <small className="muted">마크다운 조금 돼요: 빈 줄로 문단, ‘- ’ 로 목록, **굵게**, [글](https://…) 링크. 2000자까지.</small>
       </label>
+      {text.trim() && <details className="md-preview"><summary className="muted small">회원에게 이렇게 보여요</summary><Md text={text} /></details>}
       {msg && <p className="muted small" role="status">{msg}</p>}
       <div className="form-actions"><button type="submit" className="btn btn-primary" disabled={text.trim().length < 5}>다시 동의 받기</button></div>
     </form>
   )
 }
 
-/** 기관 담당자 초대 링크 (한 번 쓰면 꺼진다) */
+/** 동아리 담당자 초대 링크 (한 번 쓰면 꺼진다) */
 function OrgInviteButton({ org, onChange }: { org: AdminOrg; onChange: () => void }) {
   const [base, setBase] = useState('')
   const [copied, setCopied] = useState(false)

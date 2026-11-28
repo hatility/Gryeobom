@@ -134,7 +134,7 @@ export function openDb(file: string): Db {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS events_circle ON events(circle_id, day);
-    -- 기관: 여러 모임을 묶고 담당자에게 모임 리포트만 모아 보여 준다 (실험). circle_ids · manager_ids 는 JSON 배열
+    -- 동아리: 여러 모임을 묶고 담당자에게 모임 리포트만 모아 보여 준다 (실험). circle_ids · manager_ids 는 JSON 배열
     CREATE TABLE IF NOT EXISTS orgs (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -142,7 +142,7 @@ export function openDb(file: string): Db {
       manager_ids TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL
     );
-    -- 모임 활동 출석 (실험): 누가 참여했는지는 본인만, 모임장 · 기관 담당자는 인원 수만
+    -- 모임 활동 출석 (실험): 누가 참여했는지는 본인만, 모임장 · 동아리 담당자는 인원 수만
     CREATE TABLE IF NOT EXISTS attendance (
       event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -223,7 +223,7 @@ export function openDb(file: string): Db {
   // 0.19.0: 오늘의 한 줄에 고른 마음 색 (예전 한 줄은 빈 칸)
   const answerCols = db.prepare("SELECT name FROM pragma_table_info('answers')").all() as { name: string }[]
   if (!answerCols.some((c) => c.name === 'color')) db.exec("ALTER TABLE answers ADD COLUMN color TEXT NOT NULL DEFAULT ''")
-  // 실험(labs-5): 모임 끝내기(보관) · 기관 담당자 초대 링크 · 개인정보 처리 요청 대장
+  // 실험(labs-5): 모임 끝내기(보관) · 동아리 담당자 초대 링크 · 개인정보 처리 요청 대장
   const circleCols2 = db.prepare("SELECT name FROM pragma_table_info('circles')").all() as { name: string }[]
   if (!circleCols2.some((c) => c.name === 'closed_at')) db.exec("ALTER TABLE circles ADD COLUMN closed_at TEXT NOT NULL DEFAULT ''")
   const orgCols = db.prepare("SELECT name FROM pragma_table_info('orgs')").all() as { name: string }[]
@@ -317,13 +317,15 @@ export function openDb(file: string): Db {
       count INTEGER NOT NULL
     );
   `)
-  // 실험(labs-8): 문의 답 (이용자가 ‘내 문의’ 에서 본다) · 탈퇴하면 문의도 함께 지운다 · 기관 연결 코드
+  // 실험(labs-8): 문의 답 (이용자가 ‘내 문의’ 에서 본다) · 탈퇴하면 문의도 함께 지운다 · 동아리 연결 코드
   const inqCols = db.prepare("SELECT name FROM pragma_table_info('inquiries')").all() as { name: string }[]
   if (!inqCols.some((c) => c.name === 'answer')) db.exec("ALTER TABLE inquiries ADD COLUMN answer TEXT NOT NULL DEFAULT ''")
   if (!inqCols.some((c) => c.name === 'answered_at')) db.exec("ALTER TABLE inquiries ADD COLUMN answered_at TEXT NOT NULL DEFAULT ''")
   db.exec(`CREATE TRIGGER IF NOT EXISTS inquiries_with_user BEFORE DELETE ON users BEGIN DELETE FROM inquiries WHERE user_id = OLD.id; END;`)
   const orgCols2 = db.prepare("SELECT name FROM pragma_table_info('orgs')").all() as { name: string }[]
   if (!orgCols2.some((c) => c.name === 'code')) db.exec("ALTER TABLE orgs ADD COLUMN code TEXT NOT NULL DEFAULT ''")
+  // 1.3.1: 동아리를 등록할 때 확인한 내용의 기록 { at, by, notice[] } (관리자가 만든 동아리 · 예전 동아리는 빈 값)
+  if (!orgCols2.some((c) => c.name === 'agreed')) db.exec("ALTER TABLE orgs ADD COLUMN agreed TEXT NOT NULL DEFAULT ''")
   // 0.18.0: 오래 쓰면 느려지는 곳 — 계정 지우기(CASCADE) · 모임 글 · 로그인 정리가 표 전체를 훑지 않게
   db.exec(`
     CREATE INDEX IF NOT EXISTS members_user ON members(user_id);

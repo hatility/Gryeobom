@@ -123,7 +123,7 @@ export default function Credits() {
           <div className="card team-path">
             <p className="eyebrow">지나온 길</p>
             {(() => {
-              const pts: [number, number, string, string][] = [[20, 92, '0.1.0', '첫 화면 하나'], [230, 46, '1.0.0', '첫 정식'], [340, 90, '1.1.0', '휴대폰 · 모임 · 기관'], [450, 58, '1.2.0', '감성 일기장 틀'], [580, 30, `${__APP_VERSION__}`, '지금']]
+              const pts: [number, number, string, string][] = [[20, 92, '0.1.0', '첫 화면 하나'], [230, 46, '1.0.0', '첫 정식'], [340, 90, '1.1.0', '휴대폰 · 모임 · 동아리'], [450, 58, '1.2.0', '감성 일기장 틀'], [580, 30, `${__APP_VERSION__}`, '지금']]
               // 점을 모두 지나는 부드러운 선 (Catmull-Rom → 베지어)
               const d = pts.map(([x, y], i) => {
                 if (i === 0) return `M${x} ${y}`

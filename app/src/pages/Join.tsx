@@ -4,9 +4,7 @@ import { useNavigate } from '../nav'
 import { api, type Invite } from '../api'
 import { useAuth } from '../auth'
 import { presetLabel } from '../content'
-import { BirthField, GUARDIAN_EMPTY, GuardianFields, ageFrom, readBirth } from './Login'
-import { useLabs } from '../labs'
-import type { Guardian } from '../api'
+import { BirthField, readBirth } from './Login'
 
 /**
  * 초대 링크(/join/:code). 로그인하지 않았으면 이름 · 생년월일 · 별명 · 동의를 한 화면에서 받아,
@@ -17,10 +15,7 @@ export default function Join() {
   const { user, setUser } = useAuth()
   const navigate = useNavigate()
   const [invite, setInvite] = useState<Invite | null | undefined>(undefined)
-  const [form, setForm] = useState({ name: '', birth: '', nickname: '', agree: false, remember: false })
-  const [guardian, setGuardian] = useState<Guardian>(GUARDIAN_EMPTY)
-  const labs = useLabs('guardian')
-  const young = labs && !user && (ageFrom(form.birth) ?? 99) < 14
+  const [form, setForm] = useState({ name: '', birth: '', nickname: '', agree: false, age14: false, remember: false })
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const set = (p: Partial<typeof form>) => setForm((f) => ({ ...f, ...p }))
@@ -36,11 +31,10 @@ export default function Join() {
     e?.preventDefault()
     if (!user && !readBirth(form.birth)) return setErr('생년월일을 8자리로 확인해 주세요. 예) 20120315')
     if (!user && !form.agree) return setErr('이용약관과 개인정보 처리방침에 동의해 주세요.')
-    if (young && (!guardian.agreed || !guardian.contact.trim())) return setErr('만 14세 미만은 보호자의 동의가 필요해요. 보호자와 함께 적어 주세요.')
     setBusy(true)
     setErr('')
     try {
-      const r = await api.joinByInvite(code, user ? {} : { ...form, nickname: form.nickname.trim(), ...(young ? { guardian } : {}) })
+      const r = await api.joinByInvite(code, user ? {} : { ...form, nickname: form.nickname.trim() })
       if ('needSignup' in r) return setErr('모임에서 보일 별명을 적어 주세요.')
       setUser(r.user)
       navigate(`/groups/${r.id}`)
@@ -109,13 +103,15 @@ export default function Join() {
             <input name="nickname" value={form.nickname} maxLength={12} onChange={(e) => set({ nickname: e.target.value })} required />
             <small className="muted">모임에서는 별명만 보여요. 이미 계정이 있으면 원래 별명 그대로예요.</small>
           </label>
-          {young && <GuardianFields value={guardian} onChange={setGuardian} />}
           <label className="check agree">
             <input type="checkbox" checked={form.agree} onChange={(e) => set({ agree: e.target.checked })} required />
             <span>
               <Link to="/terms" target="_blank">이용약관</Link>과 <Link to="/privacy" target="_blank">개인정보 처리방침</Link>을 읽고 동의해요.
-              <small className="muted agree-sub">만 14세 미만이라면 보호자와 함께 읽어 주세요.</small>
             </span>
+          </label>
+          <label className="check agree">
+            <input type="checkbox" checked={form.age14} onChange={(e) => set({ age14: e.target.checked })} required />
+            <span>저는 만 14세 이상이에요.</span>
           </label>
           <label className="check">
             <input type="checkbox" checked={form.remember} onChange={(e) => set({ remember: e.target.checked })} />

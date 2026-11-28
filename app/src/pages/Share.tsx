@@ -144,7 +144,7 @@ function GroupsHub() {
   const [code, setCode] = useState('')
   const [err, setErr] = useState('')
   const labsOrg = useLabs('org')
-  // 내가 담당자인 기관 — 그 기관에 묶인 모임은 기관 아래에 모아 보인다
+  // 내가 담당자인 동아리 — 그 동아리에 묶인 모임은 동아리 아래에 모아 보인다
   const [orgs, setOrgs] = useState<{ id: string; name: string; groupIds: string[] }[]>([])
 
   useEffect(() => {
@@ -232,7 +232,7 @@ function GroupsHub() {
       </div>
       <BulkGroups onDone={() => api.groups().then(setGroups, () => {})} />
       {labsOrg && orgs.length === 0 && (
-        <p className="muted small org-register-line">기관으로 운영하시나요? <Link to="/org">기관 등록하기 ›</Link></p>
+        <p className="muted small org-register-line">수련관 · 학교 같은 기관이신가요? <Link to="/org">동아리 등록하기 ›</Link></p>
       )}
     </section>
   )

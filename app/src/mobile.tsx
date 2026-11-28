@@ -14,7 +14,6 @@ import { ViewPanel } from './components/ViewSettings'
 import { greeting, lineColorOf } from './content'
 import { switchLayout } from './device'
 import { downloadMyData, useLabs } from './labs'
-import GuardianNotice from './components/GuardianNotice'
 import { GroupNews, OrgHomeCard, GroupTopics, Resume, TodayQuestion } from './pages/Home'
 import { formatDate, graphPoints, graphTitle } from './store'
 import type { LifeGraph as Graph } from './types'
@@ -24,7 +23,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/groups\//, '모임'], [/^\/graph\/new/, '새 그래프'], [/^\/graph\/[^/]+\/edit/, '그래프 고치기'],
   [/^\/graph\/[^/]+\/book/, '한 권으로'], [/^\/graph\//, '나의 그래프'], [/^\/review/, '한 해 돌아보기'],
   [/^\/s\//, '나눈 그래프'], [/^\/join\//, '모임 들어가기'], [/^\/login/, '로그인'], [/^\/example/, '예시 그래프'],
-  [/^\/credits/, '만든 사람 · 오픈소스'], [/^\/worksheet/, '활동지'], [/^\/guardian\//, '보호자 동의'], [/^\/org/, '기관'], [/^\/contact/, '문의하기'], [/^\/terms/, '이용약관'], [/^\/privacy/, '개인정보 처리방침'],
+  [/^\/credits/, '만든 사람 · 오픈소스'], [/^\/worksheet/, '활동지'], [/^\/org/, '동아리'], [/^\/contact/, '문의하기'], [/^\/terms/, '이용약관'], [/^\/privacy/, '개인정보 처리방침'],
 ]
 const ROOTS = ['/', '/my', '/share', '/me']
 
@@ -123,7 +122,6 @@ export function MobileHome() {
         </Link>
       </section>
 
-      <div className="container"><GuardianNotice /></div>
       <Resume />
       <TodayQuestion />
 
@@ -213,7 +211,7 @@ export function Me() {
         <Link to={`/review/${new Date().getFullYear()}`} className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M4 6h16v14H4zM4 10h16M8 3v4M16 3v4')}</span>한 해 돌아보기<Chevron /></Link>
         <Link to="/example" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M3 16c3 0 4-8 7-8s3 6 6 6 3-5 5-5')}</span>예시 그래프<Chevron /></Link>
         {labs && <Link to="/worksheet" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M6 9V3h12v6M6 18H4v-7h16v7h-2M6 15h12v6H6z')}</span>종이 활동지 인쇄<Chevron /></Link>}
-        {labsOrg && user && <Link to="/org" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M3 21h18M5 21V7l7-4 7 4v14M9 12h.01M15 12h.01M9 16h.01M15 16h.01')}</span>기관<Chevron /></Link>}
+        {labsOrg && user && <Link to="/org" className="m-row"><span className="m-row-ic" aria-hidden="true">{I('M3 21h18M5 21V7l7-4 7 4v14M9 12h.01M15 12h.01M9 16h.01M15 16h.01')}</span>동아리<Chevron /></Link>}
       </nav>
 
       <h2 className="m-group-title">보기</h2>

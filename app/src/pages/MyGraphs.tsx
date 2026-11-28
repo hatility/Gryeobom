@@ -14,7 +14,6 @@ import { dayKey, useJournal } from '../journal'
 import { BirthField } from './Login'
 import { downloadMyData, useLabs } from '../labs'
 import MoodWords from '../components/MoodWords'
-import GuardianNotice from '../components/GuardianNotice'
 
 /** 멈춘 단계를 기억해 두었으면 그 단계로 (편집기가 이 기기에 남긴 것) */
 export const editHref = (id: string) => { let step = 0; try { step = Number(localStorage.getItem(`geuryeobom:step:${id}`)) } catch { /* 기억 못 하면 1단계부터 */ } return `/graph/${id}/edit${step > 1 ? `?step=${step}` : ''}` }
@@ -75,7 +74,6 @@ export default function MyGraphs() {
         {graphs && graphs.length > 0 && <Link to="/graph/new" className="btn btn-primary">새 그래프 그리기</Link>}
       </header>
 
-      <GuardianNotice />
       <NewAnswers />
       {user && localCount > 0 && (
         <div className="demo-note move-note">

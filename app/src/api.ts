@@ -43,7 +43,7 @@ export interface GroupDetail {
   hidden?: GroupHideable[]
   /** 끝난 모임 (실험 · 보기만) */
   closedAt?: string
-  /** 이 모임이 이어진 기관 (실험 · 모임장 · 공동 모임장에게만) */
+  /** 이 모임이 이어진 동아리 (실험 · 모임장 · 공동 모임장에게만) */
   orgs?: { id: string; name: string }[]
   /** 모임 질문 묶음 (실험) */
   questionSet?: string
@@ -89,7 +89,7 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
 
 export const api = {
   me: () => req<{ user: Me | null }>('GET', '/me').then((r) => r.user).catch(() => null),
-  signup: (b: { name: string; birth: string; nickname: string; remember: boolean; agree: boolean; guardian?: Guardian }) =>
+  signup: (b: { name: string; birth: string; nickname: string; remember: boolean; agree: boolean; age14: boolean }) =>
     req<{ user: Me }>('POST', '/auth/signup', b).then((r) => r.user),
   login: (b: { name: string; birth: string; remember: boolean }) =>
     req<{ user: Me }>('POST', '/auth/login', b).then((r) => r.user),
@@ -111,10 +111,7 @@ export const api = {
   addEvent: (groupId: string, day: string, title: string) => req<GroupEvent>('POST', `/groups/${groupId}/events`, { day, title }),
   removeEvent: (groupId: string, id: string) => req('DELETE', `/groups/${groupId}/events/${id}`),
   /** 실험: 보호자 동의 확인 */
-  myGuardian: () => req<{ needed: boolean; relation?: string; confirmed?: boolean; token?: string | null }>('GET', '/me/guardian'),
-  guardianLink: (token: string) => req<{ nickname: string; relation: string; confirmed: boolean; confirmedAt: string }>('GET', `/guardian/${encodeURIComponent(token)}`),
-  guardianAgree: (token: string) => req<{ confirmed: boolean }>('POST', `/guardian/${encodeURIComponent(token)}`, { agree: true }),
-  /** 기관 */
+  /** 동아리 */
   myOrgs: (from?: string, to?: string) => req<MyOrg[]>('GET', from && to ? `/orgs?from=${from}&to=${to}` : '/orgs'),
   /** 출석 · 모임 복제 · 휴면 계정 · 오류 기록 */
   attend: (groupId: string, eventId: string) => req<{ mine: boolean; count: number }>('POST', `/groups/${groupId}/events/${eventId}/attend`),
@@ -199,7 +196,7 @@ export const api = {
   setPrompts: (id: string, prompts: GroupPrompts) => req<{ prompts: GroupPrompts | null }>('PUT', `/groups/${id}/prompts`, { prompts }),
   invite: (code: string) => req<Invite>('GET', `/invite/${encodeURIComponent(code)}`),
   /** 초대 링크로 들어가기. 로그인하지 않았으면 이름 · 생일(처음이면 별명 · 동의까지)을 함께 보낸다 */
-  joinByInvite: (code: string, b: { name?: string; birth?: string; nickname?: string; agree?: boolean; remember?: boolean; guardian?: Guardian } = {}) =>
+  joinByInvite: (code: string, b: { name?: string; birth?: string; nickname?: string; agree?: boolean; age14?: boolean; remember?: boolean } = {}) =>
     req<InviteResult>('POST', `/invite/${encodeURIComponent(code)}`, b),
   /** 모임에 나누기. 무엇을 나눌지만 보내면 서버가 그래프에서 만들고, 그래프를 고치면 다시 만든다 */
   post: (groupId: string, graphId: string, options: PostOptions) =>
@@ -290,6 +287,8 @@ export interface AdminOverview {
   counts: { users: number; graphs: number; groups: number; posts: number; links: number }
   stats: {
     completed: number; letters: number; cheers: number; moments: number; online: number; openReports: number; answers: number
+    /** 만 14세 미만이라 가입을 막은 횟수 (누적) */
+    under14Blocked?: number
     storage: { db: number; backups: number; backupBytes: number; latest: string | null }
     scales: { scale: string; n: number }[]
     week: { signups: number; visitors: number; graphs: number; posts: number; cheers: number }
@@ -303,7 +302,6 @@ export interface AdminOverview {
 export interface Developer { name: string; org: string; contact: string; url: string }
 export interface Operator { name: string; contact: string }
 /** 만 14세 미만 보호자 동의 (실험) */
-export interface Guardian { relation: string; contact: string; agreed: boolean }
 export type StatKey = 'signups' | 'graphs' | 'groups' | 'posts' | 'cheers' | 'answers'
 export interface AdminStats { from: string; to: string; rows: ({ day: string } & Record<StatKey, number>)[]; total: Record<StatKey, number> }
 export interface Notice { title: string; body: string; at: string }
@@ -339,7 +337,7 @@ export const remoteRepo: Repo = {
   remove: (id) => req('DELETE', `/graphs/${id}`).then(() => true, () => false),
 }
 
-/** 기관 (실험) */
+/** 동아리 (실험) */
 export interface AdminHealth {
   startedAt: string; uptimeSec: number; node: string; memory: { rss: number; heap: number }
   storage: { db: number; backups: number; backupBytes: number; latest: string | null }; disk: { free: number; total: number } | null
@@ -347,7 +345,7 @@ export interface AdminHealth {
 }
 export interface AdminBlock { limit: string; kind: 'ip' | 'name' | 'user' | 'all'; key: string; shown: string; alias: string; n: number; until: string }
 export interface PrivacyRequest { id: string; kind: string; who: string; detail: string; receivedAt: string; status: string; doneAt: string; note: string }
-export interface AdminOrg { invite?: string; id: string; name: string; createdAt: string; groups: { id: string; name: string; code: string }[]; managers: { id: string; nickname: string }[] }
+export interface AdminOrg { /** 등록할 때 확인한 내용 (관리자가 만든 동아리 · 예전 동아리는 없음) */ agreed?: { at: string; by: string; notice: string[] } | null; invite?: string; id: string; name: string; createdAt: string; groups: { id: string; name: string; code: string }[]; managers: { id: string; nickname: string }[] }
 export interface OrgPeriod { joined: number; graphs: number; posts: number; cheers: number; events: number; attended: number }
 export interface MyOrg { id: string; name: string; code: string; invite: string; managers: { id: string; nickname: string; me: boolean }[]; groups: { id: string; name: string; code: string; report: GroupReport; period: OrgPeriod | null; /** 모임장이 모임 소식을 꺼 둠 */ newsOff?: boolean }[]; total: { groups: number; members: number; sharers: number; posts: number; moments: number; cheers: number; done: number; drawing: number } }
 

@@ -24,6 +24,56 @@ export interface DevRelease { id: string; title: string; date: string; summary: 
 
 export const DEVLOG: DevRelease[] = [
   {
+    id: 'age-18',
+    title: '18차 (1.3.1-dev) — 만 14세 미만 가입 막기',
+    date: '2026-11-27',
+    summary: '보호자 동의를 화면에서 받는 방식은 아이가 혼자 통과할 수 있어서, 만 14세 미만은 가입을 받지 않기로 했어요. 실험 기능이던 ‘만 14세 미만 보호자 동의’ 는 걷어 냈어요. 정식 서버에도 그대로 적용돼요 (스위치 없음).',
+    items: [
+      {
+        title: '‘기관’ 이 ‘동아리’ 로', where: '맨 위 메뉴 · /org · 모임 화면 ‘동아리에 잇기’ · 관리자 → 동아리 · 약관', path: '/org', scope: '정식 · 개발',
+        what: '수련관 · 학교 · 복지관처럼 모임 여러 개를 묶는 곳을 부르던 ‘기관’ 을 ‘동아리’ 로 바꿨어요 (2026-11-28 사용자 결정. 모임터 → 터전 → 마을 · 마당 · 두레 · 단체 · 센터 · 마루 … 를 거쳐 ‘그냥 동아리로’). 화면 문구 · 서버 안내문 · 약관 · 처리방침 · 안내서 · README 까지 바꾸고, 주소(/org) · DB 표(orgs) · 코드 이름은 그대로예요. 그대로 둔 말: 운영 기관(약관의 운영자) · 수사기관 · ‘실제 기관에서 모임을 꾸리는 담당자’ 처럼 진짜 기관을 가리키는 곳 · 문의 주제 ‘기관 도입’. 받침이 없어져 조사를 고쳤어요(기관을 → 동아리를, 기관이 → 동아리가). 예전에 ‘동아리’ 가 작은 모임 뜻으로 쓰이던 문장(‘친구 · 동아리끼리라면 모임 만들기’ · 선 하나 활동 ‘학급 · 동아리’ · 안내서)은 ‘친구끼리’ · ‘반 친구들’ 로 바꿔 두 뜻이 섞이지 않게 했어요.',
+        check: ['맨 위 메뉴 · 휴대폰 더보기에 ‘동아리’', '/org 제목 · 등록 양식 · 확인 6줄에 ‘기관’ 이 남아 있지 않음 (‘실제 기관’ · ‘우리 기관’ 은 의도)', '모임 화면 ‘동아리에 잇기’ · 관리자 탭 ‘동아리’', '/terms · /privacy 의 동아리 조항, 운영 기관 · 수사기관은 그대로', '/activities ‘이번 학기 한 선’ 이 ‘학급 · 반 친구들’'],
+        files: 'OrgReport.tsx · GroupPage.tsx · Share.tsx · Home.tsx · AdminPage.tsx · Legal.tsx · Guide.tsx · Board.tsx · App.tsx · mobile.tsx · flags.ts · content.ts (ORG_NOTICE) · seo.ts · Activities.tsx · server/app.ts · docs/GUIDE.md · README.md · CHANGELOG.md',
+      },
+      {
+        title: '약관 ‘바뀐 점’ 에 마크다운 조금', where: '관리자 → 설정 → 약관 다시 동의 / 이용약관 · 처리방침 맨 위 ‘최근에 바뀐 점’ / 다시 동의 창', path: '/terms', scope: '정식 · 개발',
+        what: '관리자가 올리는 ‘바뀐 점’ 글이 한 덩어리 글자로만 보이던 것을, 빈 줄 = 문단 · ‘- ’ 목록 · ‘1. ’ 번호 · ‘## ’ 작은 제목 · **굵게** · [글](https://…) 링크가 되는 작은 마크다운으로 바꿨어요 (src/md.tsx, 라이브러리 없이 40줄 · HTML 은 글자 그대로 · 링크는 http(s) 만). 관리자 입력 칸은 7줄 · 2000자(전 1000자)로 늘고 아래에 ‘회원에게 이렇게 보여요’ 를 누르면 열리고 닫히는 미리보기가 붙어요. 예전에 올린 보통 글도 그대로 보여요.',
+        check: ['관리자 → 설정 → 약관 다시 동의에 “- **새 기능**” 두 줄을 적으면 아래 미리보기에 점 목록 · 굵게', '올린 뒤 /terms 맨 위 ‘최근에 바뀐 점’ 과 회원 다시 동의 창에 같은 모양', '<b>x</b> 같은 HTML 은 글자 그대로'],
+        files: 'src/md.tsx (새) · src/md.test.tsx · Legal.tsx · App.tsx (TermsPrompt) · AdminPage.tsx (TermsSettings) · server/app.ts (2000자) · styles.css',
+      },
+      {
+        title: '푸터는 공개 안내 화면에만', where: 'PC 화면 아래', path: '/graph/new', scope: '정식 · 개발',
+        what: '어느 화면에나 붙어 있던 푸터를 공개 안내 화면(처음 · 1분 투어 · 선 하나 활동 · 진행자 안내서 · 예시 · 함께 소개 · 만든 사람 · 이용약관 · 처리방침 · 문의 · 종이 활동지 — 검색에 내보내는 PUBLIC_PAGES 와 같은 목록)에서만 보이게 했어요. 그리기 · 결과 · 기록 · 모임 · 기관 · 관리자 · 로그인 같은 작업 화면은 아래가 비어요. 휴대폰 화면은 원래 푸터가 없어요.',
+        check: ['/ · /activities · /guide 아래 푸터 있음', '/graph/new · /me · /groups/… · /org · /admin · /login 아래 푸터 없음'],
+        files: 'App.tsx (SiteFooter 조건) · seo.ts (PUBLIC_PAGES 재사용) · CHANGELOG.md',
+      },
+      {
+        title: '만 14세 미만은 가입되지 않아요', where: '로그인 → 처음이에요 / 모임 초대 링크', path: '/login', scope: '정식 · 개발',
+        what: '가입할 때 생년월일로 만 나이를 봐서 만 14세 미만이면 서버가 막고(403) ‘만 14세 미만은 가입할 수 없어요. 로그인 없이도 이 기기에 저장하며 쓸 수 있어요.’ 를 보여 줘요. 가입 화면에는 ‘저는 만 14세 이상이에요.’ 필수 체크가 따로 있고, 서버도 이 확인이 없으면 받지 않아요(400). 한 번 막힌 이름은 날짜를 고쳐 넣어도 하루 동안 가입되지 않아요 (서버 메모리에만 두어 다시 켜면 풀리고, 같은 이름의 다른 사람도 그날은 막혀요). 초대 링크로 처음 온 사람도 같은 곳을 거쳐 똑같이 막혀요. 이미 있는 계정의 로그인은 그대로예요 (생년월일을 되돌릴 수 없는 값으로만 보관해서 나이를 알 수 없어요). 막은 횟수는 누적 숫자 하나로만 세서(meta.under14_blocked, 누구인지는 남기지 않음) 관리자 → 한눈에 ‘이번 주 새로 가입’ 아래에 ‘만 14세 미만이라 막음 n번’ 으로 보여요 (0이면 안 보임).',
+        check: ['생년월일 20150505 로 가입 → 안내가 뜨고 가입되지 않음', '같은 이름으로 생년월일만 20000101 로 고쳐 다시 → 여전히 막힘', '‘만 14세 이상’ 체크를 안 하면 넘어가지 않음', '만 14세 생일이 오늘인 날짜 → 가입됨, 내일인 날짜 → 막힘', '초대 링크(/join/코드)에서도 같은 안내', '로그인 없이 그래프 그리기는 그대로 됨', '막힌 뒤 관리자 → 한눈에 ‘이번 주 새로 가입’ 아래 ‘만 14세 미만이라 막음 1번’'],
+        files: 'server/app.ts (createUser · UNDER14_MESSAGE · /admin/overview under14Blocked) · AdminPage.tsx (Overview) · api.ts · server/app.test.ts · e2e/flows.e2e.ts',
+      },
+      {
+        title: '보호자 동의 기능 걷어 냄', where: '가입 화면 · 처음 화면 · 내 기록 · /guardian/…', scope: '정식 · 개발',
+        what: '가입 화면의 보호자 칸, 보호자 확인 링크 안내와 확인 페이지(/guardian/토큰), 실험 기능 스위치의 ‘만 14세 미만 보호자 동의’ 를 없앴어요. 예전에 보호자 기록과 함께 가입한 계정은 그대로 남고, 관리자 → 사람 화면에 ‘만 14세 미만’ 표시와 보호자 정보가 계속 보여요 (지울지 판단할 수 있게). 그런 계정은 여전히 기관을 등록할 수 없어요.',
+        check: ['관리자 → 설정 → 실험 기능 스위치에 보호자 동의가 없음', '/guardian/아무값 → 없는 페이지', '예전 보호자 기록이 있는 계정은 관리자 → 사람에서 표시가 보임'],
+        files: 'Login.tsx · Join.tsx · App.tsx · mobile.tsx · Home.tsx · MyGraphs.tsx · api.ts · flags.ts · styles.css · (지움) GuardianNotice.tsx · GuardianConsent.tsx',
+      },
+      {
+        title: '기관 등록 전 확인 6줄 · 확인 기록 남기기', where: '기관 → 기관 등록하기 / 관리자 → 기관', path: '/org', scope: '정식 · 개발',
+        what: '기관을 등록하기 전에 체크하는 확인이 3줄 → 6줄. 더한 줄: 그려봄은 운영자가 따로 운영하고 기관은 이용하는 쪽 · 가입을 강제하지 않고 약관과 처리방침을 미리 안내 · 만 14세 미만에게 가입을 권하거나 나이를 속이게 하지 않기. 등록하면 확인한 시각 · 누가 · 그때의 문구를 기관 정보에 그대로 남기고(orgs.agreed), 관리자 → 기관 표의 ‘등록 전 확인’ 칸에 ‘6줄 확인’ 으로 보여요 (마우스를 올리면 문구). 관리자가 만든 기관 · 예전에 등록한 기관은 ‘기록 없음’. 이미 등록한 기관에 다시 확인받는 것은 아직 없어요.',
+        check: ['/org 에서 6줄을 모두 체크해야 등록 단추가 눌림', '등록 뒤 관리자 → 기관 표에 ‘6줄 확인’', '예전 기관은 ‘기록 없음’'],
+        files: 'src/content.ts (ORG_NOTICE) · OrgReport.tsx · server/app.ts (POST /orgs · orgView) · server/db.ts (orgs.agreed) · AdminPage.tsx',
+      },
+      {
+        title: '약관 · 처리방침: 만 14세 미만', where: '이용약관 제4조 · 제8조(기관 등록) · 개인정보 처리방침 4번', path: '/terms', scope: '정식 · 개발',
+        what: '약관: 만 14세 미만은 가입할 수 없고, 이용자가 만 14세 이상임을 직접 확인해야 하며, 나이를 속여 가입한 것을 알게 되면 알리지 않고 지울 수 있음. 속여서 생긴 문제의 책임은 속인 이용자에게 있고 운영자는 고의 · 중대한 과실이 없는 한 책임지지 않음. 만 14세 미만 가입을 알게 되면 문의하기로 알려 달라는 안내. 기관 등록 전 확인은 아래 ‘기관 등록 전 확인’ 항목 참고. 기관 담당자는 만 14세 미만에게 가입을 권하거나 나이를 속이게 하면 안 됨. 처리방침 4번: 만 14세 미만의 정보는 받지 않고, 알게 되면 바로 지움. 표에서 ‘만 14세 미만 가입(보호자 정보)’ 줄을 뺌. 기본 시행일을 2026년 11월 27일로. 바뀐 점 정리는 개발/약관-처리방침-1.3.1-바뀐점.md',
+        check: ['/terms 에 ‘만 14세 미만은 가입할 수 없습니다’', '/privacy 4번이 ‘받지 않습니다’ 로 바뀜', '정식에 올릴 때 관리자 → 사이트 설정 → 시행일과 ‘최근에 바뀐 점’ 을 함께 바꾸기'],
+        files: 'src/pages/Legal.tsx · src/pages/OrgReport.tsx (ORG_NOTICE)',
+      },
+    ],
+  },
+  {
     id: 'lab-17',
     title: '17차 (1.3.0-dev) — 로그인 하나로 · 사이트 지도 보드 (실험)',
     date: '2026-11-24',
@@ -93,7 +143,7 @@ export const DEVLOG: DevRelease[] = [
         title: '선 하나 활동 새 틀 (B안 · 고르고 보기)', where: '/activities', path: '/activities', scope: '정식 · 개발',
         what: '다섯 장 카드 대신 두 칸: 왼쪽 목록에서 활동을 고르면 오른쪽 큰 카드에 선 그림 크게 · ‘이렇게 해요’ 세 칸 · 건넬 질문 · 큰 ‘이 틀로 그리기’. 위에 ‘짧은 활동 | 모임 진행안’ 전환. 진행안은 탭으로 고르고 시간 띠(단계별 분 비율) · ‘5분 · 할 일’ 목록 · 오른쪽 ‘50분 · 6단계 · 진행자 한마디’ 상자. 프로토타입 A(행 목록) · B(두 칸) 중 B 를 골라 반영. 처음 넣은 .seg 이름이 로그인 화면의 ‘로그인 | 처음이에요’ 전환과 겹쳐 모양이 깨졌던 것을 .act-seg 로 바꿔 고침. 안 쓰게 된 카드 · 줄 목록 CSS 는 지움. 모임 화면 ‘진행안 모음’ 에도 같은 시간 띠 · 분 목록(splitStep 을 content.ts 로 옮겨 같이 씀). 어두운 모드 확인.',
         check: ['/activities 왼쪽 목록 누르면 오른쪽 바뀜 · 이 틀로 그리기 → /graph/new?tpl=', '모임 진행안 전환 → 탭 다섯 · 시간 띠 · 모임 만들기', '/login 로그인 | 처음이에요 전환 모양 멀쩡', '휴대폰 폭: 목록이 가로 칩, 카드 한 줄', '모임 화면 → 진행안 모음 → 진행안 고르면 시간 띠 · 분 목록', '어두운 모드에서 카드 · 칸 배경'],
-        files: 'pages/Activities.tsx · pages/GroupPage.tsx (PlaybooksCard) · content.ts (splitStep) · styles.css (선 하나 활동 B안 블록 · 옛 activity-grid/playbook-list 블록 삭제) · CHANGELOG.md',
+        files: 'e2e/flows.e2e.ts (선 하나 활동 흐름) · pages/Activities.tsx · pages/GroupPage.tsx (PlaybooksCard) · content.ts (splitStep) · styles.css (선 하나 활동 B안 블록 · 옛 activity-grid/playbook-list 블록 삭제) · CHANGELOG.md',
       },
       {
         title: '선 하나 활동 · 진행자 안내서 보강 · 약관 최신화', where: '/activities · /guide · /terms · /privacy', path: '/guide', scope: '정식 · 개발',
